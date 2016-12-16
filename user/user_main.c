@@ -168,20 +168,12 @@ void console_handle_command(struct espconn *pespconn)
     cmd_line[bytes_count] = 0;
     nTokens = parse_str_into_tokens(cmd_line, tokens, 5);
 
-#if 0
-    os_printf("Command is %s [%d]\n", cmd_line, os_strlen(cmd_line));
-    for (i=0; i< nTokens; i++)
-        os_printf("Token[%2d] : %s \n", i, tokens[i]);
-#endif
-
     if (strcmp(tokens[0], "save") == 0)
     {
         config_save(0, &config);
         os_sprintf(response, "Done!\r\n");
         fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
-        /* enque the result into the tx buffer, and signal the mail task */
-        //espconn_sent(pespconn, response, os_strlen(response));
     }
 
     if (strcmp(tokens[0], "help") == 0)
@@ -534,6 +526,8 @@ void ICACHE_FLASH_ATTR user_init()
     // Initialize the GPIO subsystem.
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
     //UART_init(BIT_RATE_115200, BIT_RATE_115200, 0);
+
+    os_printf("\r\n\r\nWiFi Repeater starting\r\n");
 
     // Load WiFi-config
     config_load(0, &config);

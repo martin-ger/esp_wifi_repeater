@@ -9,7 +9,7 @@
 #include "os_type.h"
 #include "spi_flash.h"
 
-#define MAGIC_NUMBER    0xf0f0f0f0
+#define MAGIC_NUMBER    0x01200340
 
 typedef struct
 {
@@ -30,6 +30,7 @@ typedef struct
     uint8_t     ap_open;           // Should we use no WPA
 
     uint8_t     locked;		// Should we allow for config changes
+    uint8_t	padding[3];	// to get a multiple of 4
 
 #ifdef MQTT_CONFIG
     /* Specific to MQTT */

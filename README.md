@@ -18,7 +18,8 @@ ap_ssid: MyAP
 ap_password: none
 ap_open: 1
 
-This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
+This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
+For me TCP configuration (write_flash) currently fails on an ESP-01 modul, but works fine on any ESP-12.
 
 The console understands the following command:
 - help: prints a short help message
