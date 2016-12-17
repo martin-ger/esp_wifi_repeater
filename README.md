@@ -8,7 +8,7 @@ To build this binary you need the esp-open-sdk (https://github.com/pfalcon/esp-o
 
 Then adjust the BUILD_AREA variable in the Makefile and build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
 
-If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB1 write_flash 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin"
+If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin"
 
 # Usage
 The Firmware starts with the following default configuration:
@@ -19,7 +19,6 @@ ap_password: none
 ap_open: 1
 
 This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
-For me TCP configuration (write_flash) currently fails on an ESP-01 modul, but works fine on any ESP-12.
 
 The console understands the following command:
 - help: prints a short help message
@@ -30,3 +29,7 @@ The console understands the following command:
 - reset: resets the esp
 - lock: locks the current config, changes are not allowed
 - unlock [password]: unlocks the config, requires password of the network AP
+
+# Known Issues
+- Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vcc and Gnd can help if you experience problems here.
+- For me some versions of the ESP-ß1 seem to have problems with the ESP SDK V2.0. In this case SDK V1.5 works.
