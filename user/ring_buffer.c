@@ -92,7 +92,30 @@ int ring_buffer_enqueue(ring_buffer_t *rbuff, uint8_t ch)
 
 }
 
-uint8_t ring_buffer_dequeue(ring_buffer_t *rbuff)
+#ifdef RB_ENABLE_DISCARD
+int ring_buffer_enqueue_bulk(ring_buffer_t *rbuff, uint8_t *inp, int len)
+{
+    int temp_flag = 0;
+    if (rbuff == NULL) return -1;               // Check for valid structure
+    if (rbuff->buffer == NULL) return -1;       // Check if it in initialized
+
+    if (rbuff->data_present + len > rbuff->buffer_size) return -1; // too large - discard all
+    
+    if (rbuff->end_ptr - rbuff->write_ptr > len) {
+	os_memcpy(rbuff->write_ptr, inp, len);
+	rbuff->write_ptr += len;
+	rbuff->data_present += len;
+    } else {
+	int i;
+	for (i=0; i<len;i++) {
+	   ring_buffer_enqueue(rbuff, inp[i]);
+	}
+    }
+    return 0;
+}
+#endif
+
+int ring_buffer_dequeue(ring_buffer_t *rbuff)
 {
     uint8_t ch;
     if (rbuff == NULL) return -1;               // Check for valid structure
@@ -101,7 +124,7 @@ uint8_t ring_buffer_dequeue(ring_buffer_t *rbuff)
     if (rbuff->data_present == 0)
     {
         DBG("\nDeQueuuing from RingBuffer - No Data in ring buffer [%d] \n", rbuff->data_present);
-        return 0;
+        return -1;
     }
     else
     {
@@ -114,7 +137,7 @@ uint8_t ring_buffer_dequeue(ring_buffer_t *rbuff)
 
     //DBG("DeQueuuing from RingBuffer %c [%3d]\n", ch, rbuff->data_present);
 
-    return ch;
+    return (int)ch;
 }
 
 uint16_t ring_buffer_data(ring_buffer_t *rbuff)

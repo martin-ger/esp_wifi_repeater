@@ -19,7 +19,14 @@
 #include "ring_buffer.h"
 #include "config_flash.h"
 
-/* Hold the sytem wise configuration */
+#ifdef REMOTE_MONITORING
+#include "pcap.h"
+#endif
+
+/* Some stats */
+uint32_t Bytes_in = 0, Bytes_out = 0;
+
+/* Hold the system wide configuration */
 sysconfig_t config;
 
 /* System Task, for signals refer to user_config.h */
@@ -29,11 +36,166 @@ os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
 static ring_buffer_t *console_rx_buffer, *console_tx_buffer;
-static char hwaddr[6];
+
+struct netif *netif_ap;
+static netif_input_fn orig_input_ap;
+static netif_linkoutput_fn orig_output_ap;
+
+#ifdef REMOTE_MONITORING
+static uint8_t monitoring_on = 0;
+static ring_buffer_t *pcap_buffer;
+struct espconn *cur_mon_conn;
+static uint8_t monitoring_send_ongoing = 0;
+
+static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
+{
+    uint16_t len, remainder;
+
+    struct espconn *pespconn = (struct espconn *)arg;
+    //os_printf("tcp_client_sent_cb(): Data sent to monitor\n");
+
+    monitoring_send_ongoing = 0;
+    if (!monitoring_on) return;
+
+    len = pcap_buffer->data_present;
+    if (len > 0) {
+	 if (len > 1400)
+		 len = 1400;
+
+         remainder = pcap_buffer->end_ptr - pcap_buffer->read_ptr + 1;
+	 if (remainder < len)
+		 len = remainder;
+
+	 //os_printf("tcp_monitor_sent_cb(): %d Bytes sent to monitor\n", len);
+	 espconn_sent(pespconn, pcap_buffer->read_ptr, len);
+	 monitoring_send_ongoing = 1;
+
+	 pcap_buffer->data_present -= len;
+	 pcap_buffer->read_ptr += len;
+	 if (pcap_buffer->read_ptr == pcap_buffer->end_ptr + 1)
+		 pcap_buffer->read_ptr = pcap_buffer->buffer;
+     }
+}
+
+static void ICACHE_FLASH_ATTR tcp_monitor_discon_cb(void *arg)
+{
+    os_printf("tcp_monitor_discon_cb(): client disconnected\n");
+    struct espconn *pespconn = (struct espconn *)arg;
+
+    monitoring_on = 0;
+    while (pcap_buffer->data_present)
+	ring_buffer_dequeue(pcap_buffer);
+}
 
 
+/* Called when a client connects to the monitor server */
+static void ICACHE_FLASH_ATTR tcp_monitor_connected_cb(void *arg)
+{
+    struct espconn *pespconn = (struct espconn *)arg;
+    struct pcap_file_header pcf_hdr;
 
-int fputs_into_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int length)
+    os_printf("tcp_monitor_connected_cb(): Client connected\r\n");
+
+    pcap_buffer->write_ptr = pcap_buffer->read_ptr = pcap_buffer->buffer;
+    pcap_buffer->end_ptr = pcap_buffer->buffer + pcap_buffer->buffer_size - 1;
+    pcap_buffer->rb_empty = 1;
+    pcap_buffer->rb_full = 0;
+    pcap_buffer->data_present = 0;
+
+    cur_mon_conn = pespconn;
+
+    espconn_regist_sentcb(pespconn,     tcp_monitor_sent_cb);
+    espconn_regist_disconcb(pespconn,   tcp_monitor_discon_cb);
+    //espconn_regist_recvcb(pespconn,     tcp_client_recv_cb);
+    espconn_regist_time(pespconn,  300, 1);  // Specific to console only
+
+    pcf_hdr.magic 		= PCAP_MAGIC_NUMBER;
+    pcf_hdr.version_major 	= PCAP_VERSION_MAJOR;
+    pcf_hdr.version_minor	= PCAP_VERSION_MINOR;
+    pcf_hdr.thiszone 		= 0;
+    pcf_hdr.sigfigs 		= 0;
+    pcf_hdr.snaplen 		= 1600;
+    pcf_hdr.linktype		= LINKTYPE_ETHERNET;
+
+    espconn_sent(pespconn, (uint8_t *)&pcf_hdr, sizeof(pcf_hdr));
+    monitoring_send_ongoing = 1;
+
+    monitoring_on = 1;
+}
+
+
+int ICACHE_FLASH_ATTR put_packet_to_ringbuf(ring_buffer_t *buf, struct pbuf *p) {
+  struct pcap_pkthdr pcap_phdr;
+  uint32_t t_usecs;
+
+    if (buf->buffer_size-buf->data_present >= sizeof(pcap_phdr)+p->len) {
+       //os_printf("Put %d Bytes into RingBuff\r\n", sizeof(pcap_phdr)+p->len);
+       t_usecs = system_get_time(); 
+       pcap_phdr.ts_sec = t_usecs/1000000;
+       pcap_phdr.ts_usec = t_usecs%1000000;
+       pcap_phdr.caplen = p->len;
+       pcap_phdr.len = p->tot_len;
+       ring_buffer_enqueue_bulk(buf, (uint8_t*)&pcap_phdr, sizeof(pcap_phdr));
+       if (p->len != p->tot_len) 
+	   os_printf(">>>Len %d != TotalLen %d!\r\n", p->len, p->tot_len); 
+       ring_buffer_enqueue_bulk(buf, p->payload, p->len);
+    } else {
+       //os_printf("Packet with %d Bytes discarded\r\n", p->len);
+       return -1;
+    }
+  return 0;
+}
+#endif
+
+err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
+
+    //os_printf("Got packet from STA\r\n");
+    Bytes_in += p->tot_len;
+
+#ifdef REMOTE_MONITORING
+    if (monitoring_on) {
+       if (put_packet_to_ringbuf(pcap_buffer, p) == 0) {
+	       if (!monitoring_send_ongoing)
+		    tcp_monitor_sent_cb(cur_mon_conn);
+       } else {
+#ifdef DROP_PACKET_IF_NOT_RECORDED
+               pbuf_free(p);
+	       return;
+#else 
+       	       os_printf(".", p->len);
+#endif
+       }
+    }
+#endif
+
+    orig_input_ap (p, inp);
+}
+
+err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
+
+    //os_printf("Send packet to STA\r\n");
+    Bytes_out += p->tot_len;
+
+#ifdef REMOTE_MONITORING
+    if (monitoring_on) {
+       if (put_packet_to_ringbuf(pcap_buffer, p) == 0) {
+	       if (!monitoring_send_ongoing)
+		    tcp_monitor_sent_cb(cur_mon_conn);
+       } else {
+#ifdef DROP_PACKET_IF_NOT_RECORDED
+               pbuf_free(p);
+	       return;
+#else 
+       	       os_printf(".", p->len);
+#endif
+       }
+    }
+#endif
+
+    orig_output_ap (outp, p);
+}
+
+int ICACHE_FLASH_ATTR fputs_into_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int length)
 {
     uint8_t index = 0, ch;
     for (index = 0; index < length; index++)
@@ -45,7 +207,7 @@ int fputs_into_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int length)
     return index;
 }
 
-int fgets_from_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int max_length)
+int ICACHE_FLASH_ATTR fgets_from_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int max_length)
 {
     uint8_t max_unload, i, index = 0;
     uint8_t bytes_ringbuffer = buffer->data_present;
@@ -206,6 +368,8 @@ void console_handle_command(struct espconn *pespconn)
                    config.ap_password,
                    config.ap_open);
            fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+           os_sprintf(response, "Bytes in %d Bytes out %d\r\n", Bytes_in, Bytes_out);
+           fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
         }
     }
@@ -328,7 +492,7 @@ command_handled:
     return;
 }
 
-
+#ifdef REMOTE_CONFIG
 static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
                                                  char *data,
                                                  unsigned short length)
@@ -351,11 +515,6 @@ static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
     *(data+length) = 0;
 }
 
-static void ICACHE_FLASH_ATTR tcp_client_sent_cb(void *arg)
-{
-    struct espconn *pespconn = (struct espconn *)arg;
-    os_printf("tcp_client_sent_cb(): Data sent to client\n");
-}
 
 static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
 {
@@ -363,7 +522,8 @@ static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
     struct espconn *pespconn = (struct espconn *)arg;
 }
 
-/* Called wen a client connects to server */
+
+/* Called when a client connects to the console server */
 static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 {
     char payload[128];
@@ -371,15 +531,14 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 
     os_printf("tcp_client_connected_cb(): Client connected\r\n");
 
-	wifi_get_macaddr(0, hwaddr);
-
     //espconn_regist_sentcb(pespconn,     tcp_client_sent_cb);
     espconn_regist_disconcb(pespconn,   tcp_client_discon_cb);
     espconn_regist_recvcb(pespconn,     tcp_client_recv_cb);
-    espconn_regist_time(pespconn,  15, 1);  // Specific to console only
+    espconn_regist_time(pespconn,  300, 1);  // Specific to console only
     os_sprintf(payload, "CMD>");
     espconn_sent(pespconn, payload, os_strlen(payload));
 }
+#endif
 
 
 //Priority 0 Task
@@ -396,7 +555,15 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 	netif_sta = netif_list->next;
 	//os_printf("STA: %c%c%d\r\n", netif_sta->name[0], netif_sta->name[1], netif_sta->num);
 
+	/* Switch AP to NAT */
 	netif_ap->napt = 1;
+
+	/* Hook into the traffic of the internal AP */
+	orig_input_ap = netif_ap->input;
+	netif_ap->input = my_input_ap;
+
+	orig_output_ap = netif_ap->linkoutput;
+	netif_ap->linkoutput = my_output_ap;
 
         break;
 
@@ -536,7 +703,8 @@ void ICACHE_FLASH_ATTR user_init()
     wifi_set_opmode(STATIONAP_MODE);
     user_set_softap_config();
 
-    os_printf("Starting TCP Server on %d port\r\n", SERVER_PORT);
+#ifdef REMOTE_CONFIG
+    os_printf("Starting Console TCP Server on %d port\r\n", CONSOLE_SERVER_PORT);
     struct espconn *pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
     if (pCon == NULL)
     {
@@ -548,13 +716,39 @@ void ICACHE_FLASH_ATTR user_init()
     pCon->type  = ESPCONN_TCP;
     pCon->state = ESPCONN_NONE;
     pCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
-    pCon->proto.tcp->local_port = SERVER_PORT;
+    pCon->proto.tcp->local_port = CONSOLE_SERVER_PORT;
 
     /* Register callback when clients connect to the server */
     espconn_regist_connectcb(pCon, tcp_client_connected_cb);
 
     /* Put the connection in accept mode */
     espconn_accept(pCon);
+#endif
+
+#ifdef REMOTE_MONITORING
+    pcap_buffer = ring_buffer_init(0x4000);
+
+    os_printf("Starting Monitor TCP Server on %d port\r\n", MONITOR_SERVER_PORT);
+    struct espconn *mCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
+    if (mCon == NULL)
+    {
+        os_printf("CONNECT FAIL\r\n");
+        return;
+    }
+
+    /* Equivalent to bind */
+    mCon->type  = ESPCONN_TCP;
+    mCon->state = ESPCONN_NONE;
+    mCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
+    mCon->proto.tcp->local_port = MONITOR_SERVER_PORT;
+
+    /* Register callback when clients connect to the server */
+    espconn_regist_connectcb(mCon, tcp_monitor_connected_cb);
+
+    /* Put the connection in accept mode */
+    espconn_accept(mCon);
+#endif
+
 
     // Now start the STA-Mode
     user_set_station_config();

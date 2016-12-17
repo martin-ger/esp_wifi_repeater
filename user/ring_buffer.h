@@ -21,7 +21,8 @@ typedef struct ring_buffer
 
 ring_buffer_t * ring_buffer_init(int max_size);
 int             ring_buffer_enqueue(ring_buffer_t *rbuff, uint8_t ch);
-uint8_t         ring_buffer_dequeue(ring_buffer_t *rbuff);
+int		ring_buffer_enqueue_bulk(ring_buffer_t *rbuff, uint8_t *inp, int len);
+int             ring_buffer_dequeue(ring_buffer_t *rbuff);
 uint16_t        ring_buffer_data(ring_buffer_t *rbuff);
 uint16_t        ring_buffer_clear(ring_buffer_t *rbuff);
 #endif // _RING_BUFFER_H_
