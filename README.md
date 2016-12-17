@@ -32,4 +32,4 @@ The console understands the following command:
 
 # Known Issues
 - Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vcc and Gnd can help if you experience problems here.
-- For me some versions of the ESP-ß1 seem to have problems with the ESP SDK V2.0. In this case SDK V1.5 works.
+- For me some versions of the ESP-01 seem to have problems with the ESP SDK V2.0. In this case SDK V1.5 works.
