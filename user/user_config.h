@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX } USER_SIGNALS;
+typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_PACKET } USER_SIGNALS;
 
 #define WIFI_SSID            "ssid"
 #define WIFI_PASSWORD        "password"
@@ -20,11 +20,18 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 
 //
 // Define this if you want to offer monitoring access to all transmitted data between the soft AP and all STAs.
-// Data is mirrored in pcap format to the given port
+// Packets are mirrored in pcap format to the given port.
 // CAUTION: this might be a privacy issue!!!
 //
 //#define REMOTE_MONITORING  1
+
 #define MONITOR_SERVER_PORT  8888
+#define MONITOR_BUFFER_SIZE 0x4000
+
+// Define this if you want to cut packets short in case of too high data rate
+#define MONITOR_BUFFER_TIGHT 0x1000
+
+// Define this if you want to silently drop any packet that cannot be send to the monitor
 //#define DROP_PACKET_IF_NOT_RECORDED 1
 
 #endif

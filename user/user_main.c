@@ -15,8 +15,8 @@
 #include "string.h"
 #include "driver/uart.h"
 
+#include "ringbuf.h"
 #include "user_config.h"
-#include "ring_buffer.h"
 #include "config_flash.h"
 
 #ifdef REMOTE_MONITORING
@@ -35,21 +35,23 @@ sysconfig_t config;
 os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
-static ring_buffer_t *console_rx_buffer, *console_tx_buffer;
+static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 struct netif *netif_ap;
 static netif_input_fn orig_input_ap;
 static netif_linkoutput_fn orig_output_ap;
 
 #ifdef REMOTE_MONITORING
-static uint8_t monitoring_on = 0;
-static ring_buffer_t *pcap_buffer;
+static uint8_t monitoring_on;
+static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
-static uint8_t monitoring_send_ongoing = 0;
+static uint8_t monitoring_send_ongoing;
+
 
 static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
 {
-    uint16_t len, remainder;
+    uint16_t len;
+    static uint8_t tbuf[1400];
 
     struct espconn *pespconn = (struct espconn *)arg;
     //os_printf("tcp_client_sent_cb(): Data sent to monitor\n");
@@ -57,23 +59,18 @@ static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
     monitoring_send_ongoing = 0;
     if (!monitoring_on) return;
 
-    len = pcap_buffer->data_present;
+    len = ringbuf_bytes_used(pcap_buffer);
     if (len > 0) {
 	 if (len > 1400)
 		 len = 1400;
 
-         remainder = pcap_buffer->end_ptr - pcap_buffer->read_ptr + 1;
-	 if (remainder < len)
-		 len = remainder;
-
+	 ringbuf_memcpy_from(tbuf, pcap_buffer, len);
 	 //os_printf("tcp_monitor_sent_cb(): %d Bytes sent to monitor\n", len);
-	 espconn_sent(pespconn, pcap_buffer->read_ptr, len);
+	 if (espconn_sent(pespconn, tbuf, len) != 0) {
+		os_printf("TCP send error\r\n");
+		return;
+	 }
 	 monitoring_send_ongoing = 1;
-
-	 pcap_buffer->data_present -= len;
-	 pcap_buffer->read_ptr += len;
-	 if (pcap_buffer->read_ptr == pcap_buffer->end_ptr + 1)
-		 pcap_buffer->read_ptr = pcap_buffer->buffer;
      }
 }
 
@@ -83,8 +80,6 @@ static void ICACHE_FLASH_ATTR tcp_monitor_discon_cb(void *arg)
     struct espconn *pespconn = (struct espconn *)arg;
 
     monitoring_on = 0;
-    while (pcap_buffer->data_present)
-	ring_buffer_dequeue(pcap_buffer);
 }
 
 
@@ -96,11 +91,7 @@ static void ICACHE_FLASH_ATTR tcp_monitor_connected_cb(void *arg)
 
     os_printf("tcp_monitor_connected_cb(): Client connected\r\n");
 
-    pcap_buffer->write_ptr = pcap_buffer->read_ptr = pcap_buffer->buffer;
-    pcap_buffer->end_ptr = pcap_buffer->buffer + pcap_buffer->buffer_size - 1;
-    pcap_buffer->rb_empty = 1;
-    pcap_buffer->rb_full = 0;
-    pcap_buffer->data_present = 0;
+    ringbuf_reset(pcap_buffer);
 
     cur_mon_conn = pespconn;
 
@@ -124,21 +115,29 @@ static void ICACHE_FLASH_ATTR tcp_monitor_connected_cb(void *arg)
 }
 
 
-int ICACHE_FLASH_ATTR put_packet_to_ringbuf(ring_buffer_t *buf, struct pbuf *p) {
+int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
   struct pcap_pkthdr pcap_phdr;
   uint32_t t_usecs;
+  uint32_t len = p->len;
 
-    if (buf->buffer_size-buf->data_present >= sizeof(pcap_phdr)+p->len) {
+#ifdef MONITOR_BUFFER_TIGHT
+    if (ringbuf_bytes_free(pcap_buffer) < MONITOR_BUFFER_TIGHT) {
+       if (len > 60) {
+	  len = 60;
+          //os_printf("Packet cut\n");
+       }
+    }
+#endif
+
+    if (ringbuf_bytes_free(pcap_buffer) >= sizeof(pcap_phdr)+len) {
        //os_printf("Put %d Bytes into RingBuff\r\n", sizeof(pcap_phdr)+p->len);
-       t_usecs = system_get_time(); 
+       t_usecs = system_get_time();
        pcap_phdr.ts_sec = t_usecs/1000000;
        pcap_phdr.ts_usec = t_usecs%1000000;
-       pcap_phdr.caplen = p->len;
+       pcap_phdr.caplen = len;
        pcap_phdr.len = p->tot_len;
-       ring_buffer_enqueue_bulk(buf, (uint8_t*)&pcap_phdr, sizeof(pcap_phdr));
-       if (p->len != p->tot_len) 
-	   os_printf(">>>Len %d != TotalLen %d!\r\n", p->len, p->tot_len); 
-       ring_buffer_enqueue_bulk(buf, p->payload, p->len);
+       ringbuf_memcpy_into(pcap_buffer, (uint8_t*)&pcap_phdr, sizeof(pcap_phdr));
+       ringbuf_memcpy_into(pcap_buffer, p->payload, len);
     } else {
        //os_printf("Packet with %d Bytes discarded\r\n", p->len);
        return -1;
@@ -147,6 +146,7 @@ int ICACHE_FLASH_ATTR put_packet_to_ringbuf(ring_buffer_t *buf, struct pbuf *p) 
 }
 #endif
 
+static uint8_t columns = 0;
 err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 
     //os_printf("Got packet from STA\r\n");
@@ -154,15 +154,17 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 
 #ifdef REMOTE_MONITORING
     if (monitoring_on) {
-       if (put_packet_to_ringbuf(pcap_buffer, p) == 0) {
-	       if (!monitoring_send_ongoing)
-		    tcp_monitor_sent_cb(cur_mon_conn);
-       } else {
+       system_os_post(user_procTaskPrio, SIG_PACKET, 0 );
+       if (put_packet_to_ringbuf(p) != 0) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
 	       return;
 #else 
-       	       os_printf(".", p->len);
+       	       os_printf("x");
+	       if (++columns > 40) {
+		  os_printf("\r\n");
+		  columns = 0;
+	       }
 #endif
        }
     }
@@ -178,15 +180,17 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 
 #ifdef REMOTE_MONITORING
     if (monitoring_on) {
-       if (put_packet_to_ringbuf(pcap_buffer, p) == 0) {
-	       if (!monitoring_send_ongoing)
-		    tcp_monitor_sent_cb(cur_mon_conn);
-       } else {
+       system_os_post(user_procTaskPrio, SIG_PACKET, 0 );
+       if (put_packet_to_ringbuf(p) != 0) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
 	       return;
 #else 
-       	       os_printf(".", p->len);
+       	       os_printf("x");
+	       if (++columns > 40) {
+		  os_printf("\r\n");
+		  columns = 0;
+	       }
 #endif
        }
     }
@@ -195,39 +199,6 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     orig_output_ap (outp, p);
 }
 
-int ICACHE_FLASH_ATTR fputs_into_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int length)
-{
-    uint8_t index = 0, ch;
-    for (index = 0; index < length; index++)
-    {
-        ch = *(strbuffer+index);
-        ring_buffer_enqueue(buffer, ch);
-    }
-
-    return index;
-}
-
-int ICACHE_FLASH_ATTR fgets_from_ringbuff(ring_buffer_t *buffer, uint8_t *strbuffer, int max_length)
-{
-    uint8_t max_unload, i, index = 0;
-    uint8_t bytes_ringbuffer = buffer->data_present;
-    uint8_t *str  = strbuffer;
-
-    if (bytes_ringbuffer)   // If data is available in the ringbuffer
-    {
-        max_unload = (bytes_ringbuffer<max_length ? bytes_ringbuffer: max_length);
-
-        for (index = 0; index < max_unload; index++)
-        {
-            *(str) = ring_buffer_dequeue(buffer);
-
-            if (*str  == '\r') break;
-            if ((*str != '\n') && (*str != '\r')) str++;
-        }
-    }
-    *str = 0;
-    return (str - strbuffer);
-}
 
 /* Similar to strtok */
 int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
@@ -254,7 +225,7 @@ int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
                     }
                 }
                 else
-                    if((ch == ' ')||(ch=='\t')) break;
+                    if(ch <= ' ') break;
 
                 tempstr1 ++;
             }
@@ -293,20 +264,17 @@ int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
 void console_send_response(struct espconn *pespconn)
 {
     char payload[128];
-    uint8_t max_unload, i, index = 0, max_length;
+    uint8_t max_unload, max_length;
 
-    uint8_t bytes_ringbuffer = console_tx_buffer->data_present;
-    max_length = sizeof(payload);
+    uint8_t bytes_ringbuffer = ringbuf_bytes_used(console_tx_buffer);
+    max_length = sizeof(payload)-1;
 
     if (bytes_ringbuffer)   // If data is available in the ringbuffer
     {
         max_unload = (bytes_ringbuffer<max_length ? bytes_ringbuffer: max_length);
 
-        for (index = 0; index < max_unload; index++)
-        {
-            payload[index] = ring_buffer_dequeue(console_tx_buffer);
-        }
-        payload[index] = 0;
+	ringbuf_memcpy_from(payload, console_tx_buffer, max_unload);
+        payload[max_unload] = 0;
         os_sprintf(payload, "%sCMD>", payload);
 
         //os_printf("Payload: %s\n", payload);
@@ -326,7 +294,9 @@ void console_handle_command(struct espconn *pespconn)
 
     int bytes_count, nTokens, i;
 
-    bytes_count = fgets_from_ringbuff(console_rx_buffer, cmd_line, 255);
+    bytes_count = ringbuf_bytes_used(console_rx_buffer);
+    ringbuf_memcpy_from(cmd_line, console_rx_buffer, bytes_count);
+    
     cmd_line[bytes_count] = 0;
     nTokens = parse_str_into_tokens(cmd_line, tokens, 5);
 
@@ -334,14 +304,14 @@ void console_handle_command(struct espconn *pespconn)
     {
         config_save(0, &config);
         os_sprintf(response, "Done!\r\n");
-        fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
     }
 
     if (strcmp(tokens[0], "help") == 0)
     {
         os_sprintf(response, "save|reset|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open] <val>|lock|unlock <password>\r\n");
-        fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
     }
 
@@ -351,25 +321,25 @@ void console_handle_command(struct espconn *pespconn)
            os_sprintf(response, "STA: SSID %s PW:****** [AutoConnect: %2d] \r\n",
                    config.ssid,
                    config.auto_connect);
-           fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
            os_sprintf(response, "AP:  SSID %s PW:****** [Open: %2d] \r\n",
                    config.ap_ssid,
                    config.ap_open);
-           fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
         } else {
            os_sprintf(response, "STA: SSID %s PW:%s [AutoConnect: %2d] \r\n",
                    config.ssid,
                    config.password,
                    config.auto_connect);
-           fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
            os_sprintf(response, "AP:  SSID %s PW:%s [Open: %2d] \r\n",
                    config.ap_ssid,
                    config.ap_password,
                    config.ap_open);
-           fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
            os_sprintf(response, "Bytes in %d Bytes out %d\r\n", Bytes_in, Bytes_out);
-           fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
         }
     }
@@ -377,7 +347,7 @@ void console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "reset") == 0)
     {
         os_sprintf("Restarting ... \r\n");
-        fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
         system_restart();
         goto command_handled;
@@ -387,7 +357,7 @@ void console_handle_command(struct espconn *pespconn)
     {
 	config.locked = 1;
 	os_sprintf(response, "Config locked. Please save the configuration using save command\r\n");
-	fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
     }
 
@@ -396,15 +366,15 @@ void console_handle_command(struct espconn *pespconn)
         if (nTokens != 2)
         {
             os_sprintf(response, "Invalid number of arguments\r\n");
-            fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         }
         else if (strcmp(tokens[1],config.password) == 0) {
 	    config.locked = 0;
 	    os_sprintf(response, "Config unlocked. Please save the configuration using save command\r\n");
-            fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         } else {
 	    os_sprintf(response, "Unlock failed. Invalid password\r\n");
-	    fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         }
         goto command_handled;
     }
@@ -415,7 +385,7 @@ void console_handle_command(struct espconn *pespconn)
         if (config.locked)
         {
             os_sprintf(response, "Invalid set command. Config locked\r\n");
-            fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
             goto command_handled;
         }
 
@@ -426,7 +396,7 @@ void console_handle_command(struct espconn *pespconn)
         if (nTokens < 3)
         {
             os_sprintf(response, "Invalid number of arguments\r\n");
-            fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
             goto command_handled;
         }
         else
@@ -436,7 +406,7 @@ void console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.ssid, "%s", tokens[2]);
                 os_sprintf(response, "SSID Set. Please save the configuration using save command\r\n");
-                fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -444,7 +414,7 @@ void console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.password, "%s", tokens[2]);
                 os_sprintf(response, "Password Set. Please save the configuration using save command\r\n");
-                fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -452,7 +422,7 @@ void console_handle_command(struct espconn *pespconn)
             {
                 config.auto_connect = atoi(tokens[2]);
                 os_sprintf(response, "Auto Connect Set. Please save the configuration using save command\r\n");
-                fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -460,7 +430,7 @@ void console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.ap_ssid, "%s", tokens[2]);
                 os_sprintf(response, "AP SSID Set. Please save the configuration using save command\r\n");
-                fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -468,7 +438,7 @@ void console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.ap_password, "%s", tokens[2]);
                 os_sprintf(response, "AP Password Set. Please save the configuration using save command\r\n");
-                fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -476,7 +446,7 @@ void console_handle_command(struct espconn *pespconn)
             {
                 config.ap_open = atoi(tokens[2]);
                 os_sprintf(response, "Open Auth Set. Please save the configuration using save command\r\n");
-                fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -485,7 +455,7 @@ void console_handle_command(struct espconn *pespconn)
 
     /* Control comes here only if the tokens[0] command is not handled */
     os_sprintf(response, "\r\nInvalid Command\r\n");
-    fputs_into_ringbuff(console_tx_buffer, response, os_strlen(response));
+    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
 command_handled:
     system_os_post(0, SIG_CONSOLE_TX, (ETSParam) pespconn);
@@ -504,7 +474,7 @@ static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
     for (index=0; index <length; index++)
     {
         ch = *(data+index);
-        ring_buffer_enqueue(console_rx_buffer, ch);
+	ringbuf_memcpy_into(console_rx_buffer, &ch, 1);
 
         // If a complete commandline is received, then signal the main
         // task that command is available for processing
@@ -580,7 +550,14 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
             console_handle_command(pespconn);
         }
         break;
-
+#ifdef REMOTE_MONITORING
+    case SIG_PACKET:
+        {
+            if (!monitoring_send_ongoing)
+		   tcp_monitor_sent_cb(cur_mon_conn);
+        }
+        break;
+#endif
     case SIG_UART0:
         os_printf("SIG_UART0\r\n");
         break;
@@ -687,8 +664,8 @@ void ICACHE_FLASH_ATTR user_init()
 {
     gpio_init();
 
-    console_rx_buffer = ring_buffer_init(256);
-    console_tx_buffer = ring_buffer_init(256);
+    console_rx_buffer = ringbuf_new(256);
+    console_tx_buffer = ringbuf_new(256);
 
     // Initialize the GPIO subsystem.
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
@@ -726,7 +703,9 @@ void ICACHE_FLASH_ATTR user_init()
 #endif
 
 #ifdef REMOTE_MONITORING
-    pcap_buffer = ring_buffer_init(0x4000);
+    pcap_buffer = ringbuf_new(MONITOR_BUFFER_SIZE);
+    monitoring_on = 0;
+    monitoring_send_ongoing = 0;
 
     os_printf("Starting Monitor TCP Server on %d port\r\n", MONITOR_SERVER_PORT);
     struct espconn *mCon = (struct espconn *)os_zalloc(sizeof(struct espconn));

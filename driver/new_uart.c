@@ -23,8 +23,8 @@
 #include "os_type.h"
 
 #ifdef _ENABLE_RING_BUFFER
-    static ring_buffer_t *rxBuff;
-    static ring_buffer_t *txBuff;
+    static ringbuf_t rxBuff;
+    static ringbuf_t txBuff;
 #endif
 
 #ifdef _ENABLE_CONSOLE_INTEGRATION
@@ -58,8 +58,8 @@ void ICACHE_FLASH_ATTR UART_init(UartBautRate uart0_br, UartBautRate uart1_br, u
 #if _ENABLE_CONSOLE_INTEGRATION == 1
 void ICACHE_FLASH_ATTR UART_init_console(UartBautRate uart0_br,
                                          uint8 recv_task_priority,
-                                         ring_buffer_t *rxbuffer,
-                                         ring_buffer_t *txBuffer)
+                                         ringbuf_t rxbuffer,
+                                         ringbuf_t txBuffer)
 {
     /* Set the task which should receive the signals once the data is received */
     uart_recvTaskPrio = recv_task_priority;
@@ -96,7 +96,7 @@ void ICACHE_FLASH_ATTR UART_init(UartBautRate uart0_br, UartBautRate uart1_br, u
 
     #if _ENABLE_CONSOLE_INTEGRATION == 0
         #if _ENABLE_RING_BUFFER == 1
-            rxBuff = ring_buffer_init(RX_RING_BUFFER_SIZE);
+            rxBuff = ringbuf_new(RX_RING_BUFFER_SIZE);
         #endif
     #endif
 }
@@ -193,17 +193,14 @@ int UART_Recv(uint8 uart_no, char *buffer, int max_buf_len)
 
     #if _ENABLE_RING_BUFFER == 1
     /* If the ring buffer is enabled, then unload from Rx Ring Buffer */
-    uint8 bytes_ringbuffer = rxBuff->data_present;
+    uint8 bytes_ringbuffer = ringbuf_bytes_used(rxBuff);
 
     //ring_buffer_dump(rxBuff);
     if (bytes_ringbuffer)
     {
         max_unload = (bytes_ringbuffer<max_buf_len ? bytes_ringbuffer: max_buf_len);
 
-        for (index=0;index<max_unload; index++)
-        {
-            *(buffer+index) = ring_buffer_dequeue(rxBuff);
-        }
+	ringbuf_memcpy_from(buffer, rxBuff, max_unload);
     }
     #else
     /* If the ring buffer is not enabled, then unload from Rx FIFO */
@@ -312,7 +309,7 @@ static void uart0_rx_intr_handler(void *para)
                 uint8_t ch = (READ_PERI_REG(UART_FIFO(UART0)) & 0xFF);
 
                 //if (ch == '\r') ch = '\n';
-                ring_buffer_enqueue(rxBuff, ch);
+	        ringbuf_memcpy_into(rxBuff, &ch, 1);
                 #if _ENABLE_CONSOLE_INTEGRATION == 1
                 uart_tx_one_char(uart_no, ch);
                 if (ch == '\r')

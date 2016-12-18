@@ -34,7 +34,7 @@
 #define _ENABLE_RING_BUFFER         1
 
 #ifdef _ENABLE_RING_BUFFER
-    #include "ring_buffer.h"
+    #include "ringbuf.h"
     #define RX_RING_BUFFER_SIZE 250
 #endif
 
@@ -226,8 +226,8 @@ bool UART_CheckOutputFinished(uint8 uart_no, uint32 time_out_us);
 
 void UART_init_console(UartBautRate uart0_br,
                        uint8 recv_task_priority,
-                       ring_buffer_t *rxbuffer,
-                       ring_buffer_t *txBuffer);
+                       ringbuf_t rxbuffer,
+                       ringbuf_t txBuffer);
 
 #endif
 
