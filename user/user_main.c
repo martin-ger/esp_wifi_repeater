@@ -41,6 +41,8 @@ struct netif *netif_ap;
 static netif_input_fn orig_input_ap;
 static netif_linkoutput_fn orig_output_ap;
 
+uint8_t remote_console_disconnect;
+
 #ifdef REMOTE_MONITORING
 static uint8_t monitoring_on;
 static ringbuf_t pcap_buffer;
@@ -203,68 +205,36 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 /* Similar to strtok */
 int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
 {
-    char    *tempstr, *tempstr1;
-    int     token_count = 0;
-    char    special = 0;
-    if (max_tokens <= 0) return 0;
-    tempstr = tokens[token_count] = str;
-    while (tempstr != NULL)
-    {
-        {
-            uint8_t ch;
-            tempstr1 = tempstr;
-            do
-            {
-                ch = *tempstr1;
-                if (ch == 0) break;
-                if (special != 0)
-                {
-                    if(ch == special)
-                    {
-                        break;
-                    }
-                }
-                else
-                    if(ch <= ' ') break;
+char    *p;
+int     token_count = 0;
+bool    in_token = false;
 
-                tempstr1 ++;
-            }
-            while(ch != 0);
-            if (ch == 0) tempstr1 = 0;
-        }
+   p = str;
 
-        if (tempstr1 != NULL)
-        {
-            *tempstr1 = 0;
-            tempstr1++;
-            if (*tempstr1 == '"')
-            {
-                special = '"';
-                tempstr1 ++;
-            }
-            else
-                special = 0;
-
-            if (token_count == max_tokens) break;
-
-            if(*tempstr1 != 0)
-            {
-                token_count++;
-                tokens[token_count] = tempstr1;
-            }
-        }
-
-        tempstr = tempstr1;
-    }
-
-    return token_count + 1;
+   while (*p != 0) {
+	if (*p <= ' ') {
+	   if (in_token) {
+		*p = 0;
+		in_token = false;
+	   }
+	} else {
+	   if (!in_token) {
+		tokens[token_count++] = p;
+		if (token_count == max_tokens)
+		   return token_count;
+		in_token = true;
+	   }  
+	}
+	p++;
+   }
+   return token_count;
 }
 
 
 void console_send_response(struct espconn *pespconn)
 {
-    char payload[128];
-    uint8_t max_unload, max_length;
+    char payload[257];
+    uint16_t max_unload, max_length;
 
     uint8_t bytes_ringbuffer = ringbuf_bytes_used(console_tx_buffer);
     max_length = sizeof(payload)-1;
@@ -300,9 +270,15 @@ void console_handle_command(struct espconn *pespconn)
     cmd_line[bytes_count] = 0;
     nTokens = parse_str_into_tokens(cmd_line, tokens, 5);
 
+    if (nTokens == 0) {
+	char c = '\n';
+	ringbuf_memcpy_into(console_tx_buffer, &c, 1);
+	goto command_handled;
+    }
+
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open] <val>|\r\nsave|reset [factory]|lock|unlock <password>\r\n");
+        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open] <val>|\r\nquit|save|reset [factory]|lock|unlock <password>\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
     }
@@ -364,6 +340,12 @@ void console_handle_command(struct espconn *pespconn)
 	config.locked = 1;
 	os_sprintf(response, "Config locked. Please save the configuration using save command\r\n");
 	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+        goto command_handled;
+    }
+
+    if (strcmp(tokens[0], "quit") == 0)
+    {
+	remote_console_disconnect = 1;
         goto command_handled;
     }
 
@@ -547,6 +529,9 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         {
             struct espconn *pespconn = (struct espconn *) events->par;
             console_send_response(pespconn);
+
+	    if (pespconn != 0 && remote_console_disconnect) espconn_disconnect(pespconn);
+	    remote_console_disconnect = 0;
         }
         break;
 
@@ -667,7 +652,7 @@ void ICACHE_FLASH_ATTR user_init()
 {
     gpio_init();
 
-    console_rx_buffer = ringbuf_new(256);
+    console_rx_buffer = ringbuf_new(160);
     console_tx_buffer = ringbuf_new(256);
 
     // Initialize the GPIO subsystem.
@@ -704,6 +689,8 @@ void ICACHE_FLASH_ATTR user_init()
     /* Put the connection in accept mode */
     espconn_accept(pCon);
 #endif
+
+    remote_console_disconnect = 0;
 
 #ifdef REMOTE_MONITORING
     pcap_buffer = ringbuf_new(MONITOR_BUFFER_SIZE);

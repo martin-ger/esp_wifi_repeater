@@ -26,6 +26,7 @@ The console understands the following command:
 - set ssid|pasword|ap_ssid|ap_password [value]: changes the named config parameter
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
 - save: saves the current parameters to flash
+- quit: terminates a remote session
 - reset [factory]: resets the esp, optionally resets WiFi params to default values
 - lock: locks the current config, changes are not allowed
 - unlock [password]: unlocks the config, requires password of the network AP
