@@ -31,18 +31,17 @@ int config_load(int version, sysconfig_p config)
 
     if((config->magic_number != MAGIC_NUMBER))
     {
-        os_printf("\r\nMagic Number not present, saving default configuration in flash\r\n");
+        os_printf("\r\nNo config found, saving default in flash\r\n");
         config_load_default(config);
         config_save(version, config);
         return -1;
     }
 
-    os_printf("\r\nMagic Number is present configuration is loaded\r\n");
+    os_printf("\r\nConfig found and loaded\r\n");
     spi_flash_read(base_address * SPI_FLASH_SEC_SIZE, (uint32 *) config, sizeof(sysconfig_t));
-    os_printf("\r\n Length:%d  [%d]\r\n", config->length, sizeof(sysconfig_t));
     if (config->length != sizeof(sysconfig_t))
     {
-        os_printf("Length Mismatch, old version of config probably, loading defaults\r\n");
+        os_printf("Length Mismatch, probably old version of config, loading defaults\r\n");
         config_load_default(config);
         config_save(version, config);
 	return -1;
@@ -56,6 +55,4 @@ void config_save(int version, sysconfig_p config)
     os_printf("Saving configuration\r\n");
     spi_flash_erase_sector(base_address);
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, (uint32 *)config, sizeof(sysconfig_t));
- 
-    //config_load(version, config);
 }
