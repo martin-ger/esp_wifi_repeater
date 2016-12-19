@@ -351,7 +351,7 @@ void console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "reset") == 0)
     {
 	if (nTokens == 2 && strcmp(tokens[1], "factory") == 0) {
-           config_load_default(0, &config);
+           config_load_default(&config);
            config_save(0, &config);
 	}
         os_printf("Restarting ... \r\n");
