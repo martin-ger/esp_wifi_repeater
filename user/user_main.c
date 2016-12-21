@@ -45,6 +45,7 @@ uint8_t remote_console_disconnect;
 
 #ifdef REMOTE_MONITORING
 static uint8_t monitoring_on;
+static uint16_t monitor_port;
 static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
 static uint8_t monitoring_send_ongoing;
@@ -116,6 +117,45 @@ static void ICACHE_FLASH_ATTR tcp_monitor_connected_cb(void *arg)
     monitoring_on = 1;
 }
 
+
+static void ICACHE_FLASH_ATTR start_monitor(uint16_t portno)
+{
+    if (monitoring_on) return;
+
+    pcap_buffer = ringbuf_new(MONITOR_BUFFER_SIZE);
+    monitoring_send_ongoing = 0;
+
+    os_printf("Starting Monitor TCP Server on %d port\r\n", portno);
+    struct espconn *mCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
+    if (mCon == NULL) {
+        os_printf("CONNECT FAIL\r\n");
+        return;
+    }
+
+    /* Equivalent to bind */
+    mCon->type  = ESPCONN_TCP;
+    mCon->state = ESPCONN_NONE;
+    mCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
+    mCon->proto.tcp->local_port = portno;
+
+    /* Register callback when clients connect to the server */
+    espconn_regist_connectcb(mCon, tcp_monitor_connected_cb);
+
+    /* Put the connection in accept mode */
+    espconn_accept(mCon);
+}
+
+static void ICACHE_FLASH_ATTR stop_monitor(void)
+{
+    if (monitoring_on = 1) {
+	os_printf("Stopping Monitor TCP Server\r\n");
+	espconn_disconnect(cur_mon_conn);
+    }
+
+    monitoring_on = 0;
+    monitor_port = 0;
+    ringbuf_free(&pcap_buffer);
+}
 
 int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
   struct pcap_pkthdr pcap_phdr;
@@ -278,8 +318,12 @@ void console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open] <val>|\r\nquit|save|reset [factory]|lock|unlock <password>\r\n");
+        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#ifdef REMOTE_MONITORING
+        os_sprintf(response, "|monitor [on|off] <portnumber>\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
         goto command_handled;
     }
 
@@ -306,11 +350,18 @@ void console_handle_command(struct espconn *pespconn)
                    config.ap_password,
                    config.ap_open);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#ifdef REMOTE_MONITORING
+	   if (monitor_port != 0) {
+           	os_sprintf(response, "Monitor started on port %d\r\n", monitor_port);
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   }
+#endif
 	}
 	goto command_handled;
       }
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
-           os_sprintf(response, "Bytes in %d Bytes out %d\r\n", Bytes_in, Bytes_out);
+           os_sprintf(response, "%d\t Stations connected\r\n%d\t KiB in\r\n%d\t KiB out\r\n", 
+			wifi_softap_get_station_num(), Bytes_in/1024, Bytes_out/1024);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   goto command_handled;
       }
@@ -367,6 +418,57 @@ void console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 
+#ifdef REMOTE_MONITORING
+    if (strcmp(tokens[0],"monitor") == 0) {
+        if (nTokens < 2) {
+            os_sprintf(response, "Invalid number of arguments\r\n");
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	    goto command_handled;
+        }
+        if (config.locked) {
+            os_sprintf(response, "Invalid monitor command. Config locked\r\n");
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+            goto command_handled;
+        }
+	if (strcmp(tokens[1],"on") == 0) {
+  	    if (nTokens != 3) {
+        	os_sprintf(response, "Port number missing\r\n");
+        	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+		goto command_handled;
+            }
+	    if (monitor_port != 0) {
+		os_sprintf(response, "Monitor alreay started\r\n");
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+		goto command_handled;
+	    }
+	    
+            monitor_port = atoi(tokens[2]);
+	    if (monitor_port != 0) {
+		start_monitor(monitor_port);
+		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));       
+                goto command_handled;
+            } else {
+		os_sprintf(response, "Invalid monitor port\r\n");
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+		goto command_handled;
+	    }
+	}
+	if (strcmp(tokens[1],"off") == 0) {
+	    if (monitor_port == 0) {
+		os_sprintf(response, "Monitor alreay stopped\r\n");
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+		goto command_handled;
+	    }
+	    monitor_port = 0;
+	    stop_monitor();
+	    os_sprintf(response, "Stopped monitor\r\n");
+	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	    goto command_handled;
+	}
+
+    }
+#endif
 
     if (strcmp(tokens[0], "set") == 0)
     {
@@ -437,7 +539,6 @@ void console_handle_command(struct espconn *pespconn)
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
-
         }
     }
 
@@ -493,6 +594,10 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     espconn_regist_disconcb(pespconn,   tcp_client_discon_cb);
     espconn_regist_recvcb(pespconn,     tcp_client_recv_cb);
     espconn_regist_time(pespconn,  300, 1);  // Specific to console only
+
+    ringbuf_reset(console_rx_buffer);
+    ringbuf_reset(console_tx_buffer);
+    
     os_sprintf(payload, "CMD>");
     espconn_sent(pespconn, payload, os_strlen(payload));
 }
@@ -690,34 +795,12 @@ void ICACHE_FLASH_ATTR user_init()
     espconn_accept(pCon);
 #endif
 
-    remote_console_disconnect = 0;
-
 #ifdef REMOTE_MONITORING
-    pcap_buffer = ringbuf_new(MONITOR_BUFFER_SIZE);
     monitoring_on = 0;
-    monitoring_send_ongoing = 0;
-
-    os_printf("Starting Monitor TCP Server on %d port\r\n", MONITOR_SERVER_PORT);
-    struct espconn *mCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
-    if (mCon == NULL)
-    {
-        os_printf("CONNECT FAIL\r\n");
-        return;
-    }
-
-    /* Equivalent to bind */
-    mCon->type  = ESPCONN_TCP;
-    mCon->state = ESPCONN_NONE;
-    mCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
-    mCon->proto.tcp->local_port = MONITOR_SERVER_PORT;
-
-    /* Register callback when clients connect to the server */
-    espconn_regist_connectcb(mCon, tcp_monitor_connected_cb);
-
-    /* Put the connection in accept mode */
-    espconn_accept(mCon);
+    monitor_port = 0;
 #endif
 
+    remote_console_disconnect = 0;
 
     // Now start the STA-Mode
     user_set_station_config();
