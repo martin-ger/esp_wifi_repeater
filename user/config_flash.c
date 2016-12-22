@@ -20,6 +20,7 @@ void config_load_default(sysconfig_p config)
     os_sprintf(config->ap_password,"%s",WIFI_AP_PASSWORD);
     config->ap_open			= 1;
     config->locked			= 0;
+    config->network_no			= 4;
 }
 
 int config_load(int version, sysconfig_p config)

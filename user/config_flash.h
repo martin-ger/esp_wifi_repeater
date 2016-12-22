@@ -30,7 +30,8 @@ typedef struct
     uint8_t     ap_open;           // Should we use no WPA
 
     uint8_t     locked;		// Should we allow for config changes
-    uint8_t	padding[3];	// to get a multiple of 4
+    uint8_t	network_no;	// Configure the internal network to 192.168.x.0/24
+    uint8_t	padding[2];	// to get a multiple of 4
 
 #ifdef MQTT_CONFIG
     /* Specific to MQTT */

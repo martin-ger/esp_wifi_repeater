@@ -1,7 +1,7 @@
 # esp_wifi_repeater
 A full functional WiFi Repeater (correctly: a WiFI NAT Router)
 
-This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 The router also allows for remote monitoring, e.g. with Wireshark.
 
@@ -24,6 +24,7 @@ The console understands the following command:
 - show [config|stats]: prints the current config or traffic statistics
 - set ssid|pasword|ap_ssid|ap_password [value]: changes the named config parameter
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
+- set network_no [number]: sets the IP address of the internal network to 192.168.x.0/24, router is always 192.168.x.1
 - save: saves the current parameters to flash
 - quit: terminates a remote session
 - reset [factory]: resets the esp, optionally resets WiFi params to default values

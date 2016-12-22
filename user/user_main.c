@@ -318,7 +318,7 @@ void console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
+        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|network_no] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
         os_sprintf(response, "|monitor [on|off] <portnumber>\r\n");
@@ -331,24 +331,26 @@ void console_handle_command(struct espconn *pespconn)
     {
       if (nTokens == 1 || (nTokens == 2 && strcmp(tokens[1], "config") == 0)) {
 	if (config.locked) {
-           os_sprintf(response, "STA: SSID %s PW:****** [AutoConnect: %2d] \r\n",
+           os_sprintf(response, "STA: SSID %s PW:****** [AutoConnect:%d] \r\n",
                    config.ssid,
                    config.auto_connect);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "AP:  SSID %s PW:****** [Open: %2d] \r\n",
+           os_sprintf(response, "AP:  SSID %s PW:****** [Open:%d] IP:192.168.%d.1\r\n",
                    config.ap_ssid,
-                   config.ap_open);
+                   config.ap_open,
+		   config.network_no);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         } else {
-           os_sprintf(response, "STA: SSID %s PW:%s [AutoConnect: %2d] \r\n",
+           os_sprintf(response, "STA: SSID %s PW:%s [AutoConnect:%d] \r\n",
                    config.ssid,
                    config.password,
                    config.auto_connect);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "AP:  SSID %s PW:%s [Open: %2d] \r\n",
+           os_sprintf(response, "AP:  SSID %s PW:%s [Open:%d] IP:192.168.%d.1\r\n",
                    config.ap_ssid,
                    config.ap_password,
-                   config.ap_open);
+                   config.ap_open,
+		   config.network_no);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
 	   if (monitor_port != 0) {
@@ -495,7 +497,7 @@ void console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ssid") == 0)
             {
                 os_sprintf(config.ssid, "%s", tokens[2]);
-                os_sprintf(response, "SSID Set. Please save the configuration using save command\r\n");
+                os_sprintf(response, "SSID Set. Please save the configuration\r\n");
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
@@ -503,7 +505,7 @@ void console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"password") == 0)
             {
                 os_sprintf(config.password, "%s", tokens[2]);
-                os_sprintf(response, "Password Set. Please save the configuration using save command\r\n");
+                os_sprintf(response, "Password Set. Please save the configuration\r\n");
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
@@ -511,7 +513,7 @@ void console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"auto_connect") == 0)
             {
                 config.auto_connect = atoi(tokens[2]);
-                os_sprintf(response, "Auto Connect Set. Please save the configuration using save command\r\n");
+                os_sprintf(response, "Auto Connect Set. Please save the configuration\r\n");
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
@@ -519,7 +521,7 @@ void console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ap_ssid") == 0)
             {
                 os_sprintf(config.ap_ssid, "%s", tokens[2]);
-                os_sprintf(response, "AP SSID Set. Please save the configuration using save command\r\n");
+                os_sprintf(response, "AP SSID Set. Please save the configuration\r\n");
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
@@ -527,7 +529,7 @@ void console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ap_password") == 0)
             {
                 os_sprintf(config.ap_password, "%s", tokens[2]);
-                os_sprintf(response, "AP Password Set. Please save the configuration using save command\r\n");
+                os_sprintf(response, "AP Password Set. Please save the configuration\r\n");
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
@@ -535,7 +537,15 @@ void console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ap_open") == 0)
             {
                 config.ap_open = atoi(tokens[2]);
-                os_sprintf(response, "Open Auth Set. Please save the configuration using save command\r\n");
+                os_sprintf(response, "Open Auth Set. Please save the configuration\r\n");
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"network_no") == 0)
+            {
+                config.network_no = atoi(tokens[2]);
+                os_sprintf(response, "Network number set. Takes effect after next reset. Please save and reset\r\n");
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
@@ -710,10 +720,11 @@ void wifi_handle_event_cb(System_Event_t *evt)
 }
 
 
-void ICACHE_FLASH_ATTR
-user_set_softap_config(void)
+void ICACHE_FLASH_ATTR user_set_softap_config(void)
 {
-   struct softap_config apConfig;
+struct softap_config apConfig;
+struct ip_info info;
+struct dhcps_lease dhcp_lease;
  
    wifi_softap_get_config(&apConfig); // Get config first.
     
@@ -729,7 +740,18 @@ user_set_softap_config(void)
    apConfig.max_connection = MAX_CLIENTS; // how many stations can connect to ESP8266 softAP at most.
  
    wifi_softap_set_config(&apConfig);// Set ESP8266 softap config .
-    
+
+   // Configure the internal network
+   wifi_softap_dhcps_stop();
+   IP4_ADDR(&info.ip, 192, 168, config.network_no, 1);
+   IP4_ADDR(&info.gw, 192, 168, config.network_no, 1);
+   IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+   wifi_set_ip_info(SOFTAP_IF, &info);
+
+   IP4_ADDR(&dhcp_lease.start_ip, 192, 168, config.network_no, 2);
+   IP4_ADDR(&dhcp_lease.end_ip, 192, 168, config.network_no, 20);
+   wifi_softap_set_dhcps_lease(&dhcp_lease);
+   wifi_softap_dhcps_start();
 }
 
 
