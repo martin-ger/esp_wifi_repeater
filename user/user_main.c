@@ -18,13 +18,15 @@
 #include "ringbuf.h"
 #include "user_config.h"
 #include "config_flash.h"
+#include "sys_time.h"
 
 #ifdef REMOTE_MONITORING
 #include "pcap.h"
 #endif
 
 /* Some stats */
-uint32_t Bytes_in = 0, Bytes_out = 0;
+uint64_t Bytes_in, Bytes_out;
+uint32_t Packets_in, Packets_out;
 
 /* Hold the system wide configuration */
 sysconfig_t config;
@@ -36,6 +38,8 @@ os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
 static ringbuf_t console_rx_buffer, console_tx_buffer;
+
+static ip_addr_t my_ip;
 
 struct netif *netif_ap;
 static netif_input_fn orig_input_ap;
@@ -159,7 +163,7 @@ static void ICACHE_FLASH_ATTR stop_monitor(void)
 
 int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
   struct pcap_pkthdr pcap_phdr;
-  uint32_t t_usecs;
+  uint64_t t_usecs;
   uint32_t len = p->len;
 
 #ifdef MONITOR_BUFFER_TIGHT
@@ -173,9 +177,9 @@ int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
 
     if (ringbuf_bytes_free(pcap_buffer) >= sizeof(pcap_phdr)+len) {
        //os_printf("Put %d Bytes into RingBuff\r\n", sizeof(pcap_phdr)+p->len);
-       t_usecs = system_get_time();
-       pcap_phdr.ts_sec = t_usecs/1000000;
-       pcap_phdr.ts_usec = t_usecs%1000000;
+       t_usecs = get_long_systime();
+       pcap_phdr.ts_sec = (uint32_t)t_usecs/1000000;
+       pcap_phdr.ts_usec = (uint32_t)t_usecs%1000000;
        pcap_phdr.caplen = len;
        pcap_phdr.len = p->tot_len;
        ringbuf_memcpy_into(pcap_buffer, (uint8_t*)&pcap_phdr, sizeof(pcap_phdr));
@@ -193,6 +197,13 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 
     //os_printf("Got packet from STA\r\n");
     Bytes_in += p->tot_len;
+    Packets_in++;
+
+    get_long_systime();
+
+#ifdef STATUS_LED
+    GPIO_OUTPUT_SET (LED_NO, 0);
+#endif
 
 #ifdef REMOTE_MONITORING
     if (monitoring_on) {
@@ -213,12 +224,21 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 #endif
 
     orig_input_ap (p, inp);
+
+#ifdef STATUS_LED
+    GPIO_OUTPUT_SET (LED_NO, 1);
+#endif
 }
 
 err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 
     //os_printf("Send packet to STA\r\n");
     Bytes_out += p->tot_len;
+    Packets_out++;
+
+#ifdef STATUS_LED
+    GPIO_OUTPUT_SET (LED_NO, 0);
+#endif
 
 #ifdef REMOTE_MONITORING
     if (monitoring_on) {
@@ -239,6 +259,10 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 #endif
 
     orig_output_ap (outp, p);
+
+#ifdef STATUS_LED
+    GPIO_OUTPUT_SET (LED_NO, 1);
+#endif
 }
 
 
@@ -318,7 +342,7 @@ void console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|network_no] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
+        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|network] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
         os_sprintf(response, "|monitor [on|off] <portnumber>\r\n");
@@ -335,10 +359,10 @@ void console_handle_command(struct espconn *pespconn)
                    config.ssid,
                    config.auto_connect);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "AP:  SSID %s PW:****** [Open:%d] IP:192.168.%d.1\r\n",
+           os_sprintf(response, "AP:  SSID %s PW:****** [Open:%d] IP:" IPSTR "/24\r\n",
                    config.ap_ssid,
                    config.ap_open,
-		   config.network_no);
+		   IP2STR(&config.network_addr));
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         } else {
            os_sprintf(response, "STA: SSID %s PW:%s [AutoConnect:%d] \r\n",
@@ -346,11 +370,11 @@ void console_handle_command(struct espconn *pespconn)
                    config.password,
                    config.auto_connect);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "AP:  SSID %s PW:%s [Open:%d] IP:192.168.%d.1\r\n",
+           os_sprintf(response, "AP:  SSID %s PW:%s [Open:%d] IP:%d.%d.%d.%d/24\r\n",
                    config.ap_ssid,
                    config.ap_password,
                    config.ap_open,
-		   config.network_no);
+		   IP2STR(&config.network_addr));
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
 	   if (monitor_port != 0) {
@@ -362,8 +386,11 @@ void console_handle_command(struct espconn *pespconn)
 	goto command_handled;
       }
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
-           os_sprintf(response, "%d\t Stations connected\r\n%d\t KiB in\r\n%d\t KiB out\r\n", 
-			wifi_softap_get_station_num(), Bytes_in/1024, Bytes_out/1024);
+           uint32_t time = (uint32_t)(get_long_systime()/1000000);
+           os_sprintf(response, "System uptime: %d:%02d:%02d\r\nExternal IP-address: " IPSTR "\r\n%d Stations connected\r\n%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
+			time/3600, (time%3600)/60, time%60, IP2STR(&my_ip),
+			wifi_softap_get_station_num(), (uint32_t)(Bytes_in/1024), Packets_in, 
+			(uint32_t)(Bytes_out/1024), Packets_out);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   goto command_handled;
       }
@@ -388,17 +415,17 @@ void console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 
+    if (strcmp(tokens[0], "quit") == 0)
+    {
+	remote_console_disconnect = 1;
+        goto command_handled;
+    }
+
     if (strcmp(tokens[0], "lock") == 0)
     {
 	config.locked = 1;
 	os_sprintf(response, "Config locked. Please save the configuration using save command\r\n");
 	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-        goto command_handled;
-    }
-
-    if (strcmp(tokens[0], "quit") == 0)
-    {
-	remote_console_disconnect = 1;
         goto command_handled;
     }
 
@@ -542,6 +569,16 @@ void console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1],"network") == 0)
+            {
+                config.network_addr.addr = ipaddr_addr(tokens[2]);
+		ip4_addr4(&config.network_addr) = 0;
+                os_sprintf(response, "Network set to %d.%d.%d.%d/24. Takes effect after next reset. Please save and reset\r\n", 
+			IP2STR(&config.network_addr));
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+                goto command_handled;
+            }
+/*
             if (strcmp(tokens[1],"network_no") == 0)
             {
                 config.network_no = atoi(tokens[2]);
@@ -549,6 +586,7 @@ void console_handle_command(struct espconn *pespconn)
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
+*/
         }
     }
 
@@ -700,6 +738,8 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
         os_printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR ",dns:" IPSTR "\n", IP2STR(&evt->event_info.got_ip.ip), IP2STR(&evt->event_info.got_ip.mask), IP2STR(&evt->event_info.got_ip.gw), IP2STR(&dns_ip));
 
+	my_ip = evt->event_info.got_ip.ip;
+
         // Post a Server Start message as the IP has been acquired to Task with priority 0
         system_os_post(user_procTaskPrio, SIG_START_SERVER, 0 );
         break;
@@ -743,13 +783,23 @@ struct dhcps_lease dhcp_lease;
 
    // Configure the internal network
    wifi_softap_dhcps_stop();
-   IP4_ADDR(&info.ip, 192, 168, config.network_no, 1);
+/*   IP4_ADDR(&info.ip, 192, 168, config.network_no, 1);
    IP4_ADDR(&info.gw, 192, 168, config.network_no, 1);
+   IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+*/
+   info.ip = config.network_addr;
+   ip4_addr4(&info.ip) = 1;
+   info.gw = info.ip;
    IP4_ADDR(&info.netmask, 255, 255, 255, 0);
    wifi_set_ip_info(SOFTAP_IF, &info);
 
-   IP4_ADDR(&dhcp_lease.start_ip, 192, 168, config.network_no, 2);
+/*   IP4_ADDR(&dhcp_lease.start_ip, 192, 168, config.network_no, 2);
    IP4_ADDR(&dhcp_lease.end_ip, 192, 168, config.network_no, 20);
+*/
+   dhcp_lease.start_ip = config.network_addr;
+   ip4_addr4(&dhcp_lease.start_ip) = 2;
+   dhcp_lease.end_ip = config.network_addr;
+   ip4_addr4(&dhcp_lease.end_ip) = 20;
    wifi_softap_set_dhcps_lease(&dhcp_lease);
    wifi_softap_dhcps_start();
 }
@@ -758,6 +808,7 @@ struct dhcps_lease dhcp_lease;
 void ICACHE_FLASH_ATTR user_set_station_config(void)
 {
     struct station_config stationConf;
+    char hostname[40];
 
     /* Setup AP credentials */
     stationConf.bssid_set = 0;
@@ -765,19 +816,29 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
     os_sprintf(stationConf.password, "%s", config.password);
     wifi_station_set_config(&stationConf);
 
+    os_sprintf(hostname, "NET_%s", config.ap_ssid);
+    hostname[32] = '\0';
+    wifi_station_set_hostname(hostname);
+
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 
-    /* Configure the module to Auto Connect to AP*/
-    if (config.auto_connect)
-        wifi_station_set_auto_connect(1);
-    else
-        wifi_station_set_auto_connect(0);
-
+    wifi_station_set_auto_connect(config.auto_connect != 0);
 }
+
 
 void ICACHE_FLASH_ATTR user_init()
 {
+    init_long_systime();
     gpio_init();
+
+    my_ip.addr = 0;
+    Bytes_in = Bytes_out = 0,
+    Packets_in = Packets_out = 0;
+
+#ifdef STATUS_LED
+    // Config GPIO pin as output
+    PIN_FUNC_SELECT (PERIPHS_IO_MUX_MTDI_U, LED_FUNC_GPIO);
+#endif
 
     console_rx_buffer = ringbuf_new(160);
     console_tx_buffer = ringbuf_new(256);

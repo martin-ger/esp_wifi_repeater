@@ -12,6 +12,14 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define MAX_CLIENTS	     10
 
 //
+// Define this if you have a status LED connected
+//
+//#define STATUS_LED      1
+#define LED_NO	4
+#define LED_FUNC_GPIO  FUNC_GPIO4
+
+
+//
 // Define this if you want to have access to the config console via TCP.
 // Ohterwise only local access via serial is possible
 //

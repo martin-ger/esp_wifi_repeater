@@ -1,3 +1,4 @@
+#include "ip_addr.h"
 #include "config_flash.h"
 
 
@@ -20,7 +21,8 @@ void config_load_default(sysconfig_p config)
     os_sprintf(config->ap_password,"%s",WIFI_AP_PASSWORD);
     config->ap_open			= 1;
     config->locked			= 0;
-    config->network_no			= 4;
+//    config->network_no			= 4;
+    IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
 }
 
 int config_load(int version, sysconfig_p config)
