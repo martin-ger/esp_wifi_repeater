@@ -16,6 +16,7 @@ If you want to use the precompiled binaries you can flash them with "esptool.py 
 The Firmware starts with the following default configuration:
 - ssid: ssid, pasword: password
 - ap_ssid: MyAP, ap_password: none, ap_open: 1
+- network: 192.168.4.0/24
 
 This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
 
@@ -31,6 +32,14 @@ The console understands the following command:
 - lock: locks the current config, changes are not allowed
 - unlock [password]: unlocks the config, requires password of the network AP
 - monitor [on|off] [port]: starts and stops monitor server on a given port
+
+# Status LED
+In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
+- permanently on: started, but not successfully connected to the AP (no valid external IP)
+- flashing (1 per second): working, connected to the AP
+- unperiodically flashing: working, traffic in the internal network
+
+In user_config.h an alternative GPIO port can be configured. When configured to GPIO1 it works with the buildin blue LED on the ESP-01 and ESP-12 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
 # Monitoring
 From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.

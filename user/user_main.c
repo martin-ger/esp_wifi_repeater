@@ -24,12 +24,6 @@
 #include "pcap.h"
 #endif
 
-/* Some stats */
-uint64_t Bytes_in, Bytes_out;
-uint32_t Packets_in, Packets_out;
-
-/* Hold the system wide configuration */
-sysconfig_t config;
 
 /* System Task, for signals refer to user_config.h */
 #define user_procTaskPrio        0
@@ -37,9 +31,19 @@ sysconfig_t config;
 os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
+static os_timer_t *ptimer;	
+
+/* Some stats */
+uint64_t Bytes_in, Bytes_out;
+uint32_t Packets_in, Packets_out;
+
+/* Hold the system wide configuration */
+sysconfig_t config;
+
 static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 static ip_addr_t my_ip;
+bool connected;
 
 struct netif *netif_ap;
 static netif_input_fn orig_input_ap;
@@ -199,10 +203,8 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     Bytes_in += p->tot_len;
     Packets_in++;
 
-    get_long_systime();
-
 #ifdef STATUS_LED
-    GPIO_OUTPUT_SET (LED_NO, 0);
+    GPIO_OUTPUT_SET (LED_NO, 1);
 #endif
 
 #ifdef REMOTE_MONITORING
@@ -224,10 +226,6 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 #endif
 
     orig_input_ap (p, inp);
-
-#ifdef STATUS_LED
-    GPIO_OUTPUT_SET (LED_NO, 1);
-#endif
 }
 
 err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
@@ -259,10 +257,6 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 #endif
 
     orig_output_ap (outp, p);
-
-#ifdef STATUS_LED
-    GPIO_OUTPUT_SET (LED_NO, 1);
-#endif
 }
 
 
@@ -387,8 +381,15 @@ void console_handle_command(struct espconn *pespconn)
       }
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
-           os_sprintf(response, "System uptime: %d:%02d:%02d\r\nExternal IP-address: " IPSTR "\r\n%d Stations connected\r\n%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
-			time/3600, (time%3600)/60, time%60, IP2STR(&my_ip),
+           os_sprintf(response, "System uptime: %d:%02d:%02d\r\n", time/3600, (time%3600)/60, time%60);
+	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   if (connected) {
+		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
+	   } else {
+		os_sprintf(response, "Not connected to AP\r\n");
+	   }
+	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   os_sprintf(response, "%d Stations connected\r\n%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
 			wifi_softap_get_station_num(), (uint32_t)(Bytes_in/1024), Packets_in, 
 			(uint32_t)(Bytes_out/1024), Packets_out);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
@@ -652,6 +653,20 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 #endif
 
 
+bool toggle;
+// Timer cb function
+void ICACHE_FLASH_ATTR timer_func(void *arg){
+    toggle = !toggle;
+#ifdef STATUS_LED
+    GPIO_OUTPUT_SET (LED_NO, toggle && connected);
+#endif
+
+    get_long_systime();
+
+    os_timer_arm(&ptimer, toggle?1000:100, 0); 
+}
+
+
 //Priority 0 Task
 static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 {
@@ -726,6 +741,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
     case EVENT_STAMODE_DISCONNECTED:
         os_printf("disconnect from ssid %s, reason %d\n", evt->event_info.disconnected.ssid, evt->event_info.disconnected.reason);
+	connected = false;
         break;
 
     case EVENT_STAMODE_AUTHMODE_CHANGE:
@@ -739,6 +755,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
         os_printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR ",dns:" IPSTR "\n", IP2STR(&evt->event_info.got_ip.ip), IP2STR(&evt->event_info.got_ip.mask), IP2STR(&evt->event_info.got_ip.gw), IP2STR(&dns_ip));
 
 	my_ip = evt->event_info.got_ip.ip;
+	connected = true;
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
         system_os_post(user_procTaskPrio, SIG_START_SERVER, 0 );
@@ -779,23 +796,18 @@ struct dhcps_lease dhcp_lease;
    apConfig.ssid_len = 0;// or its actual length
    apConfig.max_connection = MAX_CLIENTS; // how many stations can connect to ESP8266 softAP at most.
  
-   wifi_softap_set_config(&apConfig);// Set ESP8266 softap config .
+   // Set ESP8266 softap config
+   wifi_softap_set_config(&apConfig);
 
    // Configure the internal network
    wifi_softap_dhcps_stop();
-/*   IP4_ADDR(&info.ip, 192, 168, config.network_no, 1);
-   IP4_ADDR(&info.gw, 192, 168, config.network_no, 1);
-   IP4_ADDR(&info.netmask, 255, 255, 255, 0);
-*/
+
    info.ip = config.network_addr;
    ip4_addr4(&info.ip) = 1;
    info.gw = info.ip;
    IP4_ADDR(&info.netmask, 255, 255, 255, 0);
    wifi_set_ip_info(SOFTAP_IF, &info);
 
-/*   IP4_ADDR(&dhcp_lease.start_ip, 192, 168, config.network_no, 2);
-   IP4_ADDR(&dhcp_lease.end_ip, 192, 168, config.network_no, 20);
-*/
    dhcp_lease.start_ip = config.network_addr;
    ip4_addr4(&dhcp_lease.start_ip) = 2;
    dhcp_lease.end_ip = config.network_addr;
@@ -828,26 +840,24 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
 
 void ICACHE_FLASH_ATTR user_init()
 {
-    init_long_systime();
     gpio_init();
+    init_long_systime();
+
+    UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
+
+    os_printf("\r\n\r\nWiFi Repeater V1.0 starting\r\n");
 
     my_ip.addr = 0;
     Bytes_in = Bytes_out = 0,
     Packets_in = Packets_out = 0;
-
-#ifdef STATUS_LED
-    // Config GPIO pin as output
-    PIN_FUNC_SELECT (PERIPHS_IO_MUX_MTDI_U, LED_FUNC_GPIO);
-#endif
-
     console_rx_buffer = ringbuf_new(160);
     console_tx_buffer = ringbuf_new(256);
 
-    // Initialize the GPIO subsystem.
-    UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
-    //UART_init(BIT_RATE_115200, BIT_RATE_115200, 0);
-
-    os_printf("\r\n\r\nWiFi Repeater starting\r\n");
+#ifdef STATUS_LED
+    // Config GPIO pin as output
+    SET_LED_GPIO;
+    GPIO_OUTPUT_SET (LED_NO, 0);
+#endif
 
     // Load WiFi-config
     config_load(0, &config);
@@ -887,6 +897,11 @@ void ICACHE_FLASH_ATTR user_init()
 
     // Now start the STA-Mode
     user_set_station_config();
+
+    // Start the timer
+    connected = false;
+    os_timer_setfn(&ptimer, timer_func, 0);
+    os_timer_arm(&ptimer, 500, 0); 
 
     //Start task
     system_os_task(user_procTask, user_procTaskPrio,user_procTaskQueue, user_procTaskQueueLen);
