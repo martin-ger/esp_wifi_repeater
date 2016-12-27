@@ -44,6 +44,7 @@ static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 static ip_addr_t my_ip;
 bool connected;
+bool first_start;
 
 struct netif *netif_ap;
 static netif_input_fn orig_input_ap;
@@ -675,22 +676,24 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
     switch(events->sig)
     {
     case SIG_START_SERVER:
-	netif_ap = netif_list;
-	//os_printf("AP: %c%c%d\r\n", netif_ap->name[0], netif_ap->name[1], netif_ap->num);
+	if (first_start) {
+	    netif_ap = netif_list;
+	    //os_printf("AP: %c%c%d\r\n", netif_ap->name[0], netif_ap->name[1], netif_ap->num);
 
-	netif_sta = netif_list->next;
-	//os_printf("STA: %c%c%d\r\n", netif_sta->name[0], netif_sta->name[1], netif_sta->num);
+	    netif_sta = netif_list->next;
+	    //os_printf("STA: %c%c%d\r\n", netif_sta->name[0], netif_sta->name[1], netif_sta->num);
 
-	/* Switch AP to NAT */
-	netif_ap->napt = 1;
+	    // Switch AP to NAT
+	    netif_ap->napt = 1;
 
-	/* Hook into the traffic of the internal AP */
-	orig_input_ap = netif_ap->input;
-	netif_ap->input = my_input_ap;
+	    // Hook into the traffic of the internal AP 
+	    orig_input_ap = netif_ap->input;
+	    netif_ap->input = my_input_ap;
 
-	orig_output_ap = netif_ap->linkoutput;
-	netif_ap->linkoutput = my_output_ap;
-
+	    orig_output_ap = netif_ap->linkoutput;
+	    netif_ap->linkoutput = my_output_ap;
+	}
+	first_start = false;
         break;
 
     case SIG_CONSOLE_TX:
@@ -758,7 +761,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	connected = true;
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
-        system_os_post(user_procTaskPrio, SIG_START_SERVER, 0 );
+	system_os_post(user_procTaskPrio, SIG_START_SERVER, 0 );
         break;
 
     case EVENT_SOFTAPMODE_STACONNECTED:
@@ -840,18 +843,20 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
 
 void ICACHE_FLASH_ATTR user_init()
 {
+    first_start = true;
+    connected = false;
+    my_ip.addr = 0;
+    Bytes_in = Bytes_out = 0,
+    Packets_in = Packets_out = 0;
+    console_rx_buffer = ringbuf_new(160);
+    console_tx_buffer = ringbuf_new(256);
+
     gpio_init();
     init_long_systime();
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
     os_printf("\r\n\r\nWiFi Repeater V1.0 starting\r\n");
-
-    my_ip.addr = 0;
-    Bytes_in = Bytes_out = 0,
-    Packets_in = Packets_out = 0;
-    console_rx_buffer = ringbuf_new(160);
-    console_tx_buffer = ringbuf_new(256);
 
 #ifdef STATUS_LED
     // Config GPIO pin as output
@@ -899,7 +904,6 @@ void ICACHE_FLASH_ATTR user_init()
     user_set_station_config();
 
     // Start the timer
-    connected = false;
     os_timer_setfn(&ptimer, timer_func, 0);
     os_timer_arm(&ptimer, 500, 0); 
 
