@@ -17,7 +17,7 @@ If you want to use the precompiled binaries you can flash them with "esptool.py 
 # Usage
 The Firmware starts with the following default configuration:
 - ssid: ssid, pasword: password
-- ap_ssid: MyAP, ap_password: none, ap_open: 1
+- ap_ssid: MyAP, ap_password: none, ap_on: 1, ap_open: 1
 - network: 192.168.4.0/24
 
 This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
@@ -27,6 +27,7 @@ The console understands the following command:
 - show [config|stats]: prints the current config or some statistics
 - set ssid|pasword|ap_ssid|ap_password [value]: changes the named config parameter
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
+- set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
 - set network [ip-addr]: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - save: saves the current parameters to flash
 - quit: terminates a remote session

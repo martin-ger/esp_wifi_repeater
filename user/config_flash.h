@@ -9,7 +9,7 @@
 #include "os_type.h"
 #include "spi_flash.h"
 
-#define MAGIC_NUMBER    0x01200340
+#define MAGIC_NUMBER    0x01200560
 
 typedef struct
 {
@@ -27,22 +27,11 @@ typedef struct
 
     uint8_t     ap_ssid[32];       // SSID of the own AP
     uint8_t     ap_password[64];   // Password of the own network
-    uint8_t     ap_open;           // Should we use no WPA
+    uint8_t     ap_open;           // Should we use no WPA?
+    uint8_t	ap_on;		   // AP enabled?
 
     uint8_t     locked;		// Should we allow for config changes
-//    uint8_t	network_no;	// Configure the internal network to 192.168.x.0/24
     ip_addr_t	network_addr;	// Address of the internal network
-
-#ifdef MQTT_CONFIG
-    /* Specific to MQTT */
-   	uint8_t     device_id[16];
-	uint8_t     mqtt_host[64];
-	uint32_t    mqtt_port;
-	uint8_t     mqtt_user[32];
-	uint8_t     mqtt_pass[32];
-	uint32_t    mqtt_keepalive;
-	uint8_t     security;
-#endif
 
 } sysconfig_t, *sysconfig_p;
 

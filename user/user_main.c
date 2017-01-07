@@ -44,9 +44,8 @@ static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 static ip_addr_t my_ip;
 bool connected;
-bool first_start;
+bool do_ip_config;
 
-struct netif *netif_ap;
 static netif_input_fn orig_input_ap;
 static netif_linkoutput_fn orig_output_ap;
 
@@ -59,6 +58,8 @@ static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
 static uint8_t monitoring_send_ongoing;
 
+void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
+void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 
 static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
 {
@@ -261,6 +262,29 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 }
 
 
+static void ICACHE_FLASH_ATTR patch_netif_ap(netif_input_fn ifn, netif_linkoutput_fn ofn, bool nat)
+{	
+struct netif *nif;
+ip_addr_t ap_ip;
+
+	ap_ip = config.network_addr;
+	ip4_addr4(&ap_ip) = 1;
+	
+	for (nif = netif_list; nif != NULL && nif->ip_addr.addr != ap_ip.addr; nif = nif->next);
+	if (nif == NULL) return;
+
+	nif->napt = nat?1:0;
+	if (nif->input != ifn) {
+	  orig_input_ap = nif->input;
+	  nif->input = ifn;
+	}
+	if (nif->linkoutput != ofn) {
+	  orig_output_ap = nif->linkoutput;
+	  nif->linkoutput = ofn;
+	}
+}
+
+
 /* Similar to strtok */
 int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
 {
@@ -337,7 +361,7 @@ void console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|network] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
+        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
         os_sprintf(response, "|monitor [on|off] <portnumber>\r\n");
@@ -350,25 +374,27 @@ void console_handle_command(struct espconn *pespconn)
     {
       if (nTokens == 1 || (nTokens == 2 && strcmp(tokens[1], "config") == 0)) {
 	if (config.locked) {
-           os_sprintf(response, "STA: SSID %s PW:****** [AutoConnect:%d] \r\n",
+           os_sprintf(response, "STA: SSID:%s PW:****** [AutoConnect:%d] \r\n",
                    config.ssid,
                    config.auto_connect);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "AP:  SSID %s PW:****** [Open:%d] IP:" IPSTR "/24\r\n",
+           os_sprintf(response, "AP:  SSID:%s PW:******%s%s IP:" IPSTR "/24\r\n",
                    config.ap_ssid,
-                   config.ap_open,
+                   config.ap_open?" [open]":"",
+                   config.ap_on?"":" [disabled]",
 		   IP2STR(&config.network_addr));
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         } else {
-           os_sprintf(response, "STA: SSID %s PW:%s [AutoConnect:%d] \r\n",
+           os_sprintf(response, "STA: SSID:%s PW:%s [AutoConnect:%d] \r\n",
                    config.ssid,
                    config.password,
                    config.auto_connect);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "AP:  SSID %s PW:%s [Open:%d] IP:%d.%d.%d.%d/24\r\n",
+           os_sprintf(response, "AP:  SSID:%s PW:%s%s%s IP:%d.%d.%d.%d/24\r\n",
                    config.ap_ssid,
                    config.ap_password,
-                   config.ap_open,
+                   config.ap_open?" [open]":"",
+                   config.ap_on?"":" [disabled]",
 		   IP2STR(&config.network_addr));
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
@@ -390,8 +416,13 @@ void console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "Not connected to AP\r\n");
 	   }
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-	   os_sprintf(response, "%d Stations connected\r\n%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
-			wifi_softap_get_station_num(), (uint32_t)(Bytes_in/1024), Packets_in, 
+	   if (config.ap_on)
+		   os_sprintf(response, "%d Stations connected\r\n", wifi_softap_get_station_num());
+	   else
+		   os_sprintf(response, "AP disabled\r\n");
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
+			(uint32_t)(Bytes_in/1024), Packets_in, 
 			(uint32_t)(Bytes_out/1024), Packets_out);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   goto command_handled;
@@ -571,6 +602,32 @@ void console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1],"ap_on") == 0)
+            {
+                if (atoi(tokens[2])) {
+			if (!config.ap_on) {
+				wifi_set_opmode(STATIONAP_MODE);
+				user_set_softap_wifi_config();
+				do_ip_config = true;
+				config.ap_on = true;
+	                	os_sprintf(response, "AP on\r\n");
+			} else {
+				os_sprintf(response, "AP already off\r\n");
+			}
+
+		} else {
+			if (config.ap_on) {
+				wifi_set_opmode(STATION_MODE);
+				config.ap_on = false;
+                		os_sprintf(response, "AP off\r\n");
+			} else {
+				os_sprintf(response, "AP already on\r\n");
+			}
+		}
+                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+                goto command_handled;
+            }
+
             if (strcmp(tokens[1],"network") == 0)
             {
                 config.network_addr.addr = ipaddr_addr(tokens[2]);
@@ -580,15 +637,6 @@ void console_handle_command(struct espconn *pespconn)
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
-/*
-            if (strcmp(tokens[1],"network_no") == 0)
-            {
-                config.network_no = atoi(tokens[2]);
-                os_sprintf(response, "Network number set. Takes effect after next reset. Please save and reset\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-                goto command_handled;
-            }
-*/
         }
     }
 
@@ -664,6 +712,9 @@ void ICACHE_FLASH_ATTR timer_func(void *arg){
 
     get_long_systime();
 
+    // Do we stillhave to configure the AP netif? 
+    if (do_ip_config) user_set_softap_ip_config();
+
     os_timer_arm(&ptimer, toggle?1000:100, 0); 
 }
 
@@ -671,30 +722,11 @@ void ICACHE_FLASH_ATTR timer_func(void *arg){
 //Priority 0 Task
 static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 {
-    struct netif *netif_ap, *netif_sta;
-
     switch(events->sig)
     {
     case SIG_START_SERVER:
-	if (first_start) {
-	    netif_ap = netif_list;
-	    //os_printf("AP: %c%c%d\r\n", netif_ap->name[0], netif_ap->name[1], netif_ap->num);
-
-	    netif_sta = netif_list->next;
-	    //os_printf("STA: %c%c%d\r\n", netif_sta->name[0], netif_sta->name[1], netif_sta->num);
-
-	    // Switch AP to NAT
-	    netif_ap->napt = 1;
-
-	    // Hook into the traffic of the internal AP 
-	    orig_input_ap = netif_ap->input;
-	    netif_ap->input = my_input_ap;
-
-	    orig_output_ap = netif_ap->linkoutput;
-	    netif_ap->linkoutput = my_output_ap;
-	}
-	first_start = false;
-        break;
+       // Anything to do here, when the repeater has received its IP?
+       break;
 
     case SIG_CONSOLE_TX:
         {
@@ -767,6 +799,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
     case EVENT_SOFTAPMODE_STACONNECTED:
         os_printf("station: " MACSTR "join, AID = %d\n", MAC2STR(evt->event_info.sta_connected.mac),
         evt->event_info.sta_connected.aid);
+	patch_netif_ap(my_input_ap, my_output_ap, true);
         break;
 
     case EVENT_SOFTAPMODE_STADISCONNECTED:
@@ -780,12 +813,10 @@ void wifi_handle_event_cb(System_Event_t *evt)
 }
 
 
-void ICACHE_FLASH_ATTR user_set_softap_config(void)
+void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void)
 {
 struct softap_config apConfig;
-struct ip_info info;
-struct dhcps_lease dhcp_lease;
- 
+
    wifi_softap_get_config(&apConfig); // Get config first.
     
    os_memset(apConfig.ssid, 0, 32);
@@ -797,26 +828,47 @@ struct dhcps_lease dhcp_lease;
    else
       apConfig.authmode = AUTH_OPEN;
    apConfig.ssid_len = 0;// or its actual length
+
    apConfig.max_connection = MAX_CLIENTS; // how many stations can connect to ESP8266 softAP at most.
- 
+
    // Set ESP8266 softap config
    wifi_softap_set_config(&apConfig);
+}
+
+
+void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
+{
+struct ip_info info;
+struct dhcps_lease dhcp_lease;
+struct netif *nif;
 
    // Configure the internal network
+
+   // Find the netif of the AP (that with num != 0)
+   for (nif = netif_list; nif != NULL && nif->num == 0; nif = nif->next);
+   if (nif == NULL) return;
+   // If is not 1, set it to 1. 
+   // Kind of a hack, but the Espressif-internals expect it like this (hardcoded 1).
+   nif->num = 1;
+
    wifi_softap_dhcps_stop();
 
    info.ip = config.network_addr;
    ip4_addr4(&info.ip) = 1;
    info.gw = info.ip;
    IP4_ADDR(&info.netmask, 255, 255, 255, 0);
-   wifi_set_ip_info(SOFTAP_IF, &info);
+
+   wifi_set_ip_info(nif->num, &info);
 
    dhcp_lease.start_ip = config.network_addr;
    ip4_addr4(&dhcp_lease.start_ip) = 2;
    dhcp_lease.end_ip = config.network_addr;
    ip4_addr4(&dhcp_lease.end_ip) = 20;
    wifi_softap_set_dhcps_lease(&dhcp_lease);
+
    wifi_softap_dhcps_start();
+
+   do_ip_config = false;
 }
 
 
@@ -843,8 +895,8 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
 
 void ICACHE_FLASH_ATTR user_init()
 {
-    first_start = true;
     connected = false;
+    do_ip_config = false;
     my_ip.addr = 0;
     Bytes_in = Bytes_out = 0,
     Packets_in = Packets_out = 0;
@@ -856,7 +908,7 @@ void ICACHE_FLASH_ATTR user_init()
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater V1.0 starting\r\n");
+    os_printf("\r\n\r\nWiFi Repeater V1.1 starting\r\n");
 
 #ifdef STATUS_LED
     // Config GPIO pin as output
@@ -867,9 +919,15 @@ void ICACHE_FLASH_ATTR user_init()
     // Load WiFi-config
     config_load(0, &config);
 
-    // Start the AP
-    wifi_set_opmode(STATIONAP_MODE);
-    user_set_softap_config();
+    // Configure the AP and start it, if required
+
+    if (config.ap_on) {
+	wifi_set_opmode(STATIONAP_MODE);
+    	user_set_softap_wifi_config();
+	do_ip_config = true;
+    } else {
+	wifi_set_opmode(STATION_MODE);
+    }
 
 #ifdef REMOTE_CONFIG
     os_printf("Starting Console TCP Server on %d port\r\n", CONSOLE_SERVER_PORT);

@@ -20,8 +20,8 @@ void config_load_default(sysconfig_p config)
     os_sprintf(config->ap_ssid,"%s",    WIFI_AP_SSID);
     os_sprintf(config->ap_password,"%s",WIFI_AP_PASSWORD);
     config->ap_open			= 1;
+    config->ap_on			= 1;
     config->locked			= 0;
-//    config->network_no			= 4;
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
 }
 
