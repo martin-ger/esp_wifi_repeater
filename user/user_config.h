@@ -12,6 +12,11 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define MAX_CLIENTS	     8
 
 //
+// Size of the console send buffer
+//
+#define MAX_CON_SEND_SIZE    300
+
+//
 // Define this if you have a status LED connected to GPIO LED_NO
 //
 #define STATUS_LED      1
@@ -21,6 +26,11 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 //#define SET_LED_GPIO	PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0TXD_U, FUNC_GPIO1)
 #define SET_LED_GPIO	PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2)
 //#define SET_LED_GPIO	PIN_FUNC_SELECT (PERIPHS_IO_MUX_MTDI_U, FUNC_GPIO4)
+
+//
+// Define this if you to support the "scan" command for AP search
+//
+#define ALLOW_SCANNING      1
 
 //
 // Define this if you want to have access to the config console via TCP.

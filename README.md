@@ -34,6 +34,7 @@ The console understands the following command:
 - reset [factory]: resets the esp, optionally resets WiFi params to default values
 - lock: locks the current config, changes are not allowed
 - unlock [password]: unlocks the config, requires password of the network AP
+- scan: does a scan for APs
 - monitor [on|off] [port]: starts and stops monitor server on a given port
 
 # Status LED
