@@ -31,7 +31,7 @@
 os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
-static os_timer_t *ptimer;	
+static os_timer_t ptimer;	
 
 /* Some stats */
 uint64_t Bytes_in, Bytes_out;
@@ -384,12 +384,22 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     char response[256];
     char *tokens[5];
 
-    int bytes_count, nTokens, i;
+    int bytes_count, nTokens, i, j;
 
     bytes_count = ringbuf_bytes_used(console_rx_buffer);
     ringbuf_memcpy_from(cmd_line, console_rx_buffer, bytes_count);
-    
+
+    for (i=j=0; i<bytes_count; i++) {
+	if (cmd_line[i] != 8) {
+	   cmd_line[j++] = cmd_line[i];
+	} else {
+	   if (j > 0) j--;
+	}
+    }
+    cmd_line[j] = 0;
+
     cmd_line[bytes_count] = 0;
+
     nTokens = parse_str_into_tokens(cmd_line, tokens, 5);
 
     if (nTokens == 0) {
