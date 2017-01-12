@@ -51,15 +51,15 @@ static netif_linkoutput_fn orig_output_ap;
 
 uint8_t remote_console_disconnect;
 
+void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
+void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
+
 #ifdef REMOTE_MONITORING
 static uint8_t monitoring_on;
 static uint16_t monitor_port;
 static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
 static uint8_t monitoring_send_ongoing;
-
-void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
-void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 
 static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
 {
