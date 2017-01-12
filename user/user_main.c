@@ -549,7 +549,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		goto command_handled;
             }
 	    if (monitor_port != 0) {
-		os_sprintf(response, "Monitor alreay started\r\n");
+		os_sprintf(response, "Monitor already started\r\n");
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
@@ -568,7 +568,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	}
 	if (strcmp(tokens[1],"off") == 0) {
 	    if (monitor_port == 0) {
-		os_sprintf(response, "Monitor alreay stopped\r\n");
+		os_sprintf(response, "Monitor already stopped\r\n");
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
