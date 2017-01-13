@@ -29,6 +29,7 @@ The console understands the following command:
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
 - set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
 - set network [ip-addr]: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
+- set speed [80|160]: sets the CPU clock frequency
 - save: saves the current parameters to flash
 - quit: terminates a remote session
 - reset [factory]: resets the esp, optionally resets WiFi params to default values
