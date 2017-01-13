@@ -14,7 +14,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 //
 // Size of the console send buffer
 //
-#define MAX_CON_SEND_SIZE    300
+#define MAX_CON_SEND_SIZE    512
 
 //
 // Define this if you have a status LED connected to GPIO LED_NO
@@ -46,7 +46,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 //
 #define REMOTE_MONITORING  1
 
-#define MONITOR_BUFFER_SIZE 0x4000
+#define MONITOR_BUFFER_SIZE 0x3c00
 
 // Define this if you want to cut packets short in case of too high data rate
 #define MONITOR_BUFFER_TIGHT 0x1000

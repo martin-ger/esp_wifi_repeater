@@ -410,7 +410,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
@@ -438,6 +438,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                    config.ap_open?" [open]":"",
                    config.ap_on?"":" [disabled]",
 		   IP2STR(&config.network_addr));
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+        os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
 	if (!config.locked&&monitor_port != 0) {
@@ -504,6 +506,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 
+
     if (strcmp(tokens[0], "lock") == 0)
     {
 	config.locked = 1;
@@ -549,7 +552,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		goto command_handled;
             }
 	    if (monitor_port != 0) {
-		os_sprintf(response, "Monitor alreay started\r\n");
+		os_sprintf(response, "Monitor already started\r\n");
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
@@ -568,7 +571,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	}
 	if (strcmp(tokens[1],"off") == 0) {
 	    if (monitor_port == 0) {
-		os_sprintf(response, "Monitor alreay stopped\r\n");
+		os_sprintf(response, "Monitor already stopped\r\n");
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
@@ -677,6 +680,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
+
+	    if (strcmp(tokens[1], "speed") == 0)
+	    {
+		uint16_t speed = atoi(tokens[2]);
+		bool succ = system_update_cpu_freq(speed);
+		if (succ) 
+		    config.clock_speed = speed;
+		os_sprintf(response, "Clock speed update %s\r\n",
+		  succ?"successful":"failed");
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+        	goto command_handled;
+	    }
 
             if (strcmp(tokens[1],"network") == 0)
             {
@@ -1017,6 +1032,8 @@ void ICACHE_FLASH_ATTR user_init()
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);
     os_timer_arm(&ptimer, 500, 0); 
+
+    system_update_cpu_freq(config.clock_speed);
 
     //Start task
     system_os_task(user_procTask, user_procTaskPrio,user_procTaskQueue, user_procTaskQueueLen);
