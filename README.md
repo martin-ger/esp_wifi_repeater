@@ -12,7 +12,12 @@ To build this binary you need the esp-open-sdk (https://github.com/pfalcon/esp-o
 
 Then adjust the BUILD_AREA variable in the Makefile and build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
 
-If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin"
+If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32m 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8m for an ESP-01)
+
+On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x10000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
+<img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
+
+For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead. (addresses 0x00000 and 0x40000)
 
 # Usage
 The Firmware starts with the following default configuration:
