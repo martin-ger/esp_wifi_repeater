@@ -1,16 +1,19 @@
 # esp_wifi_repeater
-A full functional WiFi Repeater (correctly: a WiFI NAT Router)
+A full functional WiFi Repeater (correctly: a WiFi NAT Router)
 
 This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
-The router also allows for remote monitoring, e.g. with Wireshark. 
+The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark. 
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
 # Building and Flashing
-To build this binary you need the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk) and my "nat" branch of the esp-open-lwip library (https://github.com/martin-ger/esp-open-lwip/tree/nat). Drop the esp-open-lwip into the esp-open-sdk, i.e. copy it into the build tree, and build the esp-open-sdk. 
+To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk) and my "nat" branch of the esp-open-lwip library (https://github.com/martin-ger/esp-open-lwip/tree/nat). The easiest way to get it is to download:
+https://github.com/martin-ger/esp-open-lwip/archive/nat.zip . Unpack and replace that in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
 
-Then adjust the BUILD_AREA variable in the Makefile and build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
+Then adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h.
+
+Build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
 
 If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32m 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8m for an ESP-01)
 
