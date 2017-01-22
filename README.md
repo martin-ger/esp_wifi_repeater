@@ -8,8 +8,7 @@ The router also allows for remote monitoring (or packet sniffing), e.g. with Wir
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
 # Building and Flashing
-To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk) and my "nat" branch of the esp-open-lwip library (https://github.com/martin-ger/esp-open-lwip/tree/nat). The easiest way to get it is to download:
-https://github.com/martin-ger/esp-open-lwip/archive/nat.zip . Unpack and replace that in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
+To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk) and my version of the esp-open-lwip library (https://github.com/martin-ger/esp-open-lwip). Replace that in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
 
 Then adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h.
 
