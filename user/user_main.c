@@ -24,6 +24,7 @@
 #include "pcap.h"
 #endif
 
+uint32_t readvdd33(void);
 
 /* System Task, for signals refer to user_config.h */
 #define user_procTaskPrio        0
@@ -451,7 +452,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       }
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
-           os_sprintf(response, "System uptime: %d:%02d:%02d\r\n", time/3600, (time%3600)/60, time%60);
+           uint32_t voltage = readvdd33();
+           os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
+	      time/3600, (time%3600)/60, time%60, voltage/1000, voltage%1000);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   if (connected) {
 		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
