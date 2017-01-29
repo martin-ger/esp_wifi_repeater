@@ -12,7 +12,7 @@
 # - 2014-11-23: Updated for SDK 0.9.3
 # - 2014-12-25: Replaced esptool by esptool.py
 
-BUILD_AREA = /home/martin/github
+BUILD_AREA = /home/Dev/ESP8266
 
 # Output directors to store intermediate compiled files
 # relative to the project directory
