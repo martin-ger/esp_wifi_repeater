@@ -6,8 +6,8 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define WIFI_SSID            "ssid"
 #define WIFI_PASSWORD        "password"
 
-#define WIFI_AP_SSID         "MyAP"
-#define WIFI_AP_PASSWORD     "none"
+#define WIFI_AP_SSID         "ESP"
+#define WIFI_AP_PASSWORD     "password"
 
 #define MAX_CLIENTS	     8
 
