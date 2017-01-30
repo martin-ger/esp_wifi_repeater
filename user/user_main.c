@@ -483,8 +483,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
   {
     config_save(0, &config);
     config.clock_speed = 160;
-    config.locked = 1;
-    os_sprintf(response, "Config successfully Saved...\r\nPlease! <reset> System to Apply these Settings...\r\n");
+    os_sprintf(response, "Config successfully Saved...\r\nPlease! Run <lock>,<reset> Command's to Apply these Settings...\r\n");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
     goto command_handled;
   }
@@ -644,7 +643,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       if (strcmp(tokens[1], "auto_connect") == 0)
       {
         config.auto_connect = atoi(tokens[2]);
-        os_sprintf(response, "Auto Connect to STA Enabled...\r\n");
+        os_sprintf(response, "Auto Connect Setting successfully Changed...\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
       }
@@ -668,7 +667,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       if (strcmp(tokens[1], "ap_open") == 0)
       {
         config.ap_open = atoi(tokens[2]);
-        os_sprintf(response, "AP Authentication set to OPEN...\r\n");
+        os_sprintf(response, "AP Authentication successfully Changed...\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
       }
