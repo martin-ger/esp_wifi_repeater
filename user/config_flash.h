@@ -9,7 +9,7 @@
 #include "os_type.h"
 #include "spi_flash.h"
 
-#define MAGIC_NUMBER    0x01200560
+#define MAGIC_NUMBER 0x0E011204
 
 typedef struct
 {
