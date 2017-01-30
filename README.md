@@ -26,7 +26,7 @@ For some reasons that I still do not understand, the firmware compiled with the 
 # Usage
 The Firmware starts with the following default configuration:
 - ssid: ssid, pasword: password
-- ap_ssid: ESP, ap_password: password, ap_on: 1, ap_open: 1
+- ap_ssid: ESP, ap_password: repeator, ap_on: 1, ap_open: 1
 - network: 192.168.2.0/24
 
 This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.2.1 7777" from a connected STA). 
@@ -46,6 +46,7 @@ The console understands the following command:
 - unlock [password]: Unlocks the Config, Requires Password of the STA.
 - scan: Does a Scan for APs.
 - monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port.
+- fuck: Make ESP Angry.
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:

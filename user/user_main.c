@@ -426,6 +426,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf(response, "monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port.");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
+#ifdef ALLOW_FUCK
+        os_sprintf(response, "fuck: Make ESP Angry.");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 	ringbuf_memcpy_into(console_tx_buffer, "\r\n", 2);
         goto command_handled;
     }
@@ -526,7 +530,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	remote_console_disconnect = 1;
         goto command_handled;
     }
-
 
     if (strcmp(tokens[0], "lock") == 0)
     {
@@ -725,7 +728,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             }
         }
     }
-
+#ifdef ALLOW_FUCK
+    if (strcmp(tokens[0], "fuck") == 0)
+    {
+        os_sprintf(response, "NO!!!!! FUCK YOU!!\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	config.locked = 1;
+	remote_console_disconnect = 1;
+	system_restart();
+        goto command_handled;
+    }
+#endif
     /* Control comes here only if the tokens[0] command is not handled */
     os_sprintf(response, "\r\n Invalid Command Entered Please! Retry...\r\nOr enter <help> to get a list of usable Commands...\r\n");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
