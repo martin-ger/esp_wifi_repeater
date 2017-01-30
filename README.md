@@ -46,7 +46,6 @@ The console understands the following command:
 - unlock [password]: Unlocks the Config, Requires Password of the STA.
 - scan: Does a Scan for APs.
 - monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port and run "netcat [ip-addr] [portno] | sudo wireshark -k -S -i -" on a remote computer to observe the traffic in RealTime.
-- fuck: Make ESP Angry.
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:

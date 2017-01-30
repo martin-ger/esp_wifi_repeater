@@ -33,11 +33,6 @@ typedef enum {SIG_DO_NOTHING = 0, SIG_START_SERVER = 1, SIG_SEND_DATA, SIG_UART0
 #define ALLOW_SCANNING  1
 
 //
-// Define this if you want to support the "fuck" command to make ESP Angry
-//
-#define ALLOW_FUCK  1
-
-//
 // Define this if you want to have access to the config console via TCP.
 // Ohterwise only local access via serial is possible
 //

@@ -22,7 +22,7 @@ void config_load_default(sysconfig_p config)
   config->ap_on     = 1;
   config->locked      = 0;
   IP4_ADDR(&config->network_addr, 192, 168, 2, 1);
-  config->clock_speed   = 160;
+  config->clock_speed   = 80;
 }
 
 int config_load(int version, sysconfig_p config)

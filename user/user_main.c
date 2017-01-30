@@ -411,23 +411,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     goto command_handled;
   }
 
-  os_sprintf(response, "TCP Console Connected!!!\r\n");
-  ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+  os_printf("TCP Console Connected!!!\r\n");
 
   if (strcmp(tokens[0], "help") == 0)
   {
-    os_sprintf(response, "Following Commands are Understandable:\r\nhelp: prints a short help message\r\nshow [config|stats]: Prints the current Config or some Statistics.\r\nset ssid|pasword|ap_ssid|ap_password [value]: Changes the named Config Parameter.\r\nset ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or is set to OPEN with no password (ap_open=1).\r\nset ap_on [0|1]: selects, wheter the soft-AP is Disabled (ap_on=0) or Enabled (ap_on=1).\r\nset network [ip-addr]: sets the IP address of the Internal Network, Network is always /24, Router is Always x.x.x.1 .\r\nset speed [80|160]: sets the CPU clock Frequency.\r\nsave [auto_connect]: Saves the Current Parameters to Flash and Restarts the System to apply the Settings, optionally set auto_connect to 1 .\r\nquit: Terminates a Remote Session.\r\nreset [factory]: Resets the ESP, optionally resets WiFi params to Default Values.\r\nlock: Locks the current Config, changes are not Allowed.\r\nunlock [password]: Unlocks the Config, Requires Password of the STA.\r\n");
+    os_sprintf(response, "show [config|stats]\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\nquit|save|reset [factory]|lock|unlock <password>");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
-    os_sprintf(response, "scan: Does a Scan for APs.\r\n");
+    os_sprintf(response, "|scan");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 #ifdef REMOTE_MONITORING
-    os_sprintf(response, "monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port and run <netcat [ip-addr] [portno] | sudo wireshark -k -S -i -> on a remote computer to observe the traffic in RealTime.");
-    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-#endif
-#ifdef ALLOW_FUCK
-    os_sprintf(response, "fuck: Make ESP Angry.");
+    os_sprintf(response, "|monitor [on|off] <portno>");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
     ringbuf_memcpy_into(console_tx_buffer, "\r\n", 2);
@@ -449,7 +444,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                  config.ap_on ? "" : " [Disabled]",
                  IP2STR(&config.network_addr));
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-      os_sprintf(response, "Clock Speed: %dMHz\r\n", config.clock_speed);
+      os_sprintf(response, "Clock Speed: %dMHz <80MHz/160MHz>\r\n", config.clock_speed);
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef REMOTE_MONITORING
       if (!config.locked && monitor_port != 0) {
@@ -468,7 +463,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       if (connected) {
         os_sprintf(response, "External IP-Address: " IPSTR "\r\n", IP2STR(&my_ip));
       } else {
-        os_sprintf(response, "Not Connected to any STA!!!\r\n");
+        os_sprintf(response, "Not Connected to any STA for Repeating!!!\r\n");
       }
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
       if (config.ap_on)
@@ -486,18 +481,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
   if (strcmp(tokens[0], "save") == 0)
   {
-    if (nTokens == 2 && strcmp(tokens[1], "auto_connect") == 0) {
-      os_sprintf(response, "Auto Connect to STA Enabled...\r\n");
-      ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-      config.auto_connect = 1;
-    }
     config_save(0, &config);
-    os_sprintf(response, "Config successfully Saved...\r\nRestarting System to Apply these Settings...\r\n");
+    config.clock_speed = 160;
+    config.locked = 1;
+    os_sprintf(response, "Config successfully Saved...\r\nPlease! <reset> System to Apply these Settings...\r\n");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-    remote_console_disconnect = 1;
-    system_restart();
     goto command_handled;
   }
+
 #ifdef ALLOW_SCANNING
   if (strcmp(tokens[0], "scan") == 0)
   {
@@ -508,6 +499,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     goto command_handled;
   }
 #endif
+
   if (strcmp(tokens[0], "reset") == 0)
   {
     if (nTokens == 2 && strcmp(tokens[1], "factory") == 0) {
@@ -515,10 +507,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
       config_load_default(&config);
       config_save(0, &config);
+      goto command_handled;
     }
     os_sprintf(response, "Restarting System Please! Hang Tightly... \r\n");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-    remote_console_disconnect = 1;
     system_restart();
     goto command_handled;
   }
@@ -576,6 +568,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
       }
       if (monitor_port != 0) {
+        config.clock_speed = 160;
         os_sprintf(response, "Monitor already Started!!!\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
@@ -583,8 +576,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
       monitor_port = atoi(tokens[2]);
       if (monitor_port != 0) {
+        config.clock_speed = 160;
         start_monitor(monitor_port);
-        os_sprintf(response, "Started Monitor on Port %d...\r\n", monitor_port);
+        os_sprintf(response, "Monitor Started on Port %d...\r\n", monitor_port);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
       } else {
@@ -728,19 +722,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       }
     }
   }
-#ifdef ALLOW_FUCK
-  if (strcmp(tokens[0], "fuck") == 0)
-  {
-    os_sprintf(response, "NO!!!!! FUCK YOU!!\r\n");
-    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-    config.locked = 1;
-    remote_console_disconnect = 1;
-    system_restart();
-    goto command_handled;
-  }
-#endif
+
   /* Control comes here only if the tokens[0] command is not handled */
-  os_sprintf(response, "\r\n Invalid Command Entered Please! Retry...\r\nOr enter <help> to get a list of usable Commands...\r\n");
+  os_sprintf(response, "\r\nInvalid Command Entered Please! Retry...\r\nOr enter <help> to get a list of usable Commands...\r\n");
   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
 command_handled:

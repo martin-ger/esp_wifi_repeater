@@ -41,7 +41,7 @@ EXTRA_INCDIR = $(BUILD_AREA)/esp-open-sdk/esp-open-lwip/include include
 LIBS	= c gcc hal pp phy net80211 lwip_open wpa main 
 
 # compiler flags using during compilation of source files
-CFLAGS	= -Os -g -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC
+CFLAGS	= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC
 
 # linker flags used to generate the main object file
 LDFLAGS	= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static
@@ -132,6 +132,8 @@ $(FW_BASE):
 flash: $(FW_FILE_1) $(FW_FILE_2)
 	sudo $(ESPTOOL) --port $(ESPPORT) write_flash $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
 
+cflash:
+	sudo $(ESPTOOL) --port $(ESPPORT) erase_flash
 clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)
 
