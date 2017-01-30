@@ -423,7 +423,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 #ifdef REMOTE_MONITORING
-    os_sprintf(response, "monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port.");
+    os_sprintf(response, "monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port and run <netcat [ip-addr] [portno] | sudo wireshark -k -S -i -> on a remote computer to observe the traffic in RealTime.");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 #ifdef ALLOW_FUCK

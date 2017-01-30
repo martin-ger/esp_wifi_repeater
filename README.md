@@ -1,8 +1,8 @@
 # esp_wifi_repeater
 A full functional WiFi Repeater (correctly: a WiFi NAT Router)
-                                         CODED by martin-ger & Moded by yoAeroA00
+                                         CODED by martin-ger & further Moded and Optimized by yoAeroA00
 
-This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.2.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark. 
 
@@ -45,7 +45,7 @@ The console understands the following command:
 - lock: Locks the current Config, changes are not Allowed.
 - unlock [password]: Unlocks the Config, Requires Password of the STA.
 - scan: Does a Scan for APs.
-- monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port.
+- monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port and run "netcat [ip-addr] [portno] | sudo wireshark -k -S -i -" on a remote computer to observe the traffic in RealTime.
 - fuck: Make ESP Angry.
 
 # Status LED

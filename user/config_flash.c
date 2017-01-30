@@ -15,7 +15,7 @@ void config_load_default(sysconfig_p config)
   config->length      = sizeof(sysconfig_t);
   os_sprintf(config->ssid, "%s", WIFI_SSID);
   os_sprintf(config->password, "%s", WIFI_PASSWORD);
-  config->auto_connect    = 1;
+  config->auto_connect    = 0;
   os_sprintf(config->ap_ssid, "%s", WIFI_AP_SSID);
   os_sprintf(config->ap_password, "%s", WIFI_AP_PASSWORD);
   config->ap_open     = 1;
