@@ -33,7 +33,7 @@ typedef struct
     uint8_t     locked;		// Should we allow for config changes
     ip_addr_t	network_addr;	// Address of the internal network
 
-    uint16_t	clock_speed;	// Freq of the CPU
+    uint16_t	clock_speed;	// Freq of the CPU in MHz
 } sysconfig_t, *sysconfig_p;
 
 int config_load(int version, sysconfig_p config);
