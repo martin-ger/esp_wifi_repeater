@@ -29,4 +29,3 @@ void init_long_systime() {
 	time.time_l = (uint64_t)old;
 }
 
-

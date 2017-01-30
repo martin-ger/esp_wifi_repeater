@@ -9,4 +9,3 @@ uint64_t ICACHE_FLASH_ATTR get_low_systime();
 // initializes the timer
 void init_long_systime();
 
-
