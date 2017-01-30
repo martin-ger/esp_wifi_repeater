@@ -1,19 +1,19 @@
 /*
- * File	: uart.h
- * Copyright (C) 2013 - 2016, Espressif Systems
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of version 3 of the GNU General Public License as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+   File  : uart.h
+   Copyright (C) 2013 - 2016, Espressif Systems
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of version 3 of the GNU General Public License as
+   published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License along
+   with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 #ifndef UART_APP_H
 #define UART_APP_H
 
@@ -34,8 +34,8 @@
 #define _ENABLE_RING_BUFFER         1
 
 #ifdef _ENABLE_RING_BUFFER
-    #include "ringbuf.h"
-    #define RX_RING_BUFFER_SIZE 250
+#include "ringbuf.h"
+#define RX_RING_BUFFER_SIZE 250
 #endif
 
 
@@ -45,110 +45,110 @@
 
 
 typedef enum {
-    FIVE_BITS = 0x0,
-    SIX_BITS = 0x1,
-    SEVEN_BITS = 0x2,
-    EIGHT_BITS = 0x3
+  FIVE_BITS = 0x0,
+  SIX_BITS = 0x1,
+  SEVEN_BITS = 0x2,
+  EIGHT_BITS = 0x3
 } UartBitsNum4Char;
 
 typedef enum {
-    ONE_STOP_BIT             = 0x1,
-    ONE_HALF_STOP_BIT        = 0x2,
-    TWO_STOP_BIT             = 0x3
+  ONE_STOP_BIT             = 0x1,
+  ONE_HALF_STOP_BIT        = 0x2,
+  TWO_STOP_BIT             = 0x3
 } UartStopBitsNum;
 
 typedef enum {
-    NONE_BITS = 0x2,
-    ODD_BITS   = 1,
-    EVEN_BITS = 0
+  NONE_BITS = 0x2,
+  ODD_BITS   = 1,
+  EVEN_BITS = 0
 } UartParityMode;
 
 typedef enum {
-    STICK_PARITY_DIS   = 0,
-    STICK_PARITY_EN    = 1
+  STICK_PARITY_DIS   = 0,
+  STICK_PARITY_EN    = 1
 } UartExistParity;
 
 typedef enum {
-    UART_None_Inverse = 0x0,
-    UART_Rxd_Inverse = UART_RXD_INV,
-    UART_CTS_Inverse = UART_CTS_INV,
-    UART_Txd_Inverse = UART_TXD_INV,
-    UART_RTS_Inverse = UART_RTS_INV,
+  UART_None_Inverse = 0x0,
+  UART_Rxd_Inverse = UART_RXD_INV,
+  UART_CTS_Inverse = UART_CTS_INV,
+  UART_Txd_Inverse = UART_TXD_INV,
+  UART_RTS_Inverse = UART_RTS_INV,
 } UART_LineLevelInverse;
 
 
 typedef enum {
-    BIT_RATE_300 = 300,
-    BIT_RATE_600 = 600,
-    BIT_RATE_1200 = 1200,
-    BIT_RATE_2400 = 2400,
-    BIT_RATE_4800 = 4800,
-    BIT_RATE_9600   = 9600,
-    BIT_RATE_19200  = 19200,
-    BIT_RATE_38400  = 38400,
-    BIT_RATE_57600  = 57600,
-    BIT_RATE_74880  = 74880,
-    BIT_RATE_115200 = 115200,
-    BIT_RATE_230400 = 230400,
-    BIT_RATE_460800 = 460800,
-    BIT_RATE_921600 = 921600,
-    BIT_RATE_1843200 = 1843200,
-    BIT_RATE_3686400 = 3686400,
+  BIT_RATE_300 = 300,
+  BIT_RATE_600 = 600,
+  BIT_RATE_1200 = 1200,
+  BIT_RATE_2400 = 2400,
+  BIT_RATE_4800 = 4800,
+  BIT_RATE_9600   = 9600,
+  BIT_RATE_19200  = 19200,
+  BIT_RATE_38400  = 38400,
+  BIT_RATE_57600  = 57600,
+  BIT_RATE_74880  = 74880,
+  BIT_RATE_115200 = 115200,
+  BIT_RATE_230400 = 230400,
+  BIT_RATE_460800 = 460800,
+  BIT_RATE_921600 = 921600,
+  BIT_RATE_1843200 = 1843200,
+  BIT_RATE_3686400 = 3686400,
 } UartBautRate;
 
 typedef enum {
-    NONE_CTRL,
-    HARDWARE_CTRL,
-    XON_XOFF_CTRL
+  NONE_CTRL,
+  HARDWARE_CTRL,
+  XON_XOFF_CTRL
 } UartFlowCtrl;
 
 typedef enum {
-    USART_HardwareFlowControl_None = 0x0,
-    USART_HardwareFlowControl_RTS = 0x1,
-    USART_HardwareFlowControl_CTS = 0x2,
-    USART_HardwareFlowControl_CTS_RTS = 0x3
+  USART_HardwareFlowControl_None = 0x0,
+  USART_HardwareFlowControl_RTS = 0x1,
+  USART_HardwareFlowControl_CTS = 0x2,
+  USART_HardwareFlowControl_CTS_RTS = 0x3
 } UART_HwFlowCtrl;
 
 typedef enum {
-    EMPTY,
-    UNDER_WRITE,
-    WRITE_OVER
+  EMPTY,
+  UNDER_WRITE,
+  WRITE_OVER
 } RcvMsgBuffState;
 
 typedef struct {
-    uint32     RcvBuffSize;
-    uint8     *pRcvMsgBuff;
-    uint8     *pWritePos;
-    uint8     *pReadPos;
-    uint8      TrigLvl; //JLU: may need to pad
-    RcvMsgBuffState  BuffState;
+  uint32     RcvBuffSize;
+  uint8     *pRcvMsgBuff;
+  uint8     *pWritePos;
+  uint8     *pReadPos;
+  uint8      TrigLvl; //JLU: may need to pad
+  RcvMsgBuffState  BuffState;
 } RcvMsgBuff;
 
 typedef struct {
-    uint32   TrxBuffSize;
-    uint8   *pTrxBuff;
+  uint32   TrxBuffSize;
+  uint8   *pTrxBuff;
 } TrxMsgBuff;
 
 typedef enum {
-    BAUD_RATE_DET,
-    WAIT_SYNC_FRM,
-    SRCH_MSG_HEAD,
-    RCV_MSG_BODY,
-    RCV_ESC_CHAR,
+  BAUD_RATE_DET,
+  WAIT_SYNC_FRM,
+  SRCH_MSG_HEAD,
+  RCV_MSG_BODY,
+  RCV_ESC_CHAR,
 } RcvMsgState;
 
 typedef struct {
-    UartBautRate 	     baut_rate;
-    UartBitsNum4Char  data_bits;
-    UartExistParity      exist_parity;
-    UartParityMode 	    parity;
-    UartStopBitsNum   stop_bits;
-    UartFlowCtrl         flow_ctrl;
-    RcvMsgBuff          rcv_buff;
-    TrxMsgBuff           trx_buff;
-    RcvMsgState        rcv_state;
-    int                      received;
-    int                      buff_uart_no;  //indicate which uart use tx/rx buffer
+  UartBautRate       baut_rate;
+  UartBitsNum4Char  data_bits;
+  UartExistParity      exist_parity;
+  UartParityMode      parity;
+  UartStopBitsNum   stop_bits;
+  UartFlowCtrl         flow_ctrl;
+  RcvMsgBuff          rcv_buff;
+  TrxMsgBuff           trx_buff;
+  RcvMsgState        rcv_state;
+  int                      received;
+  int                      buff_uart_no;  //indicate which uart use tx/rx buffer
 } UartDevice;
 
 void uart_init(UartBautRate uart0_br, UartBautRate uart1_br);
@@ -160,29 +160,29 @@ void uart0_sendStr(const char *str);
 #define UART_TX_EMPTY_THRESH_VAL 0x10
 
 
- struct UartBuffer{
-    uint32     UartBuffSize;
-    uint8     *pUartBuff;
-    uint8     *pInPos;
-    uint8     *pOutPos;
-    STATUS  BuffState;
-    uint16    Space;  //remanent space of the buffer
-    uint8  TcpControl;
-    struct  UartBuffer     *  nextBuff;
+struct UartBuffer {
+  uint32     UartBuffSize;
+  uint8     *pUartBuff;
+  uint8     *pInPos;
+  uint8     *pOutPos;
+  STATUS  BuffState;
+  uint16    Space;  //remanent space of the buffer
+  uint8  TcpControl;
+  struct  UartBuffer     *  nextBuff;
 };
 
-struct UartRxBuff{
-    uint32     UartRxBuffSize;
-    uint8     *pUartRxBuff;
-    uint8     *pWritePos;
-    uint8     *pReadPos;
-    STATUS RxBuffState;
-    uint32    Space;  //remanent space of the buffer
+struct UartRxBuff {
+  uint32     UartRxBuffSize;
+  uint8     *pUartRxBuff;
+  uint8     *pWritePos;
+  uint8     *pReadPos;
+  STATUS RxBuffState;
+  uint32    Space;  //remanent space of the buffer
 } ;
 
 typedef enum {
-    RUN = 0,
-    BLOCK = 1,
+  RUN = 0,
+  BLOCK = 1,
 } TCPState;
 
 //void ICACHE_FLASH_ATTR uart_test_rx();
@@ -214,12 +214,12 @@ void UART_SetWordLength(uint8 uart_no, UartBitsNum4Char len);
 void UART_SetStopBits(uint8 uart_no, UartStopBitsNum bit_num);
 void UART_SetLineInverse(uint8 uart_no, UART_LineLevelInverse inverse_mask);
 void UART_SetParity(uint8 uart_no, UartParityMode Parity_mode);
-void UART_SetBaudrate(uint8 uart_no,uint32 baud_rate);
-void UART_SetFlowCtrl(uint8 uart_no,UART_HwFlowCtrl flow_ctrl,uint8 rx_thresh);
+void UART_SetBaudrate(uint8 uart_no, uint32 baud_rate);
+void UART_SetFlowCtrl(uint8 uart_no, UART_HwFlowCtrl flow_ctrl, uint8 rx_thresh);
 void UART_WaitTxFifoEmpty(uint8 uart_no , uint32 time_out_us); //do not use if tx flow control enabled
 void UART_ResetFifo(uint8 uart_no);
-void UART_ClearIntrStatus(uint8 uart_no,uint32 clr_mask);
-void UART_SetIntrEna(uint8 uart_no,uint32 ena_mask);
+void UART_ClearIntrStatus(uint8 uart_no, uint32 clr_mask);
+void UART_SetIntrEna(uint8 uart_no, uint32 ena_mask);
 void UART_SetPrintPort(uint8 uart_no);
 bool UART_CheckOutputFinished(uint8 uart_no, uint32 time_out_us);
 //==============================================

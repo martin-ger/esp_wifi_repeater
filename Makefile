@@ -17,7 +17,7 @@ BUILD_AREA = /home/Dev/ESP8266
 # Output directors to store intermediate compiled files
 # relative to the project directory
 BUILD_BASE	= build
-FW_BASE		= firmware
+FW_BASE	= firmware
 
 # base directory for the compiler
 XTENSA_TOOLS_ROOT ?= $(BUILD_AREA)/esp-open-sdk/xtensa-lx106-elf/bin
@@ -26,25 +26,25 @@ XTENSA_TOOLS_ROOT ?= $(BUILD_AREA)/esp-open-sdk/xtensa-lx106-elf/bin
 SDK_BASE	?= $(BUILD_AREA)/esp-open-sdk/sdk
 
 # # esptool.py path and port
-ESPTOOL		?= $(BUILD_AREA)/esp-open-sdk/esptool/esptool.py
-ESPPORT		?= /dev/ttyUSB0
+ESPTOOL	?= $(BUILD_AREA)/esp-open-sdk/esptool/esptool.py
+ESPPORT	?= /dev/ttyUSB0
 
 # name for the target project
-TARGET		= app
+TARGET	= app
 
 # which modules (subdirectories) of the project to include in compiling
-MODULES		= driver user
-EXTRA_INCDIR    = $(BUILD_AREA)/esp-open-sdk/esp-open-lwip/include include
-#EXTRA_INCDIR    = include
+MODULES	= driver user
+EXTRA_INCDIR = $(BUILD_AREA)/esp-open-sdk/esp-open-lwip/include include
+#EXTRA_INCDIR = include
 
 # libraries used in this project, mainly provided by the SDK
-LIBS		= c gcc hal pp phy net80211 lwip_open wpa main 
+LIBS	= c gcc hal pp phy net80211 lwip_open wpa main 
 
 # compiler flags using during compilation of source files
-CFLAGS		= -Os -g -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC
+CFLAGS	= -Os -g -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC
 
 # linker flags used to generate the main object file
-LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static
+LDFLAGS	= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static
 
 # linker script used for the above linkier step
 LD_SCRIPT	= eagle.app.v6.ld
@@ -60,25 +60,23 @@ FW_FILE_1_ADDR	= 0x00000
 FW_FILE_2_ADDR	= 0x10000
 
 # select which tools to use as compiler, librarian and linker
-CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
-AR		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-ar
-LD		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
-
-
+CC	:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
+AR	:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-ar
+LD	:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
 
 ####
 #### no user configurable options below here
 ####
-SRC_DIR		:= $(MODULES)
+SRC_DIR	:= $(MODULES)
 BUILD_DIR	:= $(addprefix $(BUILD_BASE)/,$(MODULES))
 
 SDK_LIBDIR	:= $(addprefix $(SDK_BASE)/,$(SDK_LIBDIR))
 SDK_INCDIR	:= $(addprefix -I$(SDK_BASE)/,$(SDK_INCDIR))
 
-SRC		:= $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.c))
-OBJ		:= $(patsubst %.c,$(BUILD_BASE)/%.o,$(SRC))
-LIBS		:= $(addprefix -l,$(LIBS))
-APP_AR		:= $(addprefix $(BUILD_BASE)/,$(TARGET)_app.a)
+SRC	:= $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.c))
+OBJ	:= $(patsubst %.c,$(BUILD_BASE)/%.o,$(SRC))
+LIBS	:= $(addprefix -l,$(LIBS))
+APP_AR	:= $(addprefix $(BUILD_BASE)/,$(TARGET)_app.a)
 TARGET_OUT	:= $(addprefix $(BUILD_BASE)/,$(TARGET).out)
 
 LD_SCRIPT	:= $(addprefix -T$(SDK_BASE)/$(SDK_LDDIR)/,$(LD_SCRIPT))
