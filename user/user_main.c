@@ -463,7 +463,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       if (connected) {
         os_sprintf(response, "External IP-Address: " IPSTR "\r\n", IP2STR(&my_ip));
       } else {
-        os_sprintf(response, "Not Connected to any STA for Repeating!!!\r\n");
+        os_sprintf(response, "Not Connected to any AP for Repeating!!!\r\n");
       }
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
       if (config.ap_on)
