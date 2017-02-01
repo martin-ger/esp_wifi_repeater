@@ -135,7 +135,7 @@ flash: $(FW_FILE_1) $(FW_FILE_2)
 cflash:
 	sudo $(ESPTOOL) --port $(ESPPORT) erase_flash
 clean:
-	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)
+	$(Q) rm -rf $(BUILD_BASE)
 
 $(foreach bdir,$(BUILD_DIR),$(eval $(call compile-objects,$(bdir))))
 

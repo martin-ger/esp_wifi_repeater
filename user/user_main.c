@@ -411,8 +411,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     goto command_handled;
   }
 
-  os_printf("TCP Console Connected!!!\r\n");
-
   if (strcmp(tokens[0], "help") == 0)
   {
     os_sprintf(response, "show [config|stats]\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\nquit|save|reset [factory]|lock|unlock <password>");
@@ -493,7 +491,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
   {
     scanconn = pespconn;
     wifi_station_scan(NULL, scan_done);
-    os_sprintf(response, "Scanning STA's... Please! wait...\r\n");
+    os_sprintf(response, "Scanning AP's... Please! wait...\r\n");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
     goto command_handled;
   }
