@@ -36,18 +36,17 @@ The console understands the following command:
 - set [ssid|pasword|ap_ssid|ap_password] _value_: changes the named config parameter
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
 - set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
-- set network (ip-addr): sets the IP address of the internal network, network is always /24, router is always x.x.x.1
+- set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set speed [80|160]: sets the CPU clock frequency
-- portmap add [TCP|UDP] (external port) (internal IP) (internal port)
-- portmap remove [TCP|UDP] (external port)
-- save: saves the current config parameters to flash
-- save dhcp: saves the current config parameters + the current DHCP leases to flash
+- portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_
+- portmap remove [TCP|UDP] _external_port_
+- save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
 - quit: terminates a remote session
 - reset [factory]: resets the esp, optionally resets WiFi params to default values
 - lock: locks the current config, changes are not allowed
-- unlock (password): unlocks the config, requires password of the network AP
+- unlock _password_: unlocks the config, requires password of the network AP
 - scan: does a scan for APs
-- monitor [on|off] (port): starts and stops monitor server on a given port
+- monitor [on|off] _port_: starts and stops monitor server on a given port
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
