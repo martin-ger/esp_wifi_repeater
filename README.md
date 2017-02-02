@@ -1,14 +1,16 @@
 # esp_wifi_repeater
 A full functional WiFi Repeater (correctly: a WiFi NAT Router)
 
-This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+                                         CODED by martin-ger & further Moded and Optimized by yoAeroA00
+
+This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.2.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark. 
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
 # Building and Flashing
-To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk) and my version of the esp-open-lwip library (https://github.com/martin-ger/esp-open-lwip). Replace that in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
+To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk) and my version of the esp-open-lwip library (https://github.com/yoAeroA00/esp-open-lwip). Replace that in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
 
 Then adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h.
 
@@ -25,26 +27,26 @@ For some reasons that I still do not understand, the firmware compiled with the 
 # Usage
 The Firmware starts with the following default configuration:
 - ssid: ssid, pasword: password
-- ap_ssid: MyAP, ap_password: none, ap_on: 1, ap_open: 1
-- network: 192.168.4.0/24
+- ap_ssid: ESP, ap_password: repeator, ap_on: 1, ap_open: 1
+- network: 192.168.2.0/24
 
-This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
+This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.2.1 7777" from a connected STA). 
 
 The console understands the following command:
 - help: prints a short help message
-- show [config|stats]: prints the current config or some statistics
-- set ssid|pasword|ap_ssid|ap_password [value]: changes the named config parameter
-- set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
-- set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
-- set network [ip-addr]: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
-- set speed [80|160]: sets the CPU clock frequency
-- save: saves the current parameters to flash
-- quit: terminates a remote session
-- reset [factory]: resets the esp, optionally resets WiFi params to default values
-- lock: locks the current config, changes are not allowed
-- unlock [password]: unlocks the config, requires password of the network AP
-- scan: does a scan for APs
-- monitor [on|off] [port]: starts and stops monitor server on a given port
+- show [config|stats]: Prints the current Config or some Statistics.
+- set ssid|pasword|ap_ssid|ap_password [value]: Changes the named Config Parameter.
+- set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or is set to OPEN with no password (ap_open=1).
+- set ap_on [0|1]: selects, wheter the soft-AP is Disabled (ap_on=0) or Enabled (ap_on=1).
+- set network [ip-addr]: sets the IP address of the Internal Network, Network is always /24, Router is Always x.x.x.1 .
+- set speed [80|160]: sets the CPU clock Frequency.
+- save [lock]: Saves the Current Parameters to Flash and set cpu speed to 160MHz for better Performance, optionally set config to locked.
+- quit: Terminates a Remote Session.
+- reset [factory]: Resets the ESP, optionally resets WiFi params to Default Values.
+- lock: Locks the current Config, changes are not Allowed.
+- unlock [password]: Unlocks the Config, Requires Password of the STA.
+- scan: Does a Scan for APs.
+- monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port and run "netcat [ip-addr] [portno] | sudo wireshark -k -S -i -" on a remote computer to observe the traffic in RealTime.
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
