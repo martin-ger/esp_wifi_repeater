@@ -1,5 +1,6 @@
 # esp_wifi_repeater
 A full functional WiFi Repeater (correctly: a WiFi NAT Router)
+
                                          CODED by martin-ger & further Moded and Optimized by yoAeroA00
 
 This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.2.0/24 net and receive their DNS responder address from the existing WiFi network.
@@ -39,7 +40,7 @@ The console understands the following command:
 - set ap_on [0|1]: selects, wheter the soft-AP is Disabled (ap_on=0) or Enabled (ap_on=1).
 - set network [ip-addr]: sets the IP address of the Internal Network, Network is always /24, Router is Always x.x.x.1 .
 - set speed [80|160]: sets the CPU clock Frequency.
-- save [auto_connect]: Saves the Current Parameters to Flash, optionally set config to locked and set cpu speed to 160MHz for better Performance.
+- save [lock]: Saves the Current Parameters to Flash and set cpu speed to 160MHz for better Performance, optionally set config to locked.
 - quit: Terminates a Remote Session.
 - reset [factory]: Resets the ESP, optionally resets WiFi params to Default Values.
 - lock: Locks the current Config, changes are not Allowed.
