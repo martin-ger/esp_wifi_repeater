@@ -49,7 +49,7 @@ typedef enum {SIG_DO_NOTHING = 0, SIG_START_SERVER = 1, SIG_SEND_DATA, SIG_UART0
 #define MONITOR_BUFFER_SIZE 0x3c00
 
 // Define this if you want to cut packets short in case of too high data rate
-#define MONITOR_BUFFER_TIGHT  0x1000
+//#define MONITOR_BUFFER_TIGHT  0x1000
 
 // Define this if you want to silently drop any packet that cannot be send to the monitor
 //#define DROP_PACKET_IF_NOT_RECORDED 1

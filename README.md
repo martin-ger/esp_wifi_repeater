@@ -39,7 +39,7 @@ The console understands the following command:
 - set ap_on [0|1]: selects, wheter the soft-AP is Disabled (ap_on=0) or Enabled (ap_on=1).
 - set network [ip-addr]: sets the IP address of the Internal Network, Network is always /24, Router is Always x.x.x.1 .
 - set speed [80|160]: sets the CPU clock Frequency.
-- save [auto_connect]: Saves the Current Parameters to Flash and Restarts the System to apply the Settings, optionally set auto_connect to 1 .
+- save [auto_connect]: Saves the Current Parameters to Flash, optionally set config to locked and set cpu speed to 160MHz for better Performance.
 - quit: Terminates a Remote Session.
 - reset [factory]: Resets the ESP, optionally resets WiFi params to Default Values.
 - lock: Locks the current Config, changes are not Allowed.

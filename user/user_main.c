@@ -479,8 +479,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
   if (strcmp(tokens[0], "save") == 0)
   {
-    config_save(0, &config);
+    config.locked = 1;
     config.clock_speed = 160;
+    config_save(0, &config);
     os_sprintf(response, "Config successfully Saved...\r\nPlease! Run <lock>,<reset> Command's to Apply these Settings...\r\n");
     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
     goto command_handled;
