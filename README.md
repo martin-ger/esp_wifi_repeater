@@ -33,18 +33,21 @@ This means it connects to the internet via AP ssid,password and offers an open A
 The console understands the following command:
 - help: prints a short help message
 - show [config|stats]: prints the current config or some statistics
-- set ssid|pasword|ap_ssid|ap_password [value]: changes the named config parameter
+- set [ssid|pasword|ap_ssid|ap_password] <value>: changes the named config parameter
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
 - set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
-- set network [ip-addr]: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
+- set network <ip-addr>: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set speed [80|160]: sets the CPU clock frequency
-- save: saves the current parameters to flash
+- portmap add [TCP|UDP] <external port> <internal IP> <internal port>
+- portmap remove [TCP|UDP] <external port>
+- save: saves the current config parameters to flash
+- save dhcp: saves the current config parameters + the current DHCP leases to flash
 - quit: terminates a remote session
 - reset [factory]: resets the esp, optionally resets WiFi params to default values
 - lock: locks the current config, changes are not allowed
-- unlock [password]: unlocks the config, requires password of the network AP
+- unlock <password>: unlocks the config, requires password of the network AP
 - scan: does a scan for APs
-- monitor [on|off] [port]: starts and stops monitor server on a given port
+- monitor [on|off] <port>: starts and stops monitor server on a given port
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
@@ -56,6 +59,11 @@ In user_config.h an alternative GPIO port can be configured. When configured to 
 
 # Monitoring
 From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.
+
+# Port Mapping
+In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
+
+However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achive this, either fixed IP adresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achived with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
 
 # Known Issues
 - Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vcc and Gnd can help if you experience problems here.

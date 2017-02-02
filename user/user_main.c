@@ -4,9 +4,10 @@
 #include "osapi.h"
 #include "gpio.h"
 #include "os_type.h"
-#include "lwip/ip_addr.h"
+#include "lwip/ip.h"
 #include "lwip/netif.h"
 #include "lwip/dns.h"
+#include "lwip/lwip_napt.h"
 #include "lwip/app/dhcpserver.h"
 #include "lwip/app/espconn.h"
 #include "lwip/app/espconn_tcp.h"
@@ -383,7 +384,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 {
     char cmd_line[256];
     char response[256];
-    char *tokens[5];
+    char *tokens[6];
 
     int bytes_count, nTokens, i, j;
 
@@ -401,7 +402,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     cmd_line[bytes_count] = 0;
 
-    nTokens = parse_str_into_tokens(cmd_line, tokens, 5);
+    nTokens = parse_str_into_tokens(cmd_line, tokens, 6);
 
     if (nTokens == 0) {
 	char c = '\n';
@@ -411,7 +412,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]|\r\nset [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\n|quit|save|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP|ICMP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
@@ -427,6 +428,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "show") == 0)
     {
+      int16_t i;
+      struct portmap_table *p;
+      ip_addr_t i_ip;
+
       if (nTokens == 1 || (nTokens == 2 && strcmp(tokens[1], "config") == 0)) {
         os_sprintf(response, "STA: SSID:%s PW:%s [AutoConnect:%d] \r\n",
                    config.ssid,
@@ -442,6 +447,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+
+	for (i = 0; i<IP_PORTMAP_MAX; i++) {
+	    p = &ip_portmap_table[i];
+	    if(p->valid) {
+		i_ip.addr = p->daddr;
+		os_sprintf(response, "Portmap: %s: " IPSTR ":%d -> "  IPSTR ":%d\r\n", 
+		   p->proto==IP_PROTO_TCP?"TCP":p->proto==IP_PROTO_UDP?"UDP":"???",
+		   IP2STR(&my_ip), ntohs(p->mport), IP2STR(&i_ip), ntohs(p->dport));
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	    }
+	}
 #ifdef REMOTE_MONITORING
 	if (!config.locked&&monitor_port != 0) {
            	os_sprintf(response, "Monitor started on port %d\r\n", monitor_port);
@@ -450,12 +466,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 	goto command_handled;
       }
+
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
            uint32_t voltage = readvdd33();
+	   int16_t i;
+	   struct dhcps_pool *p;
+
            os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
 	      time/3600, (time%3600)/60, time%60, voltage/1000, voltage%1000);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
+			(uint32_t)(Bytes_in/1024), Packets_in, 
+			(uint32_t)(Bytes_out/1024), Packets_out);
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   if (connected) {
 		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
 	   } else {
@@ -467,20 +491,105 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   else
 		   os_sprintf(response, "AP disabled\r\n");
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
-			(uint32_t)(Bytes_in/1024), Packets_in, 
-			(uint32_t)(Bytes_out/1024), Packets_out);
-           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+           for (i = 0; p = dhcps_get_mapping(i); i++) {
+		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
+		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
+		   IP2STR(&p->ip));
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   }
 	   goto command_handled;
       }
     }
 
+    if (strcmp(tokens[0], "portmap") == 0)
+    {
+    uint32_t daddr;
+    uint16_t mport;
+    uint16_t dport;
+    uint8_t proto;
+    bool add;
+    uint8_t retval;
+
+        if (config.locked)
+        {
+            os_sprintf(response, "Invalid portmap command. Config locked\r\n");
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+            goto command_handled;
+        }
+
+        if (nTokens < 4 || (strcmp(tokens[1],"add")==0 && nTokens != 6))
+        {
+            os_sprintf(response, "Invalid number of arguments\r\n");
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	    goto command_handled;
+        }
+
+        add = strcmp(tokens[1],"add")==0;
+	if (!add && strcmp(tokens[1],"remove")!=0) {
+	    os_sprintf(response, "Portmap failed. Invalid command\r\n");
+	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	    goto command_handled;
+	}
+
+	if (strcmp(tokens[2],"TCP") == 0) proto = IP_PROTO_TCP;
+	else if (strcmp(tokens[2],"UDP") == 0) proto = IP_PROTO_UDP;
+        else {
+	    os_sprintf(response, "Portmap failed. Invalid protocol\r\n");
+	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	    goto command_handled;
+	}
+
+        mport = (uint16_t)atoi(tokens[3]);
+	if (add) {
+	    daddr = ipaddr_addr(tokens[4]);
+            dport = atoi(tokens[5]);
+	    retval = ip_portmap_add(proto, my_ip.addr, mport, daddr, dport);
+	} else {
+            retval = ip_portmap_remove(proto, mport);
+	}
+
+	if (retval) {
+	    os_sprintf(response, "Portmap %s\r\n", add?"set":"deleted");
+	} else {
+	    os_sprintf(response, "Portmap failed\r\n");
+	};
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+        goto command_handled;
+    }
+
+
     if (strcmp(tokens[0], "save") == 0)
     {
-        config_save(0, &config);
+      if (config.locked) {
+        os_sprintf(response, "Invalid save command. Config locked\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+        goto command_handled;
+      }
+
+      if (nTokens == 1 || (nTokens == 2 && strcmp(tokens[1], "config") == 0)) {
+        config_save(&config);
+	// also save the portmap table
+	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
         os_sprintf(response, "Config saved\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
+      }
+
+      if (nTokens == 2 && strcmp(tokens[1], "dhcp") == 0) {
+	int16_t i;
+	struct dhcps_pool *p;
+
+	for (i = 0; i<MAX_DHCP && (p = dhcps_get_mapping(i)); i++) {
+	  os_memcpy(&config.dhcps_p[i], p, sizeof(struct dhcps_pool));
+	}
+	config.dhcps_entries = i;
+        config_save(&config);
+	// also save the portmap table
+	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+        os_sprintf(response, "Config and DHCP table saved\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+        goto command_handled;
+      }
     }
 #ifdef ALLOW_SCANNING
     if (strcmp(tokens[0], "scan") == 0)
@@ -496,7 +605,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     {
 	if (nTokens == 2 && strcmp(tokens[1], "factory") == 0) {
            config_load_default(&config);
-           config_save(0, &config);
+           config_save(&config);
+	   // clear saved portmap table
+	   blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
 	}
         os_printf("Restarting ... \r\n");
 	system_restart();
@@ -836,6 +947,7 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 void wifi_handle_event_cb(System_Event_t *evt)
 {
     ip_addr_t dns_ip;
+    uint16_t i;
 
     //os_printf("wifi_handle_event_cb: ");
     switch (evt->event)
@@ -861,6 +973,13 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
 	my_ip = evt->event_info.got_ip.ip;
 	connected = true;
+
+	// Update any predefined portmaps to the new IP addr
+        for (i = 0; i<IP_PORTMAP_MAX; i++) {
+	  if(ip_portmap_table[i].valid) {
+	     ip_portmap_table[i].maddr = my_ip.addr;
+	  }
+	}
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
 	system_os_post(user_procTaskPrio, SIG_START_SERVER, 0 );
@@ -911,6 +1030,7 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
 struct ip_info info;
 struct dhcps_lease dhcp_lease;
 struct netif *nif;
+int i;
 
    // Configure the internal network
 
@@ -933,10 +1053,16 @@ struct netif *nif;
    dhcp_lease.start_ip = config.network_addr;
    ip4_addr4(&dhcp_lease.start_ip) = 2;
    dhcp_lease.end_ip = config.network_addr;
-   ip4_addr4(&dhcp_lease.end_ip) = 20;
+   ip4_addr4(&dhcp_lease.end_ip) = 128;
    wifi_softap_set_dhcps_lease(&dhcp_lease);
 
    wifi_softap_dhcps_start();
+
+   // Enter any saved dhcp enties if they are in this network
+   for (i = 0; i<config.dhcps_entries; i++) {
+     if ((config.network_addr.addr & info.netmask.addr) == (config.dhcps_p[i].ip.addr & info.netmask.addr))
+       dhcps_set_mapping(&config.dhcps_p[i].ip, &config.dhcps_p[i].mac[0], 100000 /* several month */);
+   }
 
    do_ip_config = false;
 }
@@ -988,7 +1114,14 @@ void ICACHE_FLASH_ATTR user_init()
 #endif
 
     // Load WiFi-config
-    config_load(0, &config);
+    if (config_load(&config)== 0) {
+	// valid config in FLASH, can read portmap table
+	blob_load(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+    } else {
+	
+	// clear portmap table
+	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+    }
 
     // Configure the AP and start it, if required
 
@@ -1041,3 +1174,4 @@ void ICACHE_FLASH_ATTR user_init()
     //Start task
     system_os_task(user_procTask, user_procTaskPrio,user_procTaskQueue, user_procTaskQueueLen);
 }
+
