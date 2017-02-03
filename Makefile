@@ -58,6 +58,10 @@ SDK_INCDIR	= include include/json
 # these are the names and options to generate them
 FW_FILE_1_ADDR	= 0x00000
 FW_FILE_2_ADDR	= 0x10000
+#FW_FILE_3_ADDR	= 0x7C000 # 512KB
+#FW_FILE_3_ADDR	= 0xFC000 # 1MB
+#FW_FILE_3_ADDR	= 0x1FC000 # 2MB
+FW_FILE_3_ADDR	= 0x3FC000 # 4MB
 
 # select which tools to use as compiler, librarian and linker
 CC	:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
@@ -87,6 +91,7 @@ MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
 
 FW_FILE_1	:= $(addprefix $(FW_BASE)/,$(FW_FILE_1_ADDR).bin)
 FW_FILE_2	:= $(addprefix $(FW_BASE)/,$(FW_FILE_2_ADDR).bin)
+FW_FILE_3	:= $(addprefix $(FW_BASE)/,init.bin)
 
 V ?= $(VERBOSE)
 ifeq ("$(V)","1")
@@ -130,7 +135,7 @@ $(FW_BASE):
 	$(Q) mkdir -p $@
 
 flash: $(FW_FILE_1) $(FW_FILE_2)
-	sudo $(ESPTOOL) --port $(ESPPORT) write_flash $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+	sudo $(ESPTOOL) --port $(ESPPORT) write_flash $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2) $(FW_FILE_3_ADDR) $(FW_FILE_3)
 
 cflash:
 	sudo $(ESPTOOL) --port $(ESPPORT) erase_flash
