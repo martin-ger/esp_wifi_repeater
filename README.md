@@ -1,8 +1,6 @@
 # esp_wifi_repeater
 A full functional WiFi Repeater (correctly: a WiFi NAT Router)
 
-                                         CODED by martin-ger & further Moded and Optimized by yoAeroA00
-
 This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.2.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark. 
@@ -35,18 +33,21 @@ This means it connects to the internet via AP ssid,password and offers an open A
 The console understands the following command:
 - help: prints a short help message
 - show [config|stats]: Prints the current Config or some Statistics.
-- set ssid|pasword|ap_ssid|ap_password [value]: Changes the named Config Parameter.
+- set [ssid|pasword|ap_ssid|ap_password] _value_: Changes the named Config Parameter.
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or is set to OPEN with no password (ap_open=1).
 - set ap_on [0|1]: selects, wheter the soft-AP is Disabled (ap_on=0) or Enabled (ap_on=1).
-- set network [ip-addr]: sets the IP address of the Internal Network, Network is always /24, Router is Always x.x.x.1 .
-- set speed [80|160]: sets the CPU clock Frequency.
-- save [lock]: Saves the Current Parameters to Flash and set cpu speed to 160MHz for better Performance, optionally set config to locked.
+- set network _ip-addr_: sets the IP address of the Internal Network, Network is always /24, Router is Always x.x.x.1 .
+- set speed [80|160]: sets the CPU clock Frequency.+- portmap add [TCP|UDP] <external port> <internal IP> <internal port>
+- portmap add [TCP|UDP] _external port_ _internal IP_ _internal port_
+- portmap remove [TCP|UDP] _external port_
+- save: saves the current config parameters to flash
+- save [config|dhcp]: Saves the Current Parameters to Flash and set cpu speed to 160MHz for better Performance, optionally save current dhcp leases to flash.
 - quit: Terminates a Remote Session.
 - reset [factory]: Resets the ESP, optionally resets WiFi params to Default Values.
 - lock: Locks the current Config, changes are not Allowed.
-- unlock [password]: Unlocks the Config, Requires Password of the STA.
+- unlock _password_: Unlocks the Config, Requires Password of the STA.
 - scan: Does a Scan for APs.
-- monitor [on|off] [port]: Starts and Stops Monitor Server on a given Port and run "netcat [ip-addr] [portno] | sudo wireshark -k -S -i -" on a remote computer to observe the traffic in RealTime.
+- monitor [on|off] _port_: Starts and Stops Monitor Server on a given Port and run "netcat [ip-addr] [portno] | sudo wireshark -k -S -i -" on a remote computer to observe the traffic in RealTime.
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
@@ -58,6 +59,11 @@ In user_config.h an alternative GPIO port can be configured. When configured to 
 
 # Monitoring
 From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.
+
+# Port Mapping
+In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
+
+However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achive this, either fixed IP adresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achived with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
 
 # Known Issues
 - Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vcc and Gnd can help if you experience problems here.
