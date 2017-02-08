@@ -48,6 +48,8 @@ The console understands the following command:
 - scan: does a scan for APs
 - monitor [on|off] _port_: starts and stops monitor server on a given port
 
+Blanks in the ssid or the password can be quoted on the commandline with a backslash, just write '\ ' instead of ' '. 
+
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
 - permanently on: started, but not successfully connected to the AP (no valid external IP)
