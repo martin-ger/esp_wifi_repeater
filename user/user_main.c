@@ -293,22 +293,39 @@ ip_addr_t ap_ip;
 }
 
 
-/* Similar to strtok */
 int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
 {
-char    *p;
+char    *p, *q;
 int     token_count = 0;
 bool    in_token = false;
 
-   p = str;
+   // preprocessing
+   for (p = q = str; *p != 0; p++) {
+	if (*p == '\\') {
+	   // next char is quoted, copy it skip, this one
+	   if (*(p+1) != 0) *q++ = *++p;
+	} else if (*p == 8) {
+	   // backspace - delete previous char
+	   if (q != str) q--;
+	} else if (*p <= ' ') {
+	   // mark this as whitespace
+	   *q++ = 1;
+	} else {
+	   *q++ = *p;
+	}
+   }
 
-   while (*p != 0) {
-	if (*p <= ' ') {
+   *q = 0;
+
+   // cut into tokens
+   for (p = str; *p != 0; p++) {
+	if (*p == 1) {
 	   if (in_token) {
 		*p = 0;
 		in_token = false;
 	   }
 	} else {
+	   if (*p & 0x80) *p &= 0x7f;
 	   if (!in_token) {
 		tokens[token_count++] = p;
 		if (token_count == max_tokens)
@@ -316,7 +333,6 @@ bool    in_token = false;
 		in_token = true;
 	   }  
 	}
-	p++;
    }
    return token_count;
 }
@@ -382,23 +398,14 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 
 void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 {
-    char cmd_line[256];
+    char cmd_line[MAX_CON_CMD_SIZE+1];
     char response[256];
     char *tokens[6];
 
-    int bytes_count, nTokens, i, j;
+    int bytes_count, nTokens;
 
     bytes_count = ringbuf_bytes_used(console_rx_buffer);
     ringbuf_memcpy_from(cmd_line, console_rx_buffer, bytes_count);
-
-    for (i=j=0; i<bytes_count; i++) {
-	if (cmd_line[i] != 8) {
-	   cmd_line[j++] = cmd_line[i];
-	} else {
-	   if (j > 0) j--;
-	}
-    }
-    cmd_line[j] = 0;
 
     cmd_line[bytes_count] = 0;
 
@@ -412,7 +419,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP|ICMP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
@@ -1096,7 +1103,7 @@ void ICACHE_FLASH_ATTR user_init()
     my_ip.addr = 0;
     Bytes_in = Bytes_out = 0,
     Packets_in = Packets_out = 0;
-    console_rx_buffer = ringbuf_new(80);
+    console_rx_buffer = ringbuf_new(MAX_CON_CMD_SIZE);
     console_tx_buffer = ringbuf_new(MAX_CON_SEND_SIZE);
 
     gpio_init();

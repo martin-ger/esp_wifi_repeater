@@ -13,9 +13,10 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define MAX_DHCP	     8
 
 //
-// Size of the console send buffer
+// Size of the console buffers
 //
 #define MAX_CON_SEND_SIZE    1024
+#define MAX_CON_CMD_SIZE     80
 
 //
 // Define this if you have a status LED connected to GPIO LED_NO
