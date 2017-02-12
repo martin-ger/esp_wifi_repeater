@@ -26,6 +26,7 @@
 #endif
 
 uint32_t readvdd33(void);
+uint32_t Vdd;
 
 /* System Task, for signals refer to user_config.h */
 #define user_procTaskPrio        0
@@ -398,9 +399,11 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 
 void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 {
+#define MAX_CMD_TOKENS 6
+
     char cmd_line[MAX_CON_CMD_SIZE+1];
     char response[256];
-    char *tokens[6];
+    char *tokens[MAX_CMD_TOKENS];
 
     int bytes_count, nTokens;
 
@@ -408,18 +411,19 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     ringbuf_memcpy_from(cmd_line, console_rx_buffer, bytes_count);
 
     cmd_line[bytes_count] = 0;
+    response[0] = 0;
 
-    nTokens = parse_str_into_tokens(cmd_line, tokens, 6);
+    nTokens = parse_str_into_tokens(cmd_line, tokens, MAX_CMD_TOKENS);
 
     if (nTokens == 0) {
 	char c = '\n';
 	ringbuf_memcpy_into(console_tx_buffer, &c, 1);
-	goto command_handled;
+	goto command_handled_2;
     }
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|vmin|vmin_sleep|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|sleep|save [config|dhcp]|reset [factory]|lock|unlock <password>");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
@@ -430,7 +434,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 	ringbuf_memcpy_into(console_tx_buffer, "\r\n", 2);
-        goto command_handled;
+        goto command_handled_2;
     }
 
     if (strcmp(tokens[0], "show") == 0)
@@ -454,6 +458,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	if (config.Vmin != 0) {
+            os_sprintf(response, "Vmin: %d mV Sleep time: %d s\r\n", config.Vmin, config.Vmin_sleep);
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	}
 
 	for (i = 0; i<IP_PORTMAP_MAX; i++) {
 	    p = &ip_portmap_table[i];
@@ -471,17 +479,16 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	}
 #endif
-	goto command_handled;
+	goto command_handled_2;
       }
 
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
-           uint32_t voltage = readvdd33();
 	   int16_t i;
 	   struct dhcps_pool *p;
 
            os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
-	      time/3600, (time%3600)/60, time%60, voltage/1000, voltage%1000);
+	      time/3600, (time%3600)/60, time%60, Vdd/1000, Vdd%1000);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
 			(uint32_t)(Bytes_in/1024), Packets_in, 
@@ -504,7 +511,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		   IP2STR(&p->ip));
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   }
-	   goto command_handled;
+	   goto command_handled_2;
       }
     }
 
@@ -520,21 +527,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         if (config.locked)
         {
             os_sprintf(response, "Invalid portmap command. Config locked\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
             goto command_handled;
         }
 
         if (nTokens < 4 || (strcmp(tokens[1],"add")==0 && nTokens != 6))
         {
             os_sprintf(response, "Invalid number of arguments\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	    goto command_handled;
         }
 
         add = strcmp(tokens[1],"add")==0;
 	if (!add && strcmp(tokens[1],"remove")!=0) {
 	    os_sprintf(response, "Portmap failed. Invalid command\r\n");
-	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	    goto command_handled;
 	}
 
@@ -542,7 +546,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	else if (strcmp(tokens[2],"UDP") == 0) proto = IP_PROTO_UDP;
         else {
 	    os_sprintf(response, "Portmap failed. Invalid protocol\r\n");
-	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	    goto command_handled;
 	}
 
@@ -559,8 +562,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    os_sprintf(response, "Portmap %s\r\n", add?"set":"deleted");
 	} else {
 	    os_sprintf(response, "Portmap failed\r\n");
-	};
-        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	}
         goto command_handled;
     }
 
@@ -569,7 +571,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     {
       if (config.locked) {
         os_sprintf(response, "Invalid save command. Config locked\r\n");
-        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
       }
 
@@ -578,7 +579,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	// also save the portmap table
 	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
         os_sprintf(response, "Config saved\r\n");
-        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
       }
 
@@ -594,7 +594,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	// also save the portmap table
 	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
         os_sprintf(response, "Config and DHCP table saved\r\n");
-        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
       }
     }
@@ -604,7 +603,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         scanconn = pespconn;
         wifi_station_scan(NULL,scan_done);
         os_sprintf(response, "Scanning...\r\n");
-        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
     }
 #endif
@@ -617,39 +615,47 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
 	}
         os_printf("Restarting ... \r\n");
-	system_restart();
+	system_restart(); // if it works this will not return
+
+	os_sprintf(response, "Reset failed\r\n");
         goto command_handled;
     }
 
     if (strcmp(tokens[0], "quit") == 0)
     {
 	remote_console_disconnect = 1;
+	os_sprintf(response, "Quitting console\r\n");
         goto command_handled;
     }
 
+    if (strcmp(tokens[0], "sleep") == 0)
+    {
+	uint32_t sleeptime = 10; // seconds
+	if (nTokens == 2) sleeptime = atoi(tokens[1]);
+
+	system_deep_sleep(sleeptime * 1000000);
+
+	os_sprintf(response, "Going to deep sleep for %ds\r\n", sleeptime);
+        goto command_handled;
+    }
 
     if (strcmp(tokens[0], "lock") == 0)
     {
 	config.locked = 1;
 	os_sprintf(response, "Config locked\r\n");
-	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         goto command_handled;
     }
 
     if (strcmp(tokens[0], "unlock") == 0)
     {
-        if (nTokens != 2)
-        {
+        if (nTokens != 2) {
             os_sprintf(response, "Invalid number of arguments\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         }
         else if (strcmp(tokens[1],config.password) == 0) {
 	    config.locked = 0;
 	    os_sprintf(response, "Config unlocked\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         } else {
 	    os_sprintf(response, "Unlock failed. Invalid password\r\n");
-	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         }
         goto command_handled;
     }
@@ -658,51 +664,42 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0],"monitor") == 0) {
         if (nTokens < 2) {
             os_sprintf(response, "Invalid number of arguments\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	    goto command_handled;
         }
         if (config.locked) {
             os_sprintf(response, "Invalid monitor command. Config locked\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
             goto command_handled;
         }
 	if (strcmp(tokens[1],"on") == 0) {
   	    if (nTokens != 3) {
         	os_sprintf(response, "Port number missing\r\n");
-        	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
             }
 	    if (monitor_port != 0) {
 		os_sprintf(response, "Monitor already started\r\n");
-		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
 	    
             monitor_port = atoi(tokens[2]);
 	    if (monitor_port != 0) {
 		start_monitor(monitor_port);
-		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);
-		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));       
+		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);       
                 goto command_handled;
             } else {
 		os_sprintf(response, "Invalid monitor port\r\n");
-		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
 	}
 	if (strcmp(tokens[1],"off") == 0) {
 	    if (monitor_port == 0) {
 		os_sprintf(response, "Monitor already stopped\r\n");
-		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 		goto command_handled;
 	    }
 	    monitor_port = 0;
 	    stop_monitor();
 	    os_sprintf(response, "Stopped monitor\r\n");
-	    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	    goto command_handled;
 	}
-
     }
 #endif
 
@@ -711,7 +708,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         if (config.locked)
         {
             os_sprintf(response, "Invalid set command. Config locked\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
             goto command_handled;
         }
 
@@ -722,7 +718,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         if (nTokens < 3)
         {
             os_sprintf(response, "Invalid number of arguments\r\n");
-            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
             goto command_handled;
         }
         else
@@ -732,7 +727,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.ssid, "%s", tokens[2]);
                 os_sprintf(response, "SSID set\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -740,7 +734,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.password, "%s", tokens[2]);
                 os_sprintf(response, "Password set\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -748,7 +741,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.auto_connect = atoi(tokens[2]);
                 os_sprintf(response, "Auto Connect set\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -756,7 +748,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.ap_ssid, "%s", tokens[2]);
                 os_sprintf(response, "AP SSID set\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -764,7 +755,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 os_sprintf(config.ap_password, "%s", tokens[2]);
                 os_sprintf(response, "AP Password set\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -772,7 +762,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.ap_open = atoi(tokens[2]);
                 os_sprintf(response, "Open Auth set\r\n");
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"vmin") == 0)
+            {
+                config.Vmin = atoi(tokens[2]);
+                os_sprintf(response, "Vmin set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"vmin_sleep") == 0)
+            {
+                config.Vmin_sleep = atoi(tokens[2]);
+                os_sprintf(response, "Vmin sleep time set\r\n");
                 goto command_handled;
             }
 
@@ -798,7 +801,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 				os_sprintf(response, "AP already on\r\n");
 			}
 		}
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
 
@@ -810,7 +812,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    config.clock_speed = speed;
 		os_sprintf(response, "Clock speed update %s\r\n",
 		  succ?"successful":"failed");
-		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
         	goto command_handled;
 	    }
 
@@ -820,7 +821,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		ip4_addr4(&config.network_addr) = 0;
                 os_sprintf(response, "Network set to %d.%d.%d.%d/24\r\n", 
 			IP2STR(&config.network_addr));
-                ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
                 goto command_handled;
             }
         }
@@ -828,9 +828,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     /* Control comes here only if the tokens[0] command is not handled */
     os_sprintf(response, "\r\nInvalid Command\r\n");
-    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
 command_handled:
+    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+command_handled_2:
     system_os_post(0, SIG_CONSOLE_TX, (ETSParam) pespconn);
     return;
 }
@@ -891,10 +892,23 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 bool toggle;
 // Timer cb function
 void ICACHE_FLASH_ATTR timer_func(void *arg){
+uint32_t Vcurr;
+
     toggle = !toggle;
 #ifdef STATUS_LED
     GPIO_OUTPUT_SET (LED_NO, toggle && connected);
 #endif
+    // Power measurement
+    // Measure Vdd every second, sliding mean over the last 16 secs
+    if (toggle) {
+	Vcurr = readvdd33();
+	Vdd = (Vdd * 15 + Vcurr)/16;
+
+	if (config.Vmin != 0 && Vdd<config.Vmin) {
+            os_printf("Vdd (%d mV) < Vmin (%d mV) -> going to deep sleep\r\n", Vdd, config.Vmin);
+            system_deep_sleep(config.Vmin_sleep * 1000000);
+	}
+    }
 
     get_long_systime();
 
@@ -1111,7 +1125,7 @@ void ICACHE_FLASH_ATTR user_init()
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater V1.1 starting\r\n");
+    os_printf("\r\n\r\nWiFi Repeater V1.2 starting\r\n");
 
 #ifdef STATUS_LED
     // Config GPIO pin as output
@@ -1171,6 +1185,9 @@ void ICACHE_FLASH_ATTR user_init()
 
     // Now start the STA-Mode
     user_set_station_config();
+
+    // Init power measurement
+    Vdd = readvdd33();
 
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);

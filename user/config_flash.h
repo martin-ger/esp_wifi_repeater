@@ -12,7 +12,7 @@
 
 #define FLASH_BLOCK_NO 0xc
 
-#define MAGIC_NUMBER    0x012005fe
+#define MAGIC_NUMBER    0x012005fc
 
 typedef struct
 {
@@ -37,6 +37,8 @@ typedef struct
     ip_addr_t	network_addr;	// Address of the internal network
 
     uint16_t	clock_speed;	// Freq of the CPU
+    int32_t	Vmin;		// Min voltage of battery
+    int32_t	Vmin_sleep;	// Sleep time in sec when battery is low
 
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];
