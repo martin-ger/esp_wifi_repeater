@@ -30,9 +30,15 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 //#define SET_LED_GPIO	PIN_FUNC_SELECT (PERIPHS_IO_MUX_MTDI_U, FUNC_GPIO4)
 
 //
-// Define this if you to support the "scan" command for AP search
+// Define this to support the "scan" command for AP search
 //
 #define ALLOW_SCANNING      1
+
+//
+// Define this to support the "sleep" command for power management and deep sleep
+// Requires a connection of GPIO16 and RST (probably not availabe on ESP01 modules)
+//
+#define ALLOW_SLEEP         1
 
 //
 // Define this if you want to have access to the config console via TCP.

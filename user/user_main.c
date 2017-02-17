@@ -423,10 +423,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|vmin|vmin_sleep|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|sleep|save [config|dhcp]|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|vmin|vmin_sleep|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
+#ifdef ALLOW_SLEEP
+        os_sprintf(response, "|sleep");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 #ifdef REMOTE_MONITORING
@@ -627,7 +631,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	os_sprintf(response, "Quitting console\r\n");
         goto command_handled;
     }
-
+#ifdef ALLOW_SLEEP
     if (strcmp(tokens[0], "sleep") == 0)
     {
 	uint32_t sleeptime = 10; // seconds
@@ -638,7 +642,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	os_sprintf(response, "Going to deep sleep for %ds\r\n", sleeptime);
         goto command_handled;
     }
-
+#endif
     if (strcmp(tokens[0], "lock") == 0)
     {
 	config.locked = 1;
@@ -753,8 +757,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1],"ap_password") == 0)
             {
-                os_sprintf(config.ap_password, "%s", tokens[2]);
-                os_sprintf(response, "AP Password set\r\n");
+		if (os_strlen(tokens[2])<8) {
+		    os_sprintf(response, "Password to short (min. 8)\r\n");
+		} else {
+                    os_sprintf(config.ap_password, "%s", tokens[2]);
+		    config.ap_open = 0;
+                    os_sprintf(response, "AP Password set\r\n");
+		}
                 goto command_handled;
             }
 
@@ -764,7 +773,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Open Auth set\r\n");
                 goto command_handled;
             }
-
+#ifdef ALLOW_SLEEP
             if (strcmp(tokens[1],"vmin") == 0)
             {
                 config.Vmin = atoi(tokens[2]);
@@ -778,7 +787,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Vmin sleep time set\r\n");
                 goto command_handled;
             }
-
+#endif
             if (strcmp(tokens[1],"ap_on") == 0)
             {
                 if (atoi(tokens[2])) {
@@ -903,11 +912,12 @@ uint32_t Vcurr;
     if (toggle) {
 	Vcurr = readvdd33();
 	Vdd = (Vdd * 15 + Vcurr)/16;
-
+#ifdef ALLOW_SLEEP
 	if (config.Vmin != 0 && Vdd<config.Vmin) {
             os_printf("Vdd (%d mV) < Vmin (%d mV) -> going to deep sleep\r\n", Vdd, config.Vmin);
             system_deep_sleep(config.Vmin_sleep * 1000000);
 	}
+#endif
     }
 
     get_long_systime();
@@ -1186,8 +1196,8 @@ void ICACHE_FLASH_ATTR user_init()
     // Now start the STA-Mode
     user_set_station_config();
 
-    // Init power measurement
-    Vdd = readvdd33();
+    // Init power - set it to 3300mV
+    Vdd = 3300;
 
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);
