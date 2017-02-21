@@ -33,7 +33,7 @@ This means it connects to the internet via AP ssid,password and offers an open A
 The console understands the following command:
 - help: prints a short help message
 - show [config|stats]: prints the current config or some statistics
-- set [ssid|pasword|ap_ssid|ap_password] _value_: changes the named config parameter
+- set [ssid|password|ap_ssid|ap_password] _value_: changes the named config parameter
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
 - set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
