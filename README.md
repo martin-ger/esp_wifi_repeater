@@ -40,6 +40,7 @@ The console understands the following command:
 - set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set speed [80|160]: sets the CPU clock frequency
+- set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
