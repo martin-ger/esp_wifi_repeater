@@ -57,6 +57,62 @@ uint8_t remote_console_disconnect;
 void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
 void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 
+#ifdef MQTT_CLIENT
+#include "mqtt.h"
+MQTT_Client mqttClient;
+
+static void ICACHE_FLASH_ATTR mqttConnectedCb(uint32_t *args)
+{
+  MQTT_Client* client = (MQTT_Client*)args;
+  os_printf("MQTT: Connected\r\n");
+  MQTT_Subscribe(client, "/mqtt/WiFiRepeater/command", 0);
+  MQTT_Subscribe(client, "/mqtt/topic/1", 1);
+  MQTT_Subscribe(client, "/mqtt/topic/2", 2);
+
+  MQTT_Publish(client, "/mqtt/topic/0", "hello0", 6, 0, 0);
+  MQTT_Publish(client, "/mqtt/topic/1", "hello1", 6, 1, 0);
+  MQTT_Publish(client, "/mqtt/topic/2", "hello2", 6, 2, 0);
+
+}
+
+static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
+{
+  MQTT_Client* client = (MQTT_Client*)args;
+  os_printf("MQTT: Disconnected\r\n");
+}
+
+static void ICACHE_FLASH_ATTR mqttPublishedCb(uint32_t *args)
+{
+  MQTT_Client* client = (MQTT_Client*)args;
+  os_printf("MQTT: Published\r\n");
+}
+
+static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint32_t topic_len, const char *data, uint32_t data_len)
+{
+  char *topicBuf = (char*)os_zalloc(topic_len + 1),
+        *dataBuf = (char*)os_zalloc(data_len + 1);
+
+  MQTT_Client* client = (MQTT_Client*)args;
+
+  if (os_strncmp(topic,"/mqtt/WiFiRepeater/command", topic_len) == 0) {
+    ringbuf_memcpy_into(console_rx_buffer, data, data_len);
+    ringbuf_memcpy_into(console_rx_buffer, "\n", 1);
+    // signal the main task that command is available for processing
+    system_os_post(0, SIG_CONSOLE_RX, 0);
+    return;
+  }
+
+  os_memcpy(topicBuf, topic, topic_len);
+  topicBuf[topic_len] = 0;
+  os_memcpy(dataBuf, data, data_len);
+  dataBuf[data_len] = 0;
+  os_printf("Receive topic: %s, data: %s \r\n", topicBuf, dataBuf);
+  os_free(topicBuf);
+  os_free(dataBuf);
+}
+#endif /* MQTT_CLIENT */
+
+
 #ifdef REMOTE_MONITORING
 static uint8_t monitoring_on;
 static uint16_t monitor_port;
@@ -990,6 +1046,11 @@ void wifi_handle_event_cb(System_Event_t *evt)
     case EVENT_STAMODE_DISCONNECTED:
         os_printf("disconnect from ssid %s, reason %d\n", evt->event_info.disconnected.ssid, evt->event_info.disconnected.reason);
 	connected = false;
+
+#ifdef MQTT_CLIENT
+	MQTT_Disconnect(&mqttClient);
+#endif /* MQTT_CLIENT */
+
         break;
 
     case EVENT_STAMODE_AUTHMODE_CHANGE:
@@ -1011,6 +1072,10 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	     ip_portmap_table[i].maddr = my_ip.addr;
 	  }
 	}
+
+#ifdef MQTT_CLIENT
+	MQTT_Connect(&mqttClient);
+#endif /* MQTT_CLIENT */
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
 	system_os_post(user_procTaskPrio, SIG_START_SERVER, 0 );
@@ -1190,6 +1255,22 @@ void ICACHE_FLASH_ATTR user_init()
     monitoring_on = 0;
     monitor_port = 0;
 #endif
+
+#ifdef MQTT_CLIENT
+    //MQTT_InitConnection(&mqttClient, MQTT_HOST, MQTT_PORT, DEFAULT_SECURITY);
+    MQTT_InitConnection(&mqttClient, "192.168.178.39", 1883, 0);
+
+//    if ( !MQTT_InitClient(&mqttClient, MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS, MQTT_KEEPALIVE, MQTT_CLEAN_SESSION) )
+    if (!MQTT_InitClient(&mqttClient, "WiFiRepeater", 0, 0, 120, 1))
+    {
+      os_printf("Failed to initialize properly.\r\n");
+    }
+//    MQTT_InitLWT(&mqttClient, "/lwt", "offline", 0, 0);
+    MQTT_OnConnected(&mqttClient, mqttConnectedCb);
+    MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);
+    MQTT_OnPublished(&mqttClient, mqttPublishedCb);
+    MQTT_OnData(&mqttClient, mqttDataCb);
+#endif /* MQTT_CLIENT */
 
     remote_console_disconnect = 0;
 

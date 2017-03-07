@@ -62,4 +62,16 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 // Define this if you want to silently drop any packet that cannot be send to the monitor
 //#define DROP_PACKET_IF_NOT_RECORDED 1
 
+//
+// Here the MQTT stuff
+//
+// Define this if you want to have it work as a MQTT client
+#define MQTT_CLIENT 	1	
+
+#define MQTT_BUF_SIZE   1024
+#define MQTT_KEEPALIVE    120  /*second*/
+#define MQTT_RECONNECT_TIMEOUT  5 /*second*/
+#define PROTOCOL_NAMEv31  /*MQTT version 3.1 compatible with Mosquitto v0.15*/
+//#define PROTOCOL_NAMEv311     /*MQTT version 3.11 compatible with https://eclipse.org/paho/clients/testing/*/
+
 #endif
