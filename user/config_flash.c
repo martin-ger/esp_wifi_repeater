@@ -27,6 +27,9 @@ void config_load_default(sysconfig_p config)
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;
     config->dhcps_entries		= 0;
+#ifdef PHY_MODE
+    config->phy_mode			= 3;
+#endif
 }
 
 int config_load(sysconfig_p config)

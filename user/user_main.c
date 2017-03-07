@@ -429,6 +429,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf(response, "|scan");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
+#ifdef PHY_MODE
+        os_sprintf(response, "|set phy_mode [1|2|3]");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 #ifdef ALLOW_SLEEP
         os_sprintf(response, "|sleep");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
@@ -489,6 +493,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       if (nTokens == 2 && strcmp(tokens[1], "stats") == 0) {
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
 	   int16_t i;
+	   enum phy_mode phy;
 	   struct dhcps_pool *p;
 
            os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
@@ -498,6 +503,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 			(uint32_t)(Bytes_in/1024), Packets_in, 
 			(uint32_t)(Bytes_out/1024), Packets_out);
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#ifdef PHY_MODE
+	   phy = wifi_get_phy_mode();
+	   os_sprintf(response, "Phy mode: %c\r\n", phy == PHY_MODE_11B?'b':phy == PHY_MODE_11G?'g':'n');
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 	   if (connected) {
 		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
 	   } else {
@@ -823,7 +833,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		  succ?"successful":"failed");
         	goto command_handled;
 	    }
-
+#ifdef PHY_MODE
+	    if (strcmp(tokens[1], "phy_mode") == 0)
+	    {
+		uint16_t mode = atoi(tokens[2]);
+		bool succ = wifi_set_phy_mode(mode);
+		if (succ) 
+		    config.phy_mode = mode;
+		os_sprintf(response, "Phy mode setting %s\r\n",
+		  succ?"successful":"failed");
+        	goto command_handled;
+	    }
+#endif
             if (strcmp(tokens[1],"network") == 0)
             {
                 config.network_addr.addr = ipaddr_addr(tokens[2]);
@@ -1163,6 +1184,10 @@ void ICACHE_FLASH_ATTR user_init()
     } else {
 	wifi_set_opmode(STATION_MODE);
     }
+
+#ifdef PHY_MODE
+    wifi_set_phy_mode(config.phy_mode);
+#endif
 
 #ifdef REMOTE_CONFIG
     os_printf("Starting Console TCP Server on %d port\r\n", CONSOLE_SERVER_PORT);

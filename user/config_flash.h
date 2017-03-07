@@ -10,6 +10,8 @@
 #include "spi_flash.h"
 #include "lwip/app/dhcpserver.h"
 
+#include "user_config.h"
+
 #define FLASH_BLOCK_NO 0xc
 
 #define MAGIC_NUMBER    0x012005fc
@@ -42,6 +44,9 @@ typedef struct
 
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];
+#ifdef PHY_MODE
+    uint16_t	phy_mode;	// WiFi PHY mode
+#endif
 } sysconfig_t, *sysconfig_p;
 
 int config_load(sysconfig_p config);
