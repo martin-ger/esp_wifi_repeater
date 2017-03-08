@@ -68,7 +68,7 @@ void ICACHE_FLASH_ATTR mqtt_publish_str(uint8_t *sub_topic, uint8_t *str)
 uint8_t buf[256];
   if (!mqtt_enabled) return;
 
-  os_sprintf(buf, "%s/%s/%s", config.mqtt_prefix, config.mqtt_id, sub_topic);
+  os_sprintf(buf, "%s/%s", config.mqtt_prefix, sub_topic);
   MQTT_Publish(&mqttClient, buf, str, os_strlen(str), 2, 0);
 }
 
@@ -88,7 +88,7 @@ static void ICACHE_FLASH_ATTR mqttConnectedCb(uint32_t *args)
   MQTT_Client* client = (MQTT_Client*)args;
   os_printf("MQTT: Connected\r\n");
 
-  os_sprintf(buf, "%s/%s/%s", config.mqtt_prefix, config.mqtt_id, "command");
+  os_sprintf(buf, "%s/%s", config.mqtt_prefix, "command");
   MQTT_Subscribe(client, buf, 0);
 }
 
@@ -112,7 +112,7 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
 
   MQTT_Client* client = (MQTT_Client*)args;
 
-  os_sprintf(buf, "%s/%s/%s", config.mqtt_prefix, config.mqtt_id, "command");
+  os_sprintf(buf, "%s/%s", config.mqtt_prefix, "command");
 
   if (os_strncmp(topic, buf, topic_len) == 0) {
     ringbuf_memcpy_into(console_rx_buffer, data, data_len);
