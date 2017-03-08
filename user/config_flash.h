@@ -40,6 +40,16 @@ typedef struct
     int32_t	Vmin;		// Min voltage of battery
     int32_t	Vmin_sleep;	// Sleep time in sec when battery is low
 
+    uint16_t	config_port;	// Port on which the concole listenes (0 if no access)
+
+    uint8_t     mqtt_host[32];	// IP or hostname of the MQTT broker, "none" if empty
+    uint16_t	mqtt_port;	// Port of the MQTT broker
+
+    uint8_t     mqtt_user[32];	// Username for broker login, "none" if empty
+    uint8_t     mqtt_password[32]; // Password for broker login
+    uint8_t	mqtt_prefix[64];   // Topic-prefix
+    uint8_t	mqtt_id[32];    // MQTT clientId
+
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];
 } sysconfig_t, *sysconfig_p;

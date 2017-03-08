@@ -60,19 +60,36 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 #ifdef MQTT_CLIENT
 #include "mqtt.h"
 MQTT_Client mqttClient;
+bool mqtt_enabled;
+uint64_t mqtt_t_old;
+
+void ICACHE_FLASH_ATTR mqtt_publish_str(uint8_t *sub_topic, uint8_t *str)
+{
+uint8_t buf[256];
+  if (!mqtt_enabled) return;
+
+  os_sprintf(buf, "%s/%s/%s", config.mqtt_prefix, config.mqtt_id, sub_topic);
+  MQTT_Publish(&mqttClient, buf, str, os_strlen(str), 2, 0);
+}
+
+void ICACHE_FLASH_ATTR mqtt_publish_int(uint8_t *sub_topic, uint8_t *format, uint32_t val)
+{
+uint8_t buf[32];
+  if (!mqtt_enabled) return;
+
+  os_sprintf(buf, format, val);
+  mqtt_publish_str(sub_topic, buf);
+}
 
 static void ICACHE_FLASH_ATTR mqttConnectedCb(uint32_t *args)
 {
+  uint8_t buf[256];
+
   MQTT_Client* client = (MQTT_Client*)args;
   os_printf("MQTT: Connected\r\n");
-  MQTT_Subscribe(client, "/mqtt/WiFiRepeater/command", 0);
-  MQTT_Subscribe(client, "/mqtt/topic/1", 1);
-  MQTT_Subscribe(client, "/mqtt/topic/2", 2);
 
-  MQTT_Publish(client, "/mqtt/topic/0", "hello0", 6, 0, 0);
-  MQTT_Publish(client, "/mqtt/topic/1", "hello1", 6, 1, 0);
-  MQTT_Publish(client, "/mqtt/topic/2", "hello2", 6, 2, 0);
-
+  os_sprintf(buf, "%s/%s/%s", config.mqtt_prefix, config.mqtt_id, "command");
+  MQTT_Subscribe(client, buf, 0);
 }
 
 static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
@@ -84,17 +101,20 @@ static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
 static void ICACHE_FLASH_ATTR mqttPublishedCb(uint32_t *args)
 {
   MQTT_Client* client = (MQTT_Client*)args;
-  os_printf("MQTT: Published\r\n");
+//  os_printf("MQTT: Published\r\n");
 }
 
 static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint32_t topic_len, const char *data, uint32_t data_len)
 {
+  uint8_t buf[256];
   char *topicBuf = (char*)os_zalloc(topic_len + 1),
         *dataBuf = (char*)os_zalloc(data_len + 1);
 
   MQTT_Client* client = (MQTT_Client*)args;
 
-  if (os_strncmp(topic,"/mqtt/WiFiRepeater/command", topic_len) == 0) {
+  os_sprintf(buf, "%s/%s/%s", config.mqtt_prefix, config.mqtt_id, "command");
+
+  if (os_strncmp(topic, buf, topic_len) == 0) {
     ringbuf_memcpy_into(console_rx_buffer, data, data_len);
     ringbuf_memcpy_into(console_rx_buffer, "\n", 1);
     // signal the main task that command is available for processing
@@ -255,7 +275,7 @@ int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
     }
   return 0;
 }
-#endif
+#endif /* REMOTE_MONITORING */
 
 static uint8_t columns = 0;
 err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
@@ -287,7 +307,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
        if (!monitoring_send_ongoing)
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
-#endif
+#endif /* REMOTE_MONITORING */
 
     orig_input_ap (p, inp);
 }
@@ -321,7 +341,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
        if (!monitoring_send_ongoing)
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
-#endif
+#endif /* REMOTE_MONITORING */
 
     orig_output_ap (outp, p);
 }
@@ -436,10 +456,13 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
       {
         os_memcpy(ssid, bss_link->ssid, 32);
       }
-      os_sprintf(response, "(%d,\"%s\",%d,\""MACSTR"\",%d)\r\n",
+      os_sprintf(response, "%d,\"%s\",%d,\""MACSTR"\",%d\r\n",
                  bss_link->authmode, ssid, bss_link->rssi,
                  MAC2STR(bss_link->bssid),bss_link->channel);
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#ifdef MQTT_CLIENT
+      mqtt_publish_str("system/ScanResult", response);
+#endif
       bss_link = bss_link->next.stqe_next;
     }
   }
@@ -479,7 +502,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|vmin|vmin_sleep|network|speed] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|vmin|vmin_sleep|network|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
@@ -494,6 +517,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 	ringbuf_memcpy_into(console_tx_buffer, "\r\n", 2);
+#ifdef MQTT_CLIENT
+        os_sprintf(response, "|set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_prefix|mqtt_id] <val>\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
         goto command_handled_2;
     }
 
@@ -573,6 +600,23 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   }
 	   goto command_handled_2;
       }
+#ifdef MQTT_CLIENT
+      if (nTokens == 2 && strcmp(tokens[1], "mqtt") == 0) {
+	   if (!mqtt_enabled) {
+	     os_sprintf(response, "MQTT not enabled (no mqtt_host)\r\n");
+	     ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	     goto command_handled_2;
+	   }
+           os_sprintf(response, "MQTT host: %s\r\nMQTT port: %d\r\nMQTT user: %s\r\nMQTT password: %s\r\n",
+		config.mqtt_host, config.mqtt_port, config.mqtt_user, config.locked?"***":(char*)config.mqtt_password);
+	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+           os_sprintf(response, "MQTT prefix: %s\r\nMQTT id: %s\r\n",
+		config.mqtt_prefix, config.mqtt_id);
+	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+
+	   goto command_handled_2;
+      }
+#endif
     }
 
     if (strcmp(tokens[0], "portmap") == 0)
@@ -829,6 +873,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Open Auth set\r\n");
                 goto command_handled;
             }
+#ifdef REMOTE_CONFIG
+            if (strcmp(tokens[1],"config_port") == 0)
+            {
+                config.config_port = atoi(tokens[2]);
+		if (config.config_port == 0) 
+		  os_sprintf(response, "WARNING: if you save this, remote console access will be disabled!\r\n");
+		else
+		  os_sprintf(response, "Config port set to %d\r\n", config.config_port);
+                goto command_handled;
+            }
+#endif
 #ifdef ALLOW_SLEEP
             if (strcmp(tokens[1],"vmin") == 0)
             {
@@ -888,6 +943,54 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 			IP2STR(&config.network_addr));
                 goto command_handled;
             }
+#ifdef MQTT_CLIENT
+	    if (strcmp(tokens[1], "mqtt_host") == 0)
+	    {
+		os_strncpy(config.mqtt_host, tokens[2], 32);
+		config.mqtt_host[31] = 0;
+		os_sprintf(response, "MQTT host set\r\n");
+        	goto command_handled;
+	    }
+
+	    if (strcmp(tokens[1], "mqtt_port") == 0)
+	    {
+		config.mqtt_port = atoi(tokens[2]);
+		os_sprintf(response, "MQTT port set\r\n");
+        	goto command_handled;
+	    }
+
+	    if (strcmp(tokens[1], "mqtt_user") == 0)
+	    {
+		os_strncpy(config.mqtt_user, tokens[2], 32);
+		config.mqtt_user[31] = 0;
+		os_sprintf(response, "MQTT user set\r\n");
+        	goto command_handled;
+	    }
+
+	    if (strcmp(tokens[1], "mqtt_password") == 0)
+	    {
+		os_strncpy(config.mqtt_password, tokens[2], 32);
+		config.mqtt_password[31] = 0;
+		os_sprintf(response, "MQTT password set\r\n");
+        	goto command_handled;
+	    }
+
+	    if (strcmp(tokens[1], "mqtt_prefix") == 0)
+	    {
+		os_strncpy(config.mqtt_prefix, tokens[2], 64);
+		config.mqtt_prefix[63] = 0;
+		os_sprintf(response, "MQTT prefix set\r\n");
+        	goto command_handled;
+	    }
+
+	    if (strcmp(tokens[1], "mqtt_id") == 0)
+	    {
+		os_strncpy(config.mqtt_id, tokens[2], 32);
+		config.mqtt_id[31] = 0;
+		os_sprintf(response, "MQTT id set\r\n");
+        	goto command_handled;
+	    }
+#endif /* MQTT_CLIENT */
         }
     }
 
@@ -951,13 +1054,14 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     os_sprintf(payload, "CMD>");
     espconn_sent(pespconn, payload, os_strlen(payload));
 }
-#endif
+#endif /* REMOTE_CONFIG */
 
 
 bool toggle;
 // Timer cb function
 void ICACHE_FLASH_ATTR timer_func(void *arg){
 uint32_t Vcurr;
+uint64_t t_new;
 
     toggle = !toggle;
 #ifdef STATUS_LED
@@ -976,10 +1080,22 @@ uint32_t Vcurr;
 #endif
     }
 
-    get_long_systime();
-
     // Do we still have to configure the AP netif? 
     if (do_ip_config) user_set_softap_ip_config();
+
+    t_new = get_long_systime();
+#ifdef MQTT_CLIENT
+    if (t_new-mqtt_t_old > MQTT_REPORT_INTERVAL * 1000000) {
+	mqtt_publish_int("system/Vdd", "%d", Vdd);
+	mqtt_publish_int("system/KiBin", "%d", (uint32_t)(Bytes_in/1024));
+	mqtt_publish_int("system/KiBout", "%d", (uint32_t)(Bytes_out/1024));
+	mqtt_publish_int("system/Pin", "%d", Packets_in);
+	mqtt_publish_int("system/Pout", "%d", Packets_out);
+	mqtt_publish_int("system/NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
+
+	mqtt_t_old = t_new;
+    }
+#endif
 
     os_timer_arm(&ptimer, toggle?1000:100, 0); 
 }
@@ -1035,6 +1151,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 {
     ip_addr_t dns_ip;
     uint16_t i;
+    uint8_t mac_str[20];
 
     //os_printf("wifi_handle_event_cb: ");
     switch (evt->event)
@@ -1048,7 +1165,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	connected = false;
 
 #ifdef MQTT_CLIENT
-	MQTT_Disconnect(&mqttClient);
+	if (mqtt_enabled) MQTT_Disconnect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
         break;
@@ -1074,7 +1191,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	}
 
 #ifdef MQTT_CLIENT
-	MQTT_Connect(&mqttClient);
+	if (mqtt_enabled) MQTT_Connect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
@@ -1082,14 +1199,20 @@ void wifi_handle_event_cb(System_Event_t *evt)
         break;
 
     case EVENT_SOFTAPMODE_STACONNECTED:
-        os_printf("station: " MACSTR "join, AID = %d\n", MAC2STR(evt->event_info.sta_connected.mac),
-        evt->event_info.sta_connected.aid);
+	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_connected.mac));
+        os_printf("station: %s join, AID = %d\n", mac_str, evt->event_info.sta_connected.aid);
+#ifdef MQTT_CLIENT
+	mqtt_publish_str("system/join", mac_str);
+#endif
 	patch_netif_ap(my_input_ap, my_output_ap, true);
         break;
 
     case EVENT_SOFTAPMODE_STADISCONNECTED:
-        os_printf("station: " MACSTR "leave, AID = %d\n", MAC2STR(evt->event_info.sta_disconnected.mac),
-        evt->event_info.sta_disconnected.aid);
+	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_disconnected.mac));
+        os_printf("station: %s leave, AID = %d\n", mac_str, evt->event_info.sta_disconnected.aid);
+#ifdef MQTT_CLIENT
+	mqtt_publish_str("system/leave", mac_str);
+#endif
         break;
 
     default:
@@ -1230,25 +1353,22 @@ void ICACHE_FLASH_ATTR user_init()
     }
 
 #ifdef REMOTE_CONFIG
-    os_printf("Starting Console TCP Server on %d port\r\n", CONSOLE_SERVER_PORT);
-    struct espconn *pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
-    if (pCon == NULL)
-    {
-        os_printf("CONNECT FAIL\r\n");
-        return;
+    if (config.config_port != 0) {
+      os_printf("Starting Console TCP Server on %d port\r\n", CONSOLE_SERVER_PORT);
+      struct espconn *pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
+
+      /* Equivalent to bind */
+      pCon->type  = ESPCONN_TCP;
+      pCon->state = ESPCONN_NONE;
+      pCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
+      pCon->proto.tcp->local_port = config.config_port;
+
+      /* Register callback when clients connect to the server */
+      espconn_regist_connectcb(pCon, tcp_client_connected_cb);
+
+      /* Put the connection in accept mode */
+      espconn_accept(pCon);
     }
-
-    /* Equivalent to bind */
-    pCon->type  = ESPCONN_TCP;
-    pCon->state = ESPCONN_NONE;
-    pCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
-    pCon->proto.tcp->local_port = CONSOLE_SERVER_PORT;
-
-    /* Register callback when clients connect to the server */
-    espconn_regist_connectcb(pCon, tcp_client_connected_cb);
-
-    /* Put the connection in accept mode */
-    espconn_accept(pCon);
 #endif
 
 #ifdef REMOTE_MONITORING
@@ -1257,19 +1377,23 @@ void ICACHE_FLASH_ATTR user_init()
 #endif
 
 #ifdef MQTT_CLIENT
-    //MQTT_InitConnection(&mqttClient, MQTT_HOST, MQTT_PORT, DEFAULT_SECURITY);
-    MQTT_InitConnection(&mqttClient, "192.168.178.39", 1883, 0);
+    mqtt_t_old = 0;
+    mqtt_enabled = (os_strcmp(config.mqtt_host, "none") != 0);
+    if (mqtt_enabled) {
+	MQTT_InitConnection(&mqttClient, config.mqtt_host, config.mqtt_port, 0);
 
-//    if ( !MQTT_InitClient(&mqttClient, MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS, MQTT_KEEPALIVE, MQTT_CLEAN_SESSION) )
-    if (!MQTT_InitClient(&mqttClient, "WiFiRepeater", 0, 0, 120, 1))
-    {
-      os_printf("Failed to initialize properly.\r\n");
-    }
-//    MQTT_InitLWT(&mqttClient, "/lwt", "offline", 0, 0);
-    MQTT_OnConnected(&mqttClient, mqttConnectedCb);
-    MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);
-    MQTT_OnPublished(&mqttClient, mqttPublishedCb);
-    MQTT_OnData(&mqttClient, mqttDataCb);
+//	MQTT_InitClient(&mqttClient, MQTT_CLIENT_ID, MQTT_USER, MQTT_PASS, MQTT_KEEPALIVE, MQTT_CLEAN_SESSION);
+	if (os_strcmp(config.mqtt_user, "none") == 0) {
+	  MQTT_InitClient(&mqttClient, config.mqtt_id, 0, 0, 120, 1);
+	} else {
+	  MQTT_InitClient(&mqttClient, config.mqtt_id, config.mqtt_user, config.mqtt_password, 120, 1);
+	}
+//	MQTT_InitLWT(&mqttClient, "/lwt", "offline", 0, 0);
+	MQTT_OnConnected(&mqttClient, mqttConnectedCb);
+	MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);
+	MQTT_OnPublished(&mqttClient, mqttPublishedCb);
+	MQTT_OnData(&mqttClient, mqttDataCb);
+     }
 #endif /* MQTT_CLIENT */
 
     remote_console_disconnect = 0;
