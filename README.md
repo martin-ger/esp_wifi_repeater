@@ -42,6 +42,7 @@ The console understands the following command:
 - set speed [80|160]: sets the CPU clock frequency
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
+- set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 - save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
@@ -67,6 +68,35 @@ From the console a monitor service can be started ("monitor on [portno]"). This 
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
 
 However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achive this, either fixed IP adresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achived with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
+
+# MQTT-Anbindung
+Since version 1.3 the router has a build-in MQTT client (thanks to Tuan PM for his library https://github.com/tuanpmt/esp_mqtt). This can help to integrate the router/repeater into the IoT. A home automation system can e.g. make decisions based on infos about the currently associated stations, it can switch on and of the repeaters (e.g. based on a time schedule), or it can simply be used to monitor the load. The router can be connected either to a local MQTT broker or to a publically available broker in the cloud. However, currently it does not support TLS encryption.
+
+By default the MQTT client is disabled. It can be enabled by setting the config parameter "mqtt_host" to a hostname different from "none". To configure MQTT you can set the following parameters:
+- set mqtt_host _IP_or_hostname_: IP or hostname of the MQTT broker ("none" disables the MQTT client)
+- set mqtt_user _username_: Username for authentication ("none" if no authentication is required at the broker)
+- set mqtt_user _password_: Password for authentication
+- set mqtt_id _clientId_: Id of the client at the broker (default: "ESPRouter_xxxxxx" derived from the MAC address)
+- set mqtt_prefix _prefix_path_: Prefix for all published topics (default: "/WiFi/ESPRouter_xxxxxx/system", again derived from the MAC address)
+- set mqtt_command_topic _command_topic_: Topic subscribed to receive commands, same as from the console. (default: "/WiFi/ESPRouter_xxxxxx/system/command", "none" disables commands via MQTT)
+- set mqtt_interval _secs_: Set the interval in which the router publishs status topics (default: 15s, 0 disables status publication)
+
+The router currently publishs the following status topics periodically:
+- _prefix_path_/Vdd: Voltage of the power supply in mV
+- _prefix_path_/Bin: Bytes/s from stations into the AP
+- _prefix_path_/Bout: Bytes/s from the AP to stations
+- _prefix_path_/Pin: Packets/s from stations into the AP
+- _prefix_path_/Pout: Packets/s from the AP to stations
+- _prefix_path_/NoStations: Stations currently connected to the AP
+
+In addition it publishs on an event basis:
+- _prefix_path_/join: MAC address of a station joining the AP
+- _prefix_path_/leave: MAC address of a station leaving the AP
+- _prefix_path_/IP: IP address of the router when received via DHCP
+
+The router can be configured using the following topics:
+- _command_topic_: The router subscribes on this topic and interprets all messages as command lines
+- _prefix_path_/response: The router publishes on this topic the command line output
 
 # Power Management
 The repeater monitors its current supply voltage (shown in the "show stats" command). If _vmin_ (in mV, default 0) is set to a value > 0 and the supply voltage drops below this value, it will go into deep sleep mode for _vmin_sleep_ seconds. If you have connected GPIO16 to RST (which is hard to solder on an ESP-01) it will reboot after this interval, try to reconnect, and will continue its measurements. If _vmin_ is saved with the config, it will sleep over and over again, until the supply voltage raises above the threshold. These settings are especially (only?) useful if you have powered the ESP with a (lithium) battery whithout undercharge protection. Then a value of 2900mV-3000mV is probably helpful, as it reduces power consumption of the ESP to a minimum and you have much more time to recharge or replace the battery before damage. This only makes sense, if you have the ESP connected directly to the battery. If you have additional logic, this will still drain the battery.

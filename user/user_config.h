@@ -75,7 +75,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 //#define PROTOCOL_NAMEv311     /*MQTT version 3.11 compatible with https://eclipse.org/paho/clients/testing/*/
 
 #define MQTT_PREFIX "/WiFi"
-#define MQTT_ID "Repeater"
+#define MQTT_ID "ESPRouter"
 #define MQTT_REPORT_INTERVAL 15 /*seconds*/
 
 #endif

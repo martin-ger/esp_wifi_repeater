@@ -47,8 +47,11 @@ typedef struct
 
     uint8_t     mqtt_user[32];	// Username for broker login, "none" if empty
     uint8_t     mqtt_password[32]; // Password for broker login
-    uint8_t	mqtt_prefix[64];   // Topic-prefix
     uint8_t	mqtt_id[32];    // MQTT clientId
+    uint8_t	mqtt_prefix[64];   // Topic-prefix
+    uint8_t	mqtt_command_topic[64];   // Topic on which commands are received, "none" if not subscibed
+
+    uint32_t	mqtt_interval;  // Interval in secs for status messages, 0 means no messages
 
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];
