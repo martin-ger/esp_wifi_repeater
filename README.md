@@ -80,7 +80,9 @@ By default the MQTT client is disabled. It can be enabled by setting the config 
 - set mqtt_prefix _prefix_path_: Prefix for all published topics (default: "/WiFi/ESPRouter_xxxxxx/system", again derived from the MAC address)
 - set mqtt_command_topic _command_topic_: Topic subscribed to receive commands, same as from the console. (default: "/WiFi/ESPRouter_xxxxxx/command", "none" disables commands via MQTT)
 - set mqtt_interval _secs_: Set the interval in which the router publishs status topics (default: 15s, 0 disables status publication)
-- set mqtt_mask _mask_: Selects which topics are active (default: all)
+- set mqtt_mask _mask_in_hex_: Selects which topics are published (default: "ffff" means all)
+
+The MQTT parameters can be displayed with the "show mqtt" command.
 
 The router can publish the following status topics periodically (every mqtt_interval):
 - _prefix_path_/Uptime: System uptime since last reset in s (mask: 0x0020)
@@ -101,9 +103,9 @@ In addition it can publish on an event basis:
 
 The router can be configured using the following topics:
 - _command_topic_: The router subscribes on this topic and interprets all messages as command lines
-- _prefix_path_/response: The router publishes on this topic the command line output (mask: 0x0002)
+- _prefix_path_/response: The router publishes on this topic the command line output (mask: 0x0001)
 
-The MQTT parameters can be displayed with the "show mqtt" command.
+If you now want the router to publish e.g. only Vdd, its IP, and the command line output, set the mqtt_mask to 0x0001 | 0x0002 | 0x0040 (= "set mqtt_mask 0043").
 
 # Power Management
 The repeater monitors its current supply voltage (shown in the "show stats" command). If _vmin_ (in mV, default 0) is set to a value > 0 and the supply voltage drops below this value, it will go into deep sleep mode for _vmin_sleep_ seconds. If you have connected GPIO16 to RST (which is hard to solder on an ESP-01) it will reboot after this interval, try to reconnect, and will continue its measurements. If _vmin_ is saved with the config, it will sleep over and over again, until the supply voltage raises above the threshold. These settings are especially (only?) useful if you have powered the ESP with a (lithium) battery whithout undercharge protection. Then a value of 2900mV-3000mV is probably helpful, as it reduces power consumption of the ESP to a minimum and you have much more time to recharge or replace the battery before damage. This only makes sense, if you have the ESP connected directly to the battery. If you have additional logic, this will still drain the battery.
