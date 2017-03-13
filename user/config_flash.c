@@ -40,6 +40,7 @@ uint8_t mac[6];
     os_sprintf(config->mqtt_prefix,"%s/%s/system", MQTT_PREFIX, config->mqtt_id);
     os_sprintf(config->mqtt_command_topic,"%s/%s/%s", MQTT_PREFIX, config->mqtt_id, "command");
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
+    config->mqtt_topic_mask		= 0xffff;
 
     config->dhcps_entries		= 0;
 }

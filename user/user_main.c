@@ -60,26 +60,42 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 
 #ifdef MQTT_CLIENT
 #include "mqtt.h"
+
+#define MQTT_TOPIC_RESPONSE	0x0001
+#define MQTT_TOPIC_IP		0x0002
+#define MQTT_TOPIC_SCANRESULT	0x0004
+#define MQTT_TOPIC_JOIN		0x0008
+#define MQTT_TOPIC_LEAVE	0x0010
+#define MQTT_TOPIC_UPTIME	0x0020
+#define MQTT_TOPIC_VDD		0x0040
+#define MQTT_TOPIC_BIN		0x0080
+#define MQTT_TOPIC_BOUT		0x0100
+#define MQTT_TOPIC_PIN		0x0200
+#define MQTT_TOPIC_POUT		0x0400
+#define MQTT_TOPIC_BPSIN	0x0800
+#define MQTT_TOPIC_BPSOUT	0x1000
+#define MQTT_TOPIC_NOSTATIONS	0x2000
+
 MQTT_Client mqttClient;
 bool mqtt_enabled;
 
-void ICACHE_FLASH_ATTR mqtt_publish_str(uint8_t *sub_topic, uint8_t *str)
+void ICACHE_FLASH_ATTR mqtt_publish_str(uint16_t mask, uint8_t *sub_topic, uint8_t *str)
 {
 uint8_t buf[256];
-  if (!mqtt_enabled) return;
+  if (!mqtt_enabled || (config.mqtt_topic_mask & mask == 0)) return;
 
   os_sprintf(buf, "%s/%s", config.mqtt_prefix, sub_topic);
 //os_printf("Publish: %s %s\r\n", buf, str);
   MQTT_Publish(&mqttClient, buf, str, os_strlen(str), 2, 0);
 }
 
-void ICACHE_FLASH_ATTR mqtt_publish_int(uint8_t *sub_topic, uint8_t *format, uint32_t val)
+void ICACHE_FLASH_ATTR mqtt_publish_int(uint16_t mask, uint8_t *sub_topic, uint8_t *format, uint32_t val)
 {
 uint8_t buf[32];
-  if (!mqtt_enabled) return;
+  if (!mqtt_enabled || (config.mqtt_topic_mask & mask == 0)) return;
 
   os_sprintf(buf, format, val);
-  mqtt_publish_str(sub_topic, buf);
+  mqtt_publish_str(mask, sub_topic, buf);
 }
 
 static void ICACHE_FLASH_ATTR mqttConnectedCb(uint32_t *args)
@@ -90,7 +106,7 @@ uint8_t ip_str[16];
   os_printf("MQTT: Connected\r\n");
 
   os_sprintf(ip_str, IPSTR, IP2STR(&my_ip));
-  mqtt_publish_str("IP", ip_str);
+  mqtt_publish_str(MQTT_TOPIC_IP, "IP", ip_str);
 
   if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
     MQTT_Subscribe(client, config.mqtt_command_topic, 0);
@@ -269,7 +285,6 @@ int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
 }
 #endif /* REMOTE_MONITORING */
 
-static uint8_t columns = 0;
 err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 
     //os_printf("Got packet from STA\r\n");
@@ -287,13 +302,6 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
 	       return;
-/*#else 
-       	       os_printf("x");
-	       if (++columns > 40) {
-		  os_printf("\r\n");
-		  columns = 0;
-	       }
-*/
 #endif
        }
        if (!monitoring_send_ongoing)
@@ -321,13 +329,6 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
 	       return;
-/*#else 
-       	       os_printf("x");
-	       if (++columns > 40) {
-		  os_printf("\r\n");
-		  columns = 0;
-	       }
-*/
 #endif
        }
        if (!monitoring_send_ongoing)
@@ -416,7 +417,7 @@ void console_send_response(struct espconn *pespconn)
 #ifdef MQTT_CLIENT
     payload[len] = 0;
     if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
-	mqtt_publish_str("response", payload);
+	mqtt_publish_str(MQTT_TOPIC_RESPONSE, "response", payload);
     }
 #endif
     os_memcpy(&payload[len], "CMD>", 4);
@@ -457,7 +458,7 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
                  MAC2STR(bss_link->bssid),bss_link->channel);
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef MQTT_CLIENT
-      mqtt_publish_str("ScanResult", response);
+      mqtt_publish_str(MQTT_TOPIC_SCANRESULT, "ScanResult", response);
 #endif
       bss_link = bss_link->next.stqe_next;
     }
@@ -610,8 +611,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            os_sprintf(response, "MQTT host: %s\r\nMQTT port: %d\r\nMQTT user: %s\r\nMQTT password: %s\r\n",
 		config.mqtt_host, config.mqtt_port, config.mqtt_user, config.locked?"***":(char*)config.mqtt_password);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "MQTT id: %s\r\nMQTT prefix: %s\r\nMQTT command topic: %s\r\nMQTT interval: %d s\r\n",
-		config.mqtt_id, config.mqtt_prefix, config.mqtt_command_topic, config.mqtt_interval);
+           os_sprintf(response, "MQTT id: %s\r\nMQTT prefix: %s\r\nMQTT command topic: %s\r\nMQTT interval: %d s\r\nMQTT mask: %04x\r\n",
+		config.mqtt_id, config.mqtt_prefix, config.mqtt_command_topic, config.mqtt_interval, config.mqtt_topic_mask);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
 	   goto command_handled_2;
@@ -1001,6 +1002,22 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "MQTT interval set\r\n");
         	goto command_handled;
 	    }
+	    if (strcmp(tokens[1], "mqtt_mask") == 0)
+	    {
+		uint16_t val = 0;
+		uint8_t i;
+		int8_t len = os_strlen(tokens[2]);
+
+		for (i = 0; i<len; i++) {
+		  uint8_t c = toupper(tokens[2][i]);
+		  if (c < '0' || (c > '9' && c <'A') || c > 'F') break;
+		  if (c > '9') c -= 'A' - 10; else c -= '0';
+		  val |= c << (((len-i)-1)*4);
+		}
+		config.mqtt_topic_mask = val;
+		os_sprintf(response, "MQTT topic mask set to %4x\r\n", val);
+        	goto command_handled;
+	    }
 #endif /* MQTT_CLIENT */
         }
     }
@@ -1093,19 +1110,25 @@ uint32_t t_diff;
     }
 
     // Do we still have to configure the AP netif? 
-    if (do_ip_config) user_set_softap_ip_config();
+    if (do_ip_config) {
+	user_set_softap_ip_config();
+	do_ip_config = false;
+    }
 
     t_new = get_long_systime();
 
 #ifdef MQTT_CLIENT
     t_diff = (uint32_t)((t_new-t_old)/1000000);
     if (mqtt_enabled && config.mqtt_interval != 0 && (t_diff > config.mqtt_interval)) {
-	mqtt_publish_int("Vdd", "%d", Vdd);
-	mqtt_publish_int("Bin", "%d", (uint32_t)(Bytes_in-Bytes_in_last)/t_diff);
-	mqtt_publish_int("Bout", "%d", (uint32_t)(Bytes_out-Bytes_out_last)/t_diff);
-	mqtt_publish_int("Pin", "%d", (Packets_in-Packets_in_last)/t_diff);
-	mqtt_publish_int("Pout", "%d", (Packets_out-Packets_out_last)/t_diff);
-	mqtt_publish_int("NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
+	mqtt_publish_int(MQTT_TOPIC_UPTIME, "Uptime", "%d", (uint32_t)(t_new/1000000));
+	mqtt_publish_int(MQTT_TOPIC_VDD, "Vdd", "%d", Vdd);
+	mqtt_publish_int(MQTT_TOPIC_BIN, "Bin", "%d", (uint32_t)(Bytes_in/1024));
+	mqtt_publish_int(MQTT_TOPIC_BOUT, "Bout", "%d", (uint32_t)(Bytes_out/1024));
+	mqtt_publish_int(MQTT_TOPIC_PIN, "Ppsin", "%d", (Packets_in-Packets_in_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_POUT, "Ppsout", "%d", (Packets_out-Packets_out_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_NOSTATIONS, "NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
+	mqtt_publish_int(MQTT_TOPIC_BPSIN, "Bpsin", "%d", (uint32_t)(Bytes_in-Bytes_in_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_BPSOUT, "Bpsout", "%d", (uint32_t)(Bytes_out-Bytes_out_last)/t_diff);
 
         t_old = t_new;
         Bytes_in_last = Bytes_in;
@@ -1220,7 +1243,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_connected.mac));
         os_printf("station: %s join, AID = %d\n", mac_str, evt->event_info.sta_connected.aid);
 #ifdef MQTT_CLIENT
-	mqtt_publish_str("join", mac_str);
+	mqtt_publish_str(MQTT_TOPIC_JOIN, "join", mac_str);
 #endif
 	patch_netif_ap(my_input_ap, my_output_ap, true);
         break;
@@ -1229,7 +1252,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_disconnected.mac));
         os_printf("station: %s leave, AID = %d\n", mac_str, evt->event_info.sta_disconnected.aid);
 #ifdef MQTT_CLIENT
-	mqtt_publish_str("leave", mac_str);
+	mqtt_publish_str(MQTT_TOPIC_LEAVE, "leave", mac_str);
 #endif
         break;
 
@@ -1300,8 +1323,6 @@ int i;
      if ((config.network_addr.addr & info.netmask.addr) == (config.dhcps_p[i].ip.addr & info.netmask.addr))
        dhcps_set_mapping(&config.dhcps_p[i].ip, &config.dhcps_p[i].mac[0], 100000 /* several month */);
    }
-
-   do_ip_config = false;
 }
 
 

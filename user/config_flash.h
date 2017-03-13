@@ -52,6 +52,7 @@ typedef struct
     uint8_t	mqtt_command_topic[64];   // Topic on which commands are received, "none" if not subscibed
 
     uint32_t	mqtt_interval;  // Interval in secs for status messages, 0 means no messages
+    uint16_t	mqtt_topic_mask;// Mask for active topics
 
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];
