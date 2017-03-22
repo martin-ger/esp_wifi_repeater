@@ -50,6 +50,8 @@ typedef struct
     uint8_t	mqtt_id[32];    // MQTT clientId
     uint8_t	mqtt_prefix[64];   // Topic-prefix
     uint8_t	mqtt_command_topic[64];   // Topic on which commands are received, "none" if not subscibed
+    uint8_t	mqtt_gpio_out_topic[64];  // Topic on which the status of the gpio_out pin can be set
+    bool	gpio_out_status; // Initial status of the gpio_out pin
 
     uint32_t	mqtt_interval;  // Interval in secs for status messages, 0 means no messages
     uint16_t	mqtt_topic_mask;// Mask for active topics

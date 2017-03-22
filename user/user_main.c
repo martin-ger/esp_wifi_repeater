@@ -21,8 +21,14 @@
 #include "config_flash.h"
 #include "sys_time.h"
 
+#include "easygpio.h"
+
 #ifdef REMOTE_MONITORING
 #include "pcap.h"
+#endif
+
+#ifdef MQTT_CLIENT
+#include "mqtt.h"
 #endif
 
 uint32_t readvdd33(void);
@@ -59,7 +65,6 @@ void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
 void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 
 #ifdef MQTT_CLIENT
-#include "mqtt.h"
 
 #define MQTT_TOPIC_RESPONSE	0x0001
 #define MQTT_TOPIC_IP		0x0002
@@ -75,6 +80,8 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 #define MQTT_TOPIC_BPSIN	0x0800
 #define MQTT_TOPIC_BPSOUT	0x1000
 #define MQTT_TOPIC_NOSTATIONS	0x2000
+#define MQTT_TOPIC_GPIOIN	0x4000
+#define MQTT_TOPIC_GPIOOUT	0x8000
 
 MQTT_Client mqttClient;
 bool mqtt_enabled;
@@ -111,6 +118,11 @@ uint8_t ip_str[16];
   if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
     MQTT_Subscribe(client, config.mqtt_command_topic, 0);
   }
+#ifdef USER_GPIO_OUT
+  if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
+    MQTT_Subscribe(client, config.mqtt_gpio_out_topic, 0);
+  }
+#endif
 }
 
 static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
@@ -135,6 +147,17 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
     // signal the main task that command is available for processing
     system_os_post(0, SIG_CONSOLE_RX, 0);
     return;
+  }
+#ifdef USER_GPIO_OUT
+  if (topic_len == os_strlen(config.mqtt_gpio_out_topic) && os_strncmp(topic, config.mqtt_gpio_out_topic, topic_len) == 0) {
+    if (data_len > 0 && data[0] == '0')
+	config.gpio_out_status = 0;
+    else
+	config.gpio_out_status = 1;
+    easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
+    mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
+    return;
+#endif
   }
 
 }
@@ -291,8 +314,8 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     Bytes_in += p->tot_len;
     Packets_in++;
 
-#ifdef STATUS_LED
-    GPIO_OUTPUT_SET (LED_NO, 1);
+#ifdef STATUS_LED_GIPO
+    GPIO_OUTPUT_SET (STATUS_LED_GIPO, 1);
 #endif
 
 #ifdef REMOTE_MONITORING
@@ -318,8 +341,8 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     Bytes_out += p->tot_len;
     Packets_out++;
 
-#ifdef STATUS_LED
-    GPIO_OUTPUT_SET (LED_NO, 0);
+#ifdef STATUS_LED_GIPO
+    GPIO_OUTPUT_SET (STATUS_LED_GIPO, 0);
 #endif
 
 #ifdef REMOTE_MONITORING
@@ -578,6 +601,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
 	      time/3600, (time%3600)/60, time%60, Vdd/1000, Vdd%1000);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#ifdef USER_GPIO_OUT
+	   os_sprintf(response, "GPIO output status: %d\r\n", config.gpio_out_status);
+           ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
 			(uint32_t)(Bytes_in/1024), Packets_in, 
 			(uint32_t)(Bytes_out/1024), Packets_out);
@@ -611,8 +638,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            os_sprintf(response, "MQTT host: %s\r\nMQTT port: %d\r\nMQTT user: %s\r\nMQTT password: %s\r\n",
 		config.mqtt_host, config.mqtt_port, config.mqtt_user, config.locked?"***":(char*)config.mqtt_password);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-           os_sprintf(response, "MQTT id: %s\r\nMQTT prefix: %s\r\nMQTT command topic: %s\r\nMQTT interval: %d s\r\nMQTT mask: %04x\r\n",
-		config.mqtt_id, config.mqtt_prefix, config.mqtt_command_topic, config.mqtt_interval, config.mqtt_topic_mask);
+           os_sprintf(response, "MQTT id: %s\r\nMQTT prefix: %s\r\nMQTT command topic: %s\r\nMQTT gpio_out topic: %s\r\nMQTT interval: %d s\r\nMQTT mask: %04x\r\n",
+		config.mqtt_id, config.mqtt_prefix, config.mqtt_command_topic, config.mqtt_gpio_out_topic, config.mqtt_interval, config.mqtt_topic_mask);
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
 	   goto command_handled_2;
@@ -1018,7 +1045,27 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "MQTT topic mask set to %4x\r\n", val);
         	goto command_handled;
 	    }
+#ifdef USER_GPIO_OUT
+	    if (strcmp(tokens[1], "mqtt_gpio_out_topic") == 0)
+	    {
+		os_strncpy(config.mqtt_gpio_out_topic, tokens[2], 64);
+		config.mqtt_gpio_out_topic[63] = 0;
+		os_sprintf(response, "MQTT gpio_out topic set\r\n");
+        	goto command_handled;
+	    }
+#endif
 #endif /* MQTT_CLIENT */
+
+#ifdef USER_GPIO_OUT
+	    if (strcmp(tokens[1], "gpio_out") == 0)
+	    {
+		config.gpio_out_status = atoi(tokens[2]);
+		easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
+		mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
+		os_sprintf(response, "GPIO out set to %d\r\n", config.gpio_out_status);
+        	goto command_handled;
+	    }
+#endif
         }
     }
 
@@ -1093,8 +1140,8 @@ uint64_t t_new;
 uint32_t t_diff;
 
     toggle = !toggle;
-#ifdef STATUS_LED
-    GPIO_OUTPUT_SET (LED_NO, toggle && connected);
+#ifdef STATUS_LED_GIPO
+    GPIO_OUTPUT_SET (STATUS_LED_GIPO, toggle && connected);
 #endif
     // Power measurement
     // Measure Vdd every second, sliding mean over the last 16 secs
@@ -1129,6 +1176,9 @@ uint32_t t_diff;
 	mqtt_publish_int(MQTT_TOPIC_NOSTATIONS, "NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
 	mqtt_publish_int(MQTT_TOPIC_BPSIN, "Bpsin", "%d", (uint32_t)(Bytes_in-Bytes_in_last)/t_diff);
 	mqtt_publish_int(MQTT_TOPIC_BPSOUT, "Bpsout", "%d", (uint32_t)(Bytes_out-Bytes_out_last)/t_diff);
+#ifdef USER_GPIO_OUT
+	mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
+#endif
 
         t_old = t_new;
         Bytes_in_last = Bytes_in;
@@ -1179,6 +1229,16 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         break;
 #endif
 */
+#ifdef MQTT_CLIENT
+#ifdef USER_GPIO_IN
+    case SIG_GPIO_INT:
+        {
+	    mqtt_publish_int(MQTT_TOPIC_GPIOIN, "GpioIn", "%d", (uint32_t)events->par);
+            //os_printf("GPIO %d %d\r\n", (uint32_t)events->par, easygpio_inputGet(USER_GPIO_IN));
+        }
+        break;
+#endif
+#endif
     case SIG_DO_NOTHING:
     default:
         // Intentionally ignoring other signals
@@ -1346,6 +1406,44 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
     wifi_station_set_auto_connect(config.auto_connect != 0);
 }
 
+#ifdef MQTT_CLIENT
+#ifdef USER_GPIO_IN
+static os_timer_t inttimer;
+
+void ICACHE_FLASH_ATTR int_timer_func(void *arg){
+	mqtt_publish_int(MQTT_TOPIC_GPIOIN, "GpioIn", "%d", easygpio_inputGet(USER_GPIO_IN));
+        //os_printf("GPIO %d %d\r\n", (uint32_t)arg, easygpio_inputGet(USER_GPIO_IN));
+
+        // Reactivate interrupts for GPIO
+        gpio_pin_intr_state_set(GPIO_ID_PIN(USER_GPIO_IN), GPIO_PIN_INTR_ANYEDGE);
+}
+
+// Interrupt handler - this function will be executed on any edge of USER_GPIO_IN
+LOCAL void  gpio_intr_handler(void *dummy)
+{
+    uint32 gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
+
+    if (gpio_status & BIT(USER_GPIO_IN)) {
+
+        // Disable interrupt for GPIO
+        gpio_pin_intr_state_set(GPIO_ID_PIN(USER_GPIO_IN), GPIO_PIN_INTR_DISABLE);
+
+        // Post it to the main task
+	//system_os_post(0, SIG_GPIO_INT, (ETSParam) easygpio_inputGet(USER_GPIO_IN));
+
+        // Clear interrupt status for GPIO
+        GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status & BIT(USER_GPIO_IN));
+
+	// Start the timer
+    	os_timer_setfn(&inttimer, int_timer_func, easygpio_inputGet(USER_GPIO_IN));
+    	os_timer_arm(&inttimer, 50, 0); 
+
+        // Reactivate interrupts foR GPIO
+        //gpio_pin_intr_state_set(GPIO_ID_PIN(USER_GPIO_IN), GPIO_PIN_INTR_ANYEDGE);
+    }
+}
+#endif /* USER_GPIO_IN */
+#endif /* MQTT_CLIENT */
 
 void ICACHE_FLASH_ATTR user_init()
 {
@@ -1365,14 +1463,7 @@ void ICACHE_FLASH_ATTR user_init()
 
     os_printf("\r\n\r\nWiFi Repeater V1.3 starting\r\n");
 
-#ifdef STATUS_LED
-    // Config GPIO pin as output
-    if (LED_NO == 1) system_set_os_print(0);
-    SET_LED_GPIO;
-    GPIO_OUTPUT_SET (LED_NO, 0);
-#endif
-
-    // Load WiFi-config
+    // Load config
     if (config_load(&config)== 0) {
 	// valid config in FLASH, can read portmap table
 	blob_load(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
@@ -1381,6 +1472,28 @@ void ICACHE_FLASH_ATTR user_init()
 	// clear portmap table
 	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
+
+#ifdef STATUS_LED_GIPO
+    // Config GPIO pin as output
+#if (STATUS_LED_GIPO == 1)
+    // Disable output if serial pin is used as status LED
+    system_set_os_print(0);
+#endif
+    easygpio_pinMode(STATUS_LED_GIPO, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
+    GPIO_OUTPUT_SET (STATUS_LED_GIPO, 0);
+#endif
+
+#ifdef MQTT_CLIENT
+#ifdef USER_GPIO_IN
+    easygpio_pinMode(USER_GPIO_IN, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+    easygpio_attachInterrupt(USER_GPIO_IN, EASYGPIO_PULLUP, gpio_intr_handler, NULL);
+    gpio_pin_intr_state_set(GPIO_ID_PIN(USER_GPIO_IN), GPIO_PIN_INTR_ANYEDGE);
+#endif
+#endif
+#ifdef USER_GPIO_OUT
+    easygpio_pinMode(USER_GPIO_OUT, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
+    easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
+#endif
 
     // Configure the AP and start it, if required
 
@@ -1450,6 +1563,6 @@ void ICACHE_FLASH_ATTR user_init()
     system_update_cpu_freq(config.clock_speed);
 
     //Start task
-    system_os_task(user_procTask, user_procTaskPrio,user_procTaskQueue, user_procTaskQueueLen);
+    system_os_task(user_procTask, user_procTaskPrio, user_procTaskQueue, user_procTaskQueueLen);
 }
 

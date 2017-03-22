@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_PACKET } USER_SIGNALS;
+typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_PACKET, SIG_GPIO_INT } USER_SIGNALS;
 
 #define WIFI_SSID            "ssid"
 #define WIFI_PASSWORD        "password"
@@ -19,15 +19,9 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define MAX_CON_CMD_SIZE     80
 
 //
-// Define this if you have a status LED connected to GPIO LED_NO
+// Define this if you have a status LED connected to a GPIO pin
 //
-#define STATUS_LED      1
-#define LED_NO		2
-
-// Select the GPIO init function according to your selected GPIO
-//#define SET_LED_GPIO	PIN_FUNC_SELECT(PERIPHS_IO_MUX_U0TXD_U, FUNC_GPIO1)
-#define SET_LED_GPIO	PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2)
-//#define SET_LED_GPIO	PIN_FUNC_SELECT (PERIPHS_IO_MUX_MTDI_U, FUNC_GPIO4)
+#define STATUS_LED_GIPO	13
 
 //
 // Define this to support the "scan" command for AP search
@@ -38,7 +32,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 // Define this to support the "sleep" command for power management and deep sleep
 // Requires a connection of GPIO16 and RST (probably not availabe on ESP01 modules)
 //
-#define ALLOW_SLEEP         1
+//#define ALLOW_SLEEP         1
 
 //
 // Define this if you want to have access to the config console via TCP.
@@ -77,5 +71,11 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define MQTT_PREFIX "/WiFi"
 #define MQTT_ID "ESPRouter"
 #define MQTT_REPORT_INTERVAL 15 /*seconds*/
+
+// Define this if you want to get messages about GPIO pin status changes
+#define USER_GPIO_IN   0
+
+// Define this if you want to set an output signal
+#define USER_GPIO_OUT  12
 
 #endif
