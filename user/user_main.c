@@ -53,6 +53,7 @@ sysconfig_t config;
 static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 static ip_addr_t my_ip;
+static ip_addr_t dns_ip;
 bool connected;
 bool do_ip_config;
 
@@ -157,9 +158,8 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
     mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
     return;
-#endif
   }
-
+#endif
 }
 #endif /* MQTT_CLIENT */
 
@@ -937,7 +937,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 				config.ap_on = true;
 	                	os_sprintf(response, "AP on\r\n");
 			} else {
-				os_sprintf(response, "AP already off\r\n");
+				os_sprintf(response, "AP already on\r\n");
 			}
 
 		} else {
@@ -946,7 +946,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 				config.ap_on = false;
                 		os_sprintf(response, "AP off\r\n");
 			} else {
-				os_sprintf(response, "AP already on\r\n");
+				os_sprintf(response, "AP already off\r\n");
 			}
 		}
                 goto command_handled;
@@ -1250,7 +1250,6 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 /* Callback called when the connection state of the module with an Access Point changes */
 void wifi_handle_event_cb(System_Event_t *evt)
 {
-    ip_addr_t dns_ip;
     uint16_t i;
     uint8_t mac_str[20];
 
@@ -1378,6 +1377,9 @@ int i;
 
    wifi_softap_dhcps_start();
 
+   // Change the DNS server again
+   dhcps_set_DNS(&dns_ip);
+
    // Enter any saved dhcp enties if they are in this network
    for (i = 0; i<config.dhcps_entries; i++) {
      if ((config.network_addr.addr & info.netmask.addr) == (config.dhcps_p[i].ip.addr & info.netmask.addr))
@@ -1455,6 +1457,9 @@ void ICACHE_FLASH_ATTR user_init()
     t_old = 0;
     console_rx_buffer = ringbuf_new(MAX_CON_CMD_SIZE);
     console_tx_buffer = ringbuf_new(MAX_CON_SEND_SIZE);
+
+    // Just a default, as long as we havn't got one from DHCP
+    IP4_ADDR(&dns_ip, 8, 8, 8, 8);
 
     gpio_init();
     init_long_systime();

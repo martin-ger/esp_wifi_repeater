@@ -21,7 +21,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 //
 // Define this if you have a status LED connected to a GPIO pin
 //
-#define STATUS_LED_GIPO	2
+#define STATUS_LED_GIPO	13
 
 //
 // Define this to support the "scan" command for AP search
@@ -32,7 +32,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 // Define this to support the "sleep" command for power management and deep sleep
 // Requires a connection of GPIO16 and RST (probably not availabe on ESP01 modules)
 //
-#define ALLOW_SLEEP         1
+//#define ALLOW_SLEEP         1
 
 //
 // Define this if you want to have access to the config console via TCP.
@@ -73,9 +73,9 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define MQTT_REPORT_INTERVAL 15 /*seconds*/
 
 // Define this if you want to get messages about GPIO pin status changes
-//#define USER_GPIO_IN   0
+#define USER_GPIO_IN   0
 
 // Define this if you want to set an output signal
-//#define USER_GPIO_OUT  12
+#define USER_GPIO_OUT  12
 
 #endif
