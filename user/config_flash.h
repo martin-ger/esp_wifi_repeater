@@ -10,9 +10,11 @@
 #include "spi_flash.h"
 #include "lwip/app/dhcpserver.h"
 
+#include "user_config.h"
+
 #define FLASH_BLOCK_NO 0xc
 
-#define MAGIC_NUMBER    0x012005fc
+#define MAGIC_NUMBER    0x014005fc
 
 typedef struct
 {
@@ -35,13 +37,21 @@ typedef struct
 
     uint8_t     locked;		// Should we allow for config changes
     ip_addr_t	network_addr;	// Address of the internal network
+    ip_addr_t	dns_addr;	// Optional: address of the dns server
+
+    ip_addr_t	my_addr;	// Optional (if not DHCP): IP address of the uplink side
+    ip_addr_t	my_netmask;	// Optional (if not DHCP): IP netmask of the uplink side
+    ip_addr_t	my_gw;		// Optional (if not DHCP): Gateway of the uplink side
 
     uint16_t	clock_speed;	// Freq of the CPU
+
+#ifdef ALLOW_SLEEP
     int32_t	Vmin;		// Min voltage of battery
     int32_t	Vmin_sleep;	// Sleep time in sec when battery is low
-
+#endif
     uint16_t	config_port;	// Port on which the concole listenes (0 if no access)
 
+#ifdef MQTT_CLIENT
     uint8_t     mqtt_host[32];	// IP or hostname of the MQTT broker, "none" if empty
     uint16_t	mqtt_port;	// Port of the MQTT broker
 
@@ -55,6 +65,7 @@ typedef struct
 
     uint32_t	mqtt_interval;  // Interval in secs for status messages, 0 means no messages
     uint16_t	mqtt_topic_mask;// Mask for active topics
+#endif
 
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];

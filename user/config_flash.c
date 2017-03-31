@@ -24,7 +24,13 @@ uint8_t mac[6];
     config->ap_open			= 1;
     config->ap_on			= 1;
     config->locked			= 0;
+
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
+    config->dns_addr.addr		= 0;  // use DHCP
+    config->my_addr.addr		= 0;  // use DHCP   
+    config->my_netmask.addr		= 0;  // use DHCP   
+    config->my_gw.addr			= 0;  // use DHCP   
+
     config->clock_speed			= 80;
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;

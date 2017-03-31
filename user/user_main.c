@@ -54,7 +54,9 @@ static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 static ip_addr_t my_ip;
 static ip_addr_t dns_ip;
+int scan_counter;
 bool connected;
+uint8_t my_channel;
 bool do_ip_config;
 
 static netif_input_fn orig_input_ap;
@@ -456,28 +458,17 @@ void console_send_response(struct espconn *pespconn)
 struct espconn *scanconn;
 void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 {
-  uint8 ssid[33];
   char response[128];
 
   if (status == OK)
   {
     struct bss_info *bss_link = (struct bss_info *)arg;
 
+    ringbuf_memcpy_into(console_tx_buffer, "\r", 1);
     while (bss_link != NULL)
     {
-      ringbuf_memcpy_into(console_tx_buffer, "\r", 1);
-
-      os_memset(ssid, 0, 33);
-      if (os_strlen(bss_link->ssid) <= 32)
-      {
-        os_memcpy(ssid, bss_link->ssid, os_strlen(bss_link->ssid));
-      }
-      else
-      {
-        os_memcpy(ssid, bss_link->ssid, 32);
-      }
       os_sprintf(response, "%d,\"%s\",%d,\""MACSTR"\",%d\r\n",
-                 bss_link->authmode, ssid, bss_link->rssi,
+                 bss_link->authmode, bss_link->ssid, bss_link->rssi,
                  MAC2STR(bss_link->bssid),bss_link->channel);
       ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef MQTT_CLIENT
@@ -522,7 +513,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|ap_open|ap_on|vmin|vmin_sleep|network|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>");
+        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_on|ap_open|vmin|vmin_sleep|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
+#ifdef MQTT_CLIENT
+		"|mqtt"
+#else
+		""
+#endif
+	);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "|scan");
@@ -556,24 +553,34 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                    config.locked?"***":(char*)config.password,
                    config.auto_connect?"":" [AutoConnect:0]");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-        os_sprintf(response, "AP:  SSID:%s PW:%s%s%s IP:%d.%d.%d.%d/24\r\n",
+
+        os_sprintf(response, "AP:  SSID:%s PW:%s%s%s IP:%d.%d.%d.%d/24",
                    config.ap_ssid,
                    config.locked?"***":(char*)config.ap_password,
                    config.ap_open?" [open]":"",
                    config.ap_on?"":" [disabled]",
 		   IP2STR(&config.network_addr));
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	// if static DNS, add it
+	os_sprintf(response, config.dns_addr.addr?" DNS: %d.%d.%d.%d\r\n":"\r\n", IP2STR(&config.dns_addr));
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	// if static IP, add it
+	os_sprintf(response, config.my_addr.addr?"Static IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
+		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #ifdef MQTT_CLIENT
         os_sprintf(response, "MQTT: %s\r\n", mqtt_enabled?"enabled":"disabled");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));      
 #endif
+#ifdef ALLOW_SLEEP
 	if (config.Vmin != 0) {
             os_sprintf(response, "Vmin: %d mV Sleep time: %d s\r\n", config.Vmin, config.Vmin_sleep);
             ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	}
-
+#endif
 	for (i = 0; i<IP_PORTMAP_MAX; i++) {
 	    p = &ip_portmap_table[i];
 	    if(p->valid) {
@@ -971,6 +978,53 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 			IP2STR(&config.network_addr));
                 goto command_handled;
             }
+
+            if (strcmp(tokens[1],"dns") == 0)
+            {
+		if (os_strcmp(tokens[2], "dhcp") == 0) {
+		    config.dns_addr.addr = 0;
+		    os_sprintf(response, "DNS from DHCP\r\n");
+		} else {
+		    config.dns_addr.addr = ipaddr_addr(tokens[2]);
+		    os_sprintf(response, "DNS set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.dns_addr));
+		    if (config.dns_addr.addr) {
+			dns_ip.addr = config.dns_addr.addr;
+			dhcps_set_DNS(&dns_ip);
+		    }
+		}
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"ip") == 0)
+            {
+		if (os_strcmp(tokens[2], "dhcp") == 0) {
+		    config.my_addr.addr = 0;
+		    os_sprintf(response, "IP from DHCP\r\n");
+		} else {
+		    config.my_addr.addr = ipaddr_addr(tokens[2]);
+		    os_sprintf(response, "IP address set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.my_addr));
+		}
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"netmask") == 0)
+            {
+                config.my_netmask.addr = ipaddr_addr(tokens[2]);
+                os_sprintf(response, "IP netmask set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.my_netmask));
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"gw") == 0)
+            {
+                config.my_gw.addr = ipaddr_addr(tokens[2]);
+                os_sprintf(response, "Gateway set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.my_gw));
+                goto command_handled;
+            }
+
 #ifdef MQTT_CLIENT
 	    if (strcmp(tokens[1], "mqtt_host") == 0)
 	    {
@@ -1132,20 +1186,20 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 #endif /* REMOTE_CONFIG */
 
 
-bool toggle;
+int timer_count;
 // Timer cb function
 void ICACHE_FLASH_ATTR timer_func(void *arg){
 uint32_t Vcurr;
 uint64_t t_new;
 uint32_t t_diff;
 
-    toggle = !toggle;
+    timer_count++;
 #ifdef STATUS_LED_GIPO
-    GPIO_OUTPUT_SET (STATUS_LED_GIPO, toggle && connected);
+    GPIO_OUTPUT_SET (STATUS_LED_GIPO, timer_count%10 && connected);
 #endif
     // Power measurement
     // Measure Vdd every second, sliding mean over the last 16 secs
-    if (toggle) {
+    if (!(timer_count%10)) {
 	Vcurr = readvdd33();
 	Vdd = (Vdd * 15 + Vcurr)/16;
 #ifdef ALLOW_SLEEP
@@ -1188,7 +1242,44 @@ uint32_t t_diff;
     }
 #endif
 
-    os_timer_arm(&ptimer, toggle?1000:100, 0); 
+    os_timer_arm(&ptimer, 100, 0); 
+}
+
+struct bssid_list {
+	uint8_t bssid[6];
+	uint8_t rssi;
+	uint8_t level;
+	};
+
+uint8_t bssids_found;
+struct bssid_list my_bssid_list[8];
+
+struct espconn *scanconn;
+void ICACHE_FLASH_ATTR scan_ssid_done(void *arg, STATUS status)
+{
+  if (status == OK)
+  {
+    struct bss_info *bss_link = (struct bss_info *)arg;
+
+    while (bss_link != NULL)
+    {
+      if (os_strncmp(bss_link->ssid, config.ssid, os_strlen(bss_link->ssid)) == 0) {
+	os_memcpy(my_bssid_list[bssids_found].bssid, bss_link->bssid, 6);
+	my_bssid_list[bssids_found].rssi = bss_link->rssi;
+	bssids_found++;
+      }
+
+      os_printf("%d,\"%s\",%d,\""MACSTR"\",%d\r\n",
+                 bss_link->authmode, bss_link->ssid, bss_link->rssi,
+                 MAC2STR(bss_link->bssid),bss_link->channel);
+      bss_link = bss_link->next.stqe_next;
+    }
+  }
+  else
+  {
+     os_printf("scan fail !!!\r\n");
+  }
+  system_os_post(0, SIG_DO_SCAN, 0);
 }
 
 
@@ -1200,8 +1291,8 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
     switch(events->sig)
     {
     case SIG_START_SERVER:
-       // Anything to do here, when the repeater has received its IP?
-       break;
+	// Anything else to do here, when the repeater has received its IP?
+	break;
 
     case SIG_CONSOLE_TX:
         {
@@ -1217,6 +1308,13 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         {
             struct espconn *pespconn = (struct espconn *) events->par;
             console_handle_command(pespconn);
+        }
+        break;
+
+    case SIG_DO_SCAN:
+        {
+	    if (scan_counter-- > 0)
+		wifi_station_scan(NULL,scan_ssid_done);
         }
         break;
 /*
@@ -1258,6 +1356,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
     {
     case EVENT_STAMODE_CONNECTED:
         os_printf("connect to ssid %s, channel %d\n", evt->event_info.connected.ssid, evt->event_info.connected.channel);
+	my_channel = evt->event_info.connected.channel;
         break;
 
     case EVENT_STAMODE_DISCONNECTED:
@@ -1275,7 +1374,9 @@ void wifi_handle_event_cb(System_Event_t *evt)
         break;
 
     case EVENT_STAMODE_GOT_IP:
-	dns_ip = dns_getserver(0);
+	if (config.dns_addr.addr == 0) {
+	    dns_ip = dns_getserver(0);
+	}
 	dhcps_set_DNS(&dns_ip);
 
         os_printf("ip:" IPSTR ",mask:" IPSTR ",gw:" IPSTR ",dns:" IPSTR "\n", IP2STR(&evt->event_info.got_ip.ip), IP2STR(&evt->event_info.got_ip.mask), IP2STR(&evt->event_info.got_ip.gw), IP2STR(&dns_ip));
@@ -1449,6 +1550,8 @@ LOCAL void  gpio_intr_handler(void *dummy)
 
 void ICACHE_FLASH_ATTR user_init()
 {
+struct ip_info info;
+
     connected = false;
     do_ip_config = false;
     my_ip.addr = 0;
@@ -1458,15 +1561,12 @@ void ICACHE_FLASH_ATTR user_init()
     console_rx_buffer = ringbuf_new(MAX_CON_CMD_SIZE);
     console_tx_buffer = ringbuf_new(MAX_CON_SEND_SIZE);
 
-    // Just a default, as long as we havn't got one from DHCP
-    IP4_ADDR(&dns_ip, 8, 8, 8, 8);
-
     gpio_init();
     init_long_systime();
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater V1.3 starting\r\n");
+    os_printf("\r\n\r\nWiFi Repeater V1.4 starting\r\n");
 
     // Load config
     if (config_load(&config)== 0) {
@@ -1501,6 +1601,12 @@ void ICACHE_FLASH_ATTR user_init()
 #endif
 
     // Configure the AP and start it, if required
+    if (config.dns_addr.addr == 0)
+	// Google's DNS as default, as long as we havn't got one from DHCP
+	IP4_ADDR(&dns_ip, 8, 8, 8, 8);
+    else
+	// We have a static DNS server
+	dns_ip.addr = config.dns_addr.addr;
 
     if (config.ap_on) {
 	wifi_set_opmode(STATIONAP_MODE);
@@ -1508,6 +1614,15 @@ void ICACHE_FLASH_ATTR user_init()
 	do_ip_config = true;
     } else {
 	wifi_set_opmode(STATION_MODE);
+    }
+
+    if (config.my_addr.addr != 0) {
+	wifi_station_dhcpc_stop();
+	info.ip.addr = config.my_addr.addr;
+	info.gw.addr = config.my_gw.addr;
+	info.netmask.addr = config.my_netmask.addr;
+	wifi_set_ip_info(STATION_IF, &info);
+	espconn_dns_setserver(0, &dns_ip);
     }
 
 #ifdef REMOTE_CONFIG
@@ -1561,13 +1676,17 @@ void ICACHE_FLASH_ATTR user_init()
     // Init power - set it to 3300mV
     Vdd = 3300;
 
+    system_update_cpu_freq(config.clock_speed);
+
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);
     os_timer_arm(&ptimer, 500, 0); 
 
-    system_update_cpu_freq(config.clock_speed);
-
     //Start task
     system_os_task(user_procTask, user_procTaskPrio, user_procTaskQueue, user_procTaskQueueLen);
+
+    scan_counter = 5;
+    bssids_found = 0;
+//    system_os_post(0, SIG_DO_SCAN, 0);
 }
 
