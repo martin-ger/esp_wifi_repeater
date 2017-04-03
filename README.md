@@ -83,10 +83,10 @@ From the console a monitor service can be started ("monitor on [portno]"). This 
 ACLs can be applied to the SoftAP interface. This is a cornerstone in IoT security, when the ESP router is used to bring other IoT devices into the internet. It can be used to prevent e.g. third-party IoT devices from "calling home". More documentation will follow... 
 
 The two ACL lists are named "from_sta" and "to_sta" for incoming and outgoing packets. ACLs are defined in "CISCO IOS style". The following example will allow for outgoing local broadcasts (for DHCP), UDP 53 (DNS), and TCP 1883 (MQTT) to a local broker, any other packets will be blocked:
-> acl from_sta IP any 255.255.255.255 allow
-> acl from_sta UDP any any any 53 allow
-> acl from_sta TCP any any 192.168.0.0/16 1883 allow
-> acl from_sta IP any any deny
+- acl from_sta IP any 255.255.255.255 allow
+- acl from_sta UDP any any any 53 allow
+- acl from_sta TCP any any 192.168.0.0/16 1883 allow
+- acl from_sta IP any any deny
 
 ACLs for the "to_sta" direction may be defined as well, but this is usually not required, as the reverse direction is quite well protected against unsolicited traffic by the NAT transation.
 
