@@ -1,4 +1,4 @@
-#include "ip_addr.h"
+#include "lwip/ip.h"
 #include "config_flash.h"
 
 
@@ -32,11 +32,12 @@ uint8_t mac[6];
     config->my_gw.addr			= 0;  // use DHCP   
 
     config->clock_speed			= 80;
+#ifdef ALLOW_SLEEP
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;
-
+#endif
     config->config_port			= CONSOLE_SERVER_PORT;
-
+#ifdef MQTT_CLIENT
     os_sprintf(config->mqtt_host,"%s", "none");
     config->mqtt_port			= 1883;
     os_sprintf(config->mqtt_user,"%s", "none");
@@ -49,8 +50,11 @@ uint8_t mac[6];
     config->gpio_out_status		= 0;
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
     config->mqtt_topic_mask		= 0xffff;
-
+#endif
     config->dhcps_entries		= 0;
+#ifdef ACLS
+    acl_init();	// initializes the ACLs, written in config during save
+#endif
 }
 
 int config_load(sysconfig_p config)
@@ -77,12 +81,20 @@ int config_load(sysconfig_p config)
         config_save(config);
 	return -1;
     }
+#ifdef ACLS
+    os_memcpy(&acl, &(config->acl), sizeof(acl));
+    os_memcpy(&acl_freep, &(config->acl_freep), sizeof(acl_freep));
+#endif
     return 0;
 }
 
 void config_save(sysconfig_p config)
 {
     uint16_t base_address = FLASH_BLOCK_NO;
+#ifdef ACLS
+    os_memcpy(&(config->acl), &acl, sizeof(acl));
+    os_memcpy(&(config->acl_freep), &acl_freep, sizeof(acl_freep));
+#endif
     os_printf("Saving configuration\r\n");
     spi_flash_erase_sector(base_address);
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, (uint32 *)config, sizeof(sysconfig_t));

@@ -32,26 +32,41 @@ The Firmware starts with the following default configuration:
 
 This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
 
-The console understands the following command:
+The console understands the following commands:
+
+Basic commands (enough to get it working in nearly all environments):
 - help: prints a short help message
-- show [config|stats]: prints the current config or some statistics
-- set [ssid|password|ap_ssid|ap_password] _value_: changes the named config parameter
-- set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0) or no password (ap_open=1)
-- set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1)
+- set [ssid|password] _value_: changes the settings for the uplink AP (WiFi config of your home-router)
+- set [ap_ssid|ap_password] _value_: changes the settings for the soft-AP of the ESP (for your stations)
+- show [config|stats]: prints the current config or some status information and statistics
+- save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
+- reset [factory]: resets the esp, optionally resets WiFi params to default values
+- lock: locks the current config, changes are not allowed
+- unlock _password_: unlocks the config, requires password of the network AP
+- quit: terminates a remote session
+
+Advanced commands:
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
-- set speed [80|160]: sets the CPU clock frequency
+- set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
+- set dns dhcp: configures use of the dynamic DNS address from DHCP, default
+- set ip _ip-addr_: sets a static IP address for the ESP in the uplink network
+- set ip dhcp: configures dynamic IP address for the ESP in the uplink network, default
+- set netmask _netmask_: sets a static netmask for the uplink network
+- set gw _gw-addr_: sets a static gateway address in the uplink network
+- scan: does a scan for APs
+- set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
+- set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
+- set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
-- save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
-- quit: terminates a remote session
-- reset [factory]: resets the esp, optionally resets WiFi params to default values
-- lock: locks the current config, changes are not allowed
-- unlock _password_: unlocks the config, requires password of the network AP
-- scan: does a scan for APs
 - monitor [on|off] _port_: starts and stops monitor server on a given port
+- acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny]: adds a new rule to the ACL
+- acl [from_sta|to_sta] clear: clears the whole ACL
+- show acl: shows the defined ACLs and some stats
+- set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
@@ -63,6 +78,17 @@ In user_config.h an alternative GPIO port can be configured. When configured to 
 
 # Monitoring
 From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.
+
+# ACLs
+ACLs can be applied to the SoftAP interface. This is a cornerstone in IoT security, when the ESP router is used to bring other IoT devices into the internet. It can be used to prevent e.g. third-party IoT devices from "calling home". More documentation will follow... 
+
+The two ACL lists are named "from_sta" and "to_sta" for incoming and outgoing packets. ACLs are defined in "CISCO IOS style". The following example will allow for outgoing local broadcasts (for DHCP), UDP 53 (DNS), and TCP 1883 (MQTT) to a local broker, any other packets will be blocked:
+> acl from_sta IP any 255.255.255.255 allow
+> acl from_sta UDP any any any 53 allow
+> acl from_sta TCP any any 192.168.0.0/16 1883 allow
+> acl from_sta IP any any deny
+
+ACLs for the "to_sta" direction may be defined as well, but this is usually not required, as the reverse direction is quite well protected against unsolicited traffic by the NAT transation.
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
@@ -115,4 +141,5 @@ You can send the ESP to sleep manually once by using the "sleep" command.
 Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediatly shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000. 
 
 # Known Issues
+- Due to the limitations of the ESP's SoftAP implementation, the is a maximum of 8 simultaniously connected stations.
 - Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vdd and Gnd can help if you experience problems here.

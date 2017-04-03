@@ -23,6 +23,10 @@
 
 #include "easygpio.h"
 
+#ifdef ACLS
+#include "acl.h"
+#endif
+
 #ifdef REMOTE_MONITORING
 #include "pcap.h"
 #endif
@@ -54,7 +58,6 @@ static ringbuf_t console_rx_buffer, console_tx_buffer;
 
 static ip_addr_t my_ip;
 static ip_addr_t dns_ip;
-int scan_counter;
 bool connected;
 uint8_t my_channel;
 bool do_ip_config;
@@ -334,6 +337,13 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     }
 #endif /* REMOTE_MONITORING */
 
+#ifdef ACLS
+    // Check ACLs - if not allowed, drop packet
+    if (!acl_is_empty(0) && !acl_check_packet(0, p)) {
+	pbuf_free(p);
+	return;
+    };
+#endif
     orig_input_ap (p, inp);
 }
 
@@ -360,6 +370,14 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
 #endif /* REMOTE_MONITORING */
+
+#ifdef ACLS
+    // Check ACLs - if not allowed, drop packet
+    if (!acl_is_empty(1) && !acl_check_packet(1, p)) {
+	pbuf_free(p);
+	return;
+    };
+#endif
 
     orig_output_ap (outp, p);
 }
@@ -486,10 +504,49 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 }
 #endif
 
+#ifdef ACLS
+void ICACHE_FLASH_ATTR parse_IP_addr(uint8_t *str, uint32_t *addr, uint32_t *mask)
+{
+int i;
+uint32_t net;
+    if (strcmp(str, "any") == 0) {
+	*addr = 0;
+	*mask = 0;
+	return;
+    }
+
+    for(i=0; str[i]!=0 && str[i]!='/'; i++);
+
+    *mask = 0xffffffff;
+    if (str[i]!=0) {
+	str[i]=0;
+	*mask <<= (32 - atoi(&str[i+1]));
+    }
+    *mask = htonl(*mask);
+    *addr = ipaddr_addr(str);
+}
+
+struct espconn *deny_cb_conn = 0;
+bool ICACHE_FLASH_ATTR acl_deny_cb(uint8_t proto, uint32_t saddr, uint16_t s_port, uint32_t daddr, uint16_t d_port)
+{
+char response[128];
+
+    os_sprintf(response, "\rdeny: %s Src: %d.%d.%d.%d:%d Dst: %d.%d.%d.%d:%d\r\n", 
+	proto==IP_PROTO_TCP?"TCP":proto==IP_PROTO_UDP?"UDP":"IP4",
+	IP2STR((ip_addr_t *)&saddr), s_port, IP2STR((ip_addr_t *)&daddr), d_port);
+    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+    system_os_post(0, SIG_CONSOLE_TX, (ETSParam) deny_cb_conn);
+    return false;
+}
+#endif /* ACLS */
+
+static char INVALID_LOCKED[] = "Invalid command. Config locked\r\n";
+static char INVALID_NUMARGS[] = "Invalid number of arguments\r\n";
+static char INVALID_ARG[] = "Invalid argument\r\n";
 
 void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 {
-#define MAX_CMD_TOKENS 6
+#define MAX_CMD_TOKENS 9
 
     char cmd_line[MAX_CON_CMD_SIZE+1];
     char response[256];
@@ -635,6 +692,24 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   }
 	   goto command_handled_2;
       }
+#ifdef ACLS
+      if (nTokens == 2 && strcmp(tokens[1], "acl") == 0) {
+	   if (!acl_is_empty(0)) {
+		ringbuf_memcpy_into(console_tx_buffer, "From STA:\r\n", 11);
+		acl_show(0, response);
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   }
+	   if (!acl_is_empty(1)) {
+		ringbuf_memcpy_into(console_tx_buffer, "To STA:\r\n", 9);
+		acl_show(1, response);
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   }
+	   os_sprintf(response, "Packets denied: %d Packets allowed: %d\r\n", 
+			acl_deny_count, acl_allow_count);
+	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	   goto command_handled_2;
+      }
+#endif
 #ifdef MQTT_CLIENT
       if (nTokens == 2 && strcmp(tokens[1], "mqtt") == 0) {
 	   if (os_strcmp(config.mqtt_host, "none") == 0) {
@@ -653,6 +728,91 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       }
 #endif
     }
+#ifdef ACLS
+    if (strcmp(tokens[0], "acl") == 0)
+    {
+    uint8_t acl_no;
+    uint8_t proto;
+    uint32_t saddr;
+    uint32_t smask;
+    uint16_t sport;
+    uint32_t daddr;
+    uint32_t dmask;
+    uint16_t dport;
+    uint8_t allow;
+    uint8_t last_arg;
+
+        if (config.locked)
+        {
+            os_sprintf(response, INVALID_LOCKED);
+            goto command_handled;
+        }
+
+        if (nTokens < 3)
+        {
+            os_sprintf(response, INVALID_NUMARGS);
+	    goto command_handled;
+        }
+
+        if (strcmp(tokens[1],"from_sta")==0)
+	    acl_no = 0;
+        else if (strcmp(tokens[1],"to_sta")==0)
+	    acl_no = 1;
+	else {
+	    os_sprintf(response, INVALID_ARG);
+	    goto command_handled;
+	}
+
+	if (strcmp(tokens[2],"clear")==0) {
+	    acl_clear(acl_no);
+	    os_sprintf(response, "ACL cleared\r\n");
+	    goto command_handled;
+	}
+
+	last_arg = 7;	
+	if (strcmp(tokens[2],"IP") == 0) {
+	    proto = 0;
+	    last_arg = 5;
+	}
+	else if (strcmp(tokens[2],"TCP") == 0) proto = IP_PROTO_TCP;
+	else if (strcmp(tokens[2],"UDP") == 0) proto = IP_PROTO_UDP;
+        else {
+	    os_sprintf(response, INVALID_ARG);
+	    goto command_handled;
+	}
+
+        if (nTokens != last_arg+1)
+        {
+            os_sprintf(response, INVALID_NUMARGS);
+	    goto command_handled;
+        }
+
+	if (proto == 0) {
+	    parse_IP_addr(tokens[3], &saddr, &smask);
+	    parse_IP_addr(tokens[4], &daddr, &dmask);
+	    sport = dport = 0;
+	} else {
+	    parse_IP_addr(tokens[3], &saddr, &smask);
+            sport = (uint16_t)atoi(tokens[4]);
+	    parse_IP_addr(tokens[5], &daddr, &dmask);
+            dport = (uint16_t)atoi(tokens[6]);
+	}
+
+	if (strcmp(tokens[last_arg],"allow") == 0) allow = 1;
+	else if (strcmp(tokens[last_arg],"deny") == 0) allow = 0;
+        else {
+	    os_sprintf(response, INVALID_ARG);
+	    goto command_handled;
+	}
+
+	if (acl_add(acl_no, saddr, smask, daddr, dmask, proto, sport, dport, allow)) {
+	    os_sprintf(response, "ACL added\r\n");
+	} else {
+	    os_sprintf(response, "ACL add failed\r\n");
+	}
+        goto command_handled;
+    }
+#endif /* ACLS */
 
     if (strcmp(tokens[0], "portmap") == 0)
     {
@@ -665,26 +825,26 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         if (config.locked)
         {
-            os_sprintf(response, "Invalid portmap command. Config locked\r\n");
+            os_sprintf(response, INVALID_LOCKED);
             goto command_handled;
         }
 
         if (nTokens < 4 || (strcmp(tokens[1],"add")==0 && nTokens != 6))
         {
-            os_sprintf(response, "Invalid number of arguments\r\n");
+            os_sprintf(response, INVALID_NUMARGS);
 	    goto command_handled;
         }
 
         add = strcmp(tokens[1],"add")==0;
 	if (!add && strcmp(tokens[1],"remove")!=0) {
-	    os_sprintf(response, "Portmap failed. Invalid command\r\n");
+	    os_sprintf(response, INVALID_ARG);
 	    goto command_handled;
 	}
 
 	if (strcmp(tokens[2],"TCP") == 0) proto = IP_PROTO_TCP;
 	else if (strcmp(tokens[2],"UDP") == 0) proto = IP_PROTO_UDP;
         else {
-	    os_sprintf(response, "Portmap failed. Invalid protocol\r\n");
+	    os_sprintf(response, INVALID_ARG);
 	    goto command_handled;
 	}
 
@@ -709,7 +869,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "save") == 0)
     {
       if (config.locked) {
-        os_sprintf(response, "Invalid save command. Config locked\r\n");
+        os_sprintf(response, INVALID_LOCKED);
         goto command_handled;
       }
 
@@ -788,7 +948,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "unlock") == 0)
     {
         if (nTokens != 2) {
-            os_sprintf(response, "Invalid number of arguments\r\n");
+            os_sprintf(response, INVALID_NUMARGS);
         }
         else if (strcmp(tokens[1],config.password) == 0) {
 	    config.locked = 0;
@@ -802,11 +962,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #ifdef REMOTE_MONITORING
     if (strcmp(tokens[0],"monitor") == 0) {
         if (nTokens < 2) {
-            os_sprintf(response, "Invalid number of arguments\r\n");
+            os_sprintf(response, INVALID_NUMARGS);
 	    goto command_handled;
         }
         if (config.locked) {
-            os_sprintf(response, "Invalid monitor command. Config locked\r\n");
+            os_sprintf(response, INVALID_LOCKED);
             goto command_handled;
         }
 	if (strcmp(tokens[1],"on") == 0) {
@@ -846,7 +1006,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     {
         if (config.locked)
         {
-            os_sprintf(response, "Invalid set command. Config locked\r\n");
+            os_sprintf(response, INVALID_LOCKED);
             goto command_handled;
         }
 
@@ -856,7 +1016,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
          */
         if (nTokens < 3)
         {
-            os_sprintf(response, "Invalid number of arguments\r\n");
+            os_sprintf(response, INVALID_NUMARGS);
             goto command_handled;
         }
         else
@@ -908,6 +1068,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Open Auth set\r\n");
                 goto command_handled;
             }
+#ifdef ACLS
+            if (strcmp(tokens[1],"acl_debug") == 0)
+            {
+                if (atoi(tokens[2]))
+		    acl_set_deny_cb(acl_deny_cb);
+		else
+		    acl_set_deny_cb(NULL);
+                os_sprintf(response, "ACL debug set\r\n");
+                goto command_handled;
+            }
+#endif
 #ifdef REMOTE_CONFIG
             if (strcmp(tokens[1],"config_port") == 0)
             {
@@ -1160,6 +1331,10 @@ static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
 static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
 {
     os_printf("tcp_client_discon_cb(): client disconnected\n");
+#ifdef ACLS
+    deny_cb_conn = 0;
+    acl_set_deny_cb(NULL);
+#endif
     struct espconn *pespconn = (struct espconn *)arg;
 }
 
@@ -1182,6 +1357,9 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     
     os_sprintf(payload, "CMD>");
     espconn_sent(pespconn, payload, os_strlen(payload));
+#ifdef ACLS
+    deny_cb_conn = pespconn;
+#endif
 }
 #endif /* REMOTE_CONFIG */
 
@@ -1245,43 +1423,6 @@ uint32_t t_diff;
     os_timer_arm(&ptimer, 100, 0); 
 }
 
-struct bssid_list {
-	uint8_t bssid[6];
-	uint8_t rssi;
-	uint8_t level;
-	};
-
-uint8_t bssids_found;
-struct bssid_list my_bssid_list[8];
-
-struct espconn *scanconn;
-void ICACHE_FLASH_ATTR scan_ssid_done(void *arg, STATUS status)
-{
-  if (status == OK)
-  {
-    struct bss_info *bss_link = (struct bss_info *)arg;
-
-    while (bss_link != NULL)
-    {
-      if (os_strncmp(bss_link->ssid, config.ssid, os_strlen(bss_link->ssid)) == 0) {
-	os_memcpy(my_bssid_list[bssids_found].bssid, bss_link->bssid, 6);
-	my_bssid_list[bssids_found].rssi = bss_link->rssi;
-	bssids_found++;
-      }
-
-      os_printf("%d,\"%s\",%d,\""MACSTR"\",%d\r\n",
-                 bss_link->authmode, bss_link->ssid, bss_link->rssi,
-                 MAC2STR(bss_link->bssid),bss_link->channel);
-      bss_link = bss_link->next.stqe_next;
-    }
-  }
-  else
-  {
-     os_printf("scan fail !!!\r\n");
-  }
-  system_os_post(0, SIG_DO_SCAN, 0);
-}
-
 
 //Priority 0 Task
 static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
@@ -1311,22 +1452,6 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         }
         break;
 
-    case SIG_DO_SCAN:
-        {
-	    if (scan_counter-- > 0)
-		wifi_station_scan(NULL,scan_ssid_done);
-        }
-        break;
-/*
-#ifdef REMOTE_MONITORING
-    case SIG_PACKET:
-        {
-            if (!monitoring_send_ongoing)
-		   tcp_monitor_sent_cb(cur_mon_conn);
-        }
-        break;
-#endif
-*/
 #ifdef MQTT_CLIENT
 #ifdef USER_GPIO_IN
     case SIG_GPIO_INT:
@@ -1577,7 +1702,10 @@ struct ip_info info;
 	// clear portmap table
 	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
-
+#ifdef ACLS
+    acl_clear_stats(0);
+    acl_clear_stats(1);
+#endif
 #ifdef STATUS_LED_GIPO
     // Config GPIO pin as output
 #if (STATUS_LED_GIPO == 1)
@@ -1684,9 +1812,5 @@ struct ip_info info;
 
     //Start task
     system_os_task(user_procTask, user_procTaskPrio, user_procTaskQueue, user_procTaskQueueLen);
-
-    scan_counter = 5;
-    bssids_found = 0;
-//    system_os_post(0, SIG_DO_SCAN, 0);
 }
 
