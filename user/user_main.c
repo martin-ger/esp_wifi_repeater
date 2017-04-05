@@ -1364,20 +1364,20 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 #endif /* REMOTE_CONFIG */
 
 
-int timer_count;
+bool toggle;
 // Timer cb function
 void ICACHE_FLASH_ATTR timer_func(void *arg){
 uint32_t Vcurr;
 uint64_t t_new;
 uint32_t t_diff;
 
-    timer_count++;
+    toggle = !toggle;
 #ifdef STATUS_LED_GIPO
-    GPIO_OUTPUT_SET (STATUS_LED_GIPO, timer_count%10 && connected);
+    GPIO_OUTPUT_SET (STATUS_LED_GIPO, toggle && connected);
 #endif
     // Power measurement
     // Measure Vdd every second, sliding mean over the last 16 secs
-    if (!(timer_count%10)) {
+    if (toggle) {
 	Vcurr = readvdd33();
 	Vdd = (Vdd * 15 + Vcurr)/16;
 #ifdef ALLOW_SLEEP
@@ -1420,9 +1420,8 @@ uint32_t t_diff;
     }
 #endif
 
-    os_timer_arm(&ptimer, 100, 0); 
+    os_timer_arm(&ptimer, toggle?1000:100, 0); 
 }
-
 
 //Priority 0 Task
 static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
