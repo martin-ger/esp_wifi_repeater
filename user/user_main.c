@@ -79,8 +79,8 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
 #define MQTT_TOPIC_LEAVE	0x0010
 #define MQTT_TOPIC_UPTIME	0x0020
 #define MQTT_TOPIC_VDD		0x0040
-#define MQTT_TOPIC_BIN		0x0080
-#define MQTT_TOPIC_BOUT		0x0100
+#define MQTT_TOPIC_ACLDENY	0x0080
+#define MQTT_TOPIC_BYTES	0x0100
 #define MQTT_TOPIC_PIN		0x0200
 #define MQTT_TOPIC_POUT		0x0400
 #define MQTT_TOPIC_BPSIN	0x0800
@@ -527,15 +527,29 @@ uint32_t net;
 }
 
 struct espconn *deny_cb_conn = 0;
+uint8_t acl_debug = 0;
+
 bool ICACHE_FLASH_ATTR acl_deny_cb(uint8_t proto, uint32_t saddr, uint16_t s_port, uint32_t daddr, uint16_t d_port)
 {
 char response[128];
 
+    if (!acl_debug 
+#ifdef MQTT_CLIENT
+	&& !mqtt_enabled
+#endif
+	) return false;
+
     os_sprintf(response, "\rdeny: %s Src: %d.%d.%d.%d:%d Dst: %d.%d.%d.%d:%d\r\n", 
 	proto==IP_PROTO_TCP?"TCP":proto==IP_PROTO_UDP?"UDP":"IP4",
 	IP2STR((ip_addr_t *)&saddr), s_port, IP2STR((ip_addr_t *)&daddr), d_port);
-    ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-    system_os_post(0, SIG_CONSOLE_TX, (ETSParam) deny_cb_conn);
+
+#ifdef MQTT_CLIENT
+    mqtt_publish_str(MQTT_TOPIC_ACLDENY, "ACLDeny", response);
+#endif
+    if (acl_debug) {
+	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	system_os_post(0, SIG_CONSOLE_TX, (ETSParam) deny_cb_conn);
+    }
     return false;
 }
 #endif /* ACLS */
@@ -591,6 +605,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 	ringbuf_memcpy_into(console_tx_buffer, "\r\n", 2);
+#ifdef ACLS
+        os_sprintf(response, "|acl [from_sta|to_sta] clear\r\n|acl [from_sta|to_sta] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny]\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 #ifdef MQTT_CLIENT
         os_sprintf(response, "|set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
@@ -1071,10 +1089,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #ifdef ACLS
             if (strcmp(tokens[1],"acl_debug") == 0)
             {
-                if (atoi(tokens[2]))
-		    acl_set_deny_cb(acl_deny_cb);
-		else
-		    acl_set_deny_cb(NULL);
+		acl_debug = atoi(tokens[2]);
                 os_sprintf(response, "ACL debug set\r\n");
                 goto command_handled;
             }
@@ -1332,8 +1347,8 @@ static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
 {
     os_printf("tcp_client_discon_cb(): client disconnected\n");
 #ifdef ACLS
+    acl_debug = 0;
     deny_cb_conn = 0;
-    acl_set_deny_cb(NULL);
 #endif
     struct espconn *pespconn = (struct espconn *)arg;
 }
@@ -1401,8 +1416,8 @@ uint32_t t_diff;
     if (mqtt_enabled && config.mqtt_interval != 0 && (t_diff > config.mqtt_interval)) {
 	mqtt_publish_int(MQTT_TOPIC_UPTIME, "Uptime", "%d", (uint32_t)(t_new/1000000));
 	mqtt_publish_int(MQTT_TOPIC_VDD, "Vdd", "%d", Vdd);
-	mqtt_publish_int(MQTT_TOPIC_BIN, "Bin", "%d", (uint32_t)(Bytes_in/1024));
-	mqtt_publish_int(MQTT_TOPIC_BOUT, "Bout", "%d", (uint32_t)(Bytes_out/1024));
+	mqtt_publish_int(MQTT_TOPIC_BYTES, "Bin", "%d", (uint32_t)(Bytes_in/1024));
+	mqtt_publish_int(MQTT_TOPIC_BYTES, "Bout", "%d", (uint32_t)(Bytes_out/1024));
 	mqtt_publish_int(MQTT_TOPIC_PIN, "Ppsin", "%d", (Packets_in-Packets_in_last)/t_diff);
 	mqtt_publish_int(MQTT_TOPIC_POUT, "Ppsout", "%d", (Packets_out-Packets_out_last)/t_diff);
 	mqtt_publish_int(MQTT_TOPIC_NOSTATIONS, "NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
@@ -1702,8 +1717,10 @@ struct ip_info info;
 	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
 #ifdef ACLS
+    acl_debug = 0;
     acl_clear_stats(0);
     acl_clear_stats(1);
+    acl_set_deny_cb(acl_deny_cb);
 #endif
 #ifdef STATUS_LED_GIPO
     // Config GPIO pin as output

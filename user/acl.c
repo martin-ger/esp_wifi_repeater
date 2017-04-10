@@ -74,6 +74,7 @@ acl_entry *my_entry;
     my_entry->s_port = s_port;
     my_entry->d_port = d_port;
     my_entry->allow = allow;
+    my_entry->hit_count = 0;
 
     acl_freep[acl_no]++;
     return true;
@@ -150,15 +151,15 @@ bool allow;
 	return false;
     }
 
-//    os_printf("Src: %d.%d.%d.%d Dst: %d.%d.%d.%d Proto: %s SP:%d DP:%d", 
+//    os_printf("Src: %d.%d.%d.%d Dst: %d.%d.%d.%d Proto: %s SP:%d DP:%d\n", 
 //		IP2STR(&ip_h->src), IP2STR(&ip_h->dest), 
 //		proto==IP_PROTO_TCP?"TCP":proto==IP_PROTO_UDP?"UDP":"IP4", src_port, dest_port);
 
     for(i=0; i<acl_freep[acl_no]; i++) {
 	my_entry = &acl[acl_no][i];
 	if ((my_entry->proto == 0  || proto == my_entry->proto) &&
-	    (my_entry->src == 0    || my_entry->src == ip_h->src.addr&my_entry->s_mask) &&
-	    (my_entry->dest == 0   || my_entry->dest == ip_h->dest.addr&my_entry->d_mask) &&
+	    (my_entry->src == 0    || my_entry->src == (ip_h->src.addr&my_entry->s_mask)) &&
+	    (my_entry->dest == 0   || my_entry->dest == (ip_h->dest.addr&my_entry->d_mask)) &&
 	    (my_entry->s_port == 0 || my_entry->s_port == src_port) &&
 	    (my_entry->d_port == 0 || my_entry->d_port == dest_port)) {
 		allow = my_entry->allow;
@@ -209,7 +210,7 @@ void ICACHE_FLASH_ATTR acl_show(uint8_t acl_no, uint8_t *buf)
 {
 int i;
 acl_entry *my_entry;
-uint8_t line[80], addr1[21], addr2[21], port1[4], port2[4];
+uint8_t line[80], addr1[21], addr2[21], port1[6], port2[6];
 
     buf[0] = 0;
 

@@ -117,7 +117,7 @@ The router can publish the following status topics periodically (every mqtt_inte
 - _prefix_path_/Bpsout: Bytes/s from the AP to stations (mask: 0x1000)
 - _prefix_path_/Ppsin: Packets/s from stations into the AP (mask: 0x0200)
 - _prefix_path_/Ppsout: Packets/s from the AP to stations  (mask: 0x0400)
-- _prefix_path_/Bin: Total bytes from stations into the AP (mask: 0x0080)
+- _prefix_path_/Bin: Total bytes from stations into the AP (mask: 0x0100)
 - _prefix_path_/Bout: Total bytes from the AP to stations  (mask: 0x0100)
 - _prefix_path_/NoStations: Number of stations currently connected to the AP  (mask: 0x2000)
 
@@ -126,6 +126,7 @@ In addition it can publish on an event basis:
 - _prefix_path_/leave: MAC address of a station leaving the AP (mask: 0x0010)
 - _prefix_path_/IP: IP address of the router when received via DHCP (mask: 0x0002)
 - _prefix_path_/ScanResult: Separate topic for the results of a "scan" command (one message per found AP) (mask: 0x0004)
+- _prefix_path_/ACLDeny: A packet has been denied by an ACL rule and has been dropped (mask: 0x0080)
 
 The router can be configured using the following topics:
 - _command_topic_: The router subscribes on this topic and interprets all messages as command lines
