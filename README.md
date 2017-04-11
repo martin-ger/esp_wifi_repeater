@@ -30,7 +30,18 @@ The Firmware starts with the following default configuration:
 - ap_ssid: MyAP, ap_password: none, ap_on: 1, ap_open: 1
 - network: 192.168.4.0/24
 
-This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA). 
+This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
+
+Use the following commands for an initial setup:
+- set ssid your_home_router's_SSID
+- set password your_home_router's_password
+- set ap_ssid ESP's_ssid
+- set ap_password ESP's_password
+- show (to check the parameters)
+- save
+- reset
+
+After reboot it will connect to your home router and itself is ready for stations to connect.
 
 The console understands the following commands:
 
@@ -76,13 +87,16 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 
 In user_config.h an alternative GPIO port can be configured. When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
-# Monitoring
-From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.
+# Port Mapping
+In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
 
-# ACLs
-ACLs can be applied to the SoftAP interface. This is a cornerstone in IoT security, when the ESP router is used to bring other IoT devices into the internet. It can be used to prevent e.g. third-party IoT devices from "calling home". More documentation will follow... 
+However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achive this, either fixed IP adresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achived with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
+
+# Firewall
+The ESP router has a integrated basic firewall. ACLs (Access Control Lists) can be applied to the SoftAP interface. This is a cornerstone in IoT security, when the router is used to bring other IoT devices into the internet. It can be used to prevent e.g. third-party IoT devices from "calling home", being misused as malware bots, and to protect your home network with PCs, tablets and phones from being visible to home automation devices. 
 
 The two ACL lists are named "from_sta" and "to_sta" for incoming and outgoing packets. ACLs are defined in "CISCO IOS style". The following example will allow for outgoing local broadcasts (for DHCP), UDP 53 (DNS), and TCP 1883 (MQTT) to a local broker, any other packets will be blocked:
+- acl from_sta clear
 - acl from_sta IP any 255.255.255.255 allow
 - acl from_sta UDP any any any 53 allow
 - acl from_sta TCP any any 192.168.0.0/16 1883 allow
@@ -90,10 +104,14 @@ The two ACL lists are named "from_sta" and "to_sta" for incoming and outgoing pa
 
 ACLs for the "to_sta" direction may be defined as well, but this is usually not required, as the reverse direction is quite well protected against unsolicited traffic by the NAT transation.
 
-# Port Mapping
-In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
+ACLs consist of filtering rules that are processed for each packet. Each rule consists of a protocol (IP, TCP, or UDP), source address and port, as well as destination address and port. In case of plain IP no ports, only addresses are given. Addresses can be given as subnet addresses in the "/" notation, e.g. 192.168.178.0/24. The rules are checked top-down in the order of their appearance in the list. The first rule that matches a packet is applied and determies whether a packet is allowed (and forwarded) or denied (and dropped). This means, special cases first, general rules at the end. If there are rules in an ACL all packets that don't match any rule are denied by default. Thus, the last rule "from_sta IP any any deny" in the example above is not really needed, as it is the default anyway. If an ACL is empty, all packets are allowed.
 
-However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achive this, either fixed IP adresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achived with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
+Definition of ACL rules works also top-down: a new rule is always added at the end of a list. To change an ACL you first have to clear it completely (acl from_sta clear) and then rebuild it. ACLs are saved with the config. "show acl" will print out the ACLs plus statistics on the number of hits for each rule and the overall number of allowed and denied packets.
+
+With the command "set acl_debug 1" a summary of all denied packets is printed to the console. Also, an MQTT topic can publishe this summary. This can be used for firewall configuration to determine which rules are required to get the connected devices working. It also gives a hint if, if unexpected traffic happens (and is denied). For deeper analysis the monitoring service can be used (denied packets are see be the monitor before they are dropped)
+
+# Monitoring
+From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.
 
 # MQTT Support
 Since version 1.3 the router has a build-in MQTT client (thanks to Tuan PM for his library https://github.com/tuanpmt/esp_mqtt). This can help to integrate the router/repeater into the IoT. A home automation system can e.g. make decisions based on infos about the currently associated stations, it can switch on and of the repeaters (e.g. based on a time schedule), or it can simply be used to monitor the load. The router can be connected either to a local MQTT broker or to a publically available broker in the cloud. However, currently it does not support TLS encryption.
