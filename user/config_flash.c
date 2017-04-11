@@ -37,6 +37,12 @@ uint8_t mac[6];
     config->Vmin_sleep			= 60;
 #endif
     config->config_port			= CONSOLE_SERVER_PORT;
+
+#ifdef TOKENBUCKET
+    config->kbps_ds			= 0;
+    config->kbps_us			= 0;
+#endif
+
 #ifdef MQTT_CLIENT
     os_sprintf(config->mqtt_host,"%s", "none");
     config->mqtt_port			= 1883;

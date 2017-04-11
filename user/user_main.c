@@ -51,6 +51,11 @@ uint64_t Bytes_in, Bytes_out, Bytes_in_last, Bytes_out_last;
 uint32_t Packets_in, Packets_out, Packets_in_last, Packets_out_last;
 uint64_t t_old;
 
+#ifdef TOKENBUCKET
+uint64_t t_old_tb;
+uint32_t token_bucket_ds, token_bucket_us;
+#endif
+
 /* Hold the system wide configuration */
 sysconfig_t config;
 
@@ -315,9 +320,7 @@ int ICACHE_FLASH_ATTR put_packet_to_ringbuf(struct pbuf *p) {
 
 err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 
-    //os_printf("Got packet from STA\r\n");
-    Bytes_in += p->tot_len;
-    Packets_in++;
+//  os_printf("Got packet from STA\r\n");
 
 #ifdef STATUS_LED_GIPO
     GPIO_OUTPUT_SET (STATUS_LED_GIPO, 1);
@@ -344,14 +347,27 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 	return;
     };
 #endif
+
+#ifdef TOKENBUCKET
+    if (config.kbps_us != 0) {
+        if (p->tot_len <= token_bucket_us) {
+	    token_bucket_us -= p->tot_len;
+        } else {
+	    pbuf_free(p);
+	    return;
+	}
+    }
+#endif
+
+    Bytes_in += p->tot_len;
+    Packets_in++;
+
     orig_input_ap (p, inp);
 }
 
 err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 
-    //os_printf("Send packet to STA\r\n");
-    Bytes_out += p->tot_len;
-    Packets_out++;
+//  os_printf("Send packet to STA\r\n");
 
 #ifdef STATUS_LED_GIPO
     GPIO_OUTPUT_SET (STATUS_LED_GIPO, 0);
@@ -378,6 +394,20 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 	return;
     };
 #endif
+
+#ifdef TOKENBUCKET
+    if (config.kbps_ds != 0) {
+        if (p->tot_len <= token_bucket_ds) {
+	    token_bucket_ds -= p->tot_len;
+        } else {
+	    pbuf_free(p);
+	    return;
+	}
+    }
+#endif
+
+    Bytes_out += p->tot_len;
+    Packets_out++;
 
     orig_output_ap (outp, p);
 }
@@ -605,6 +635,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 	ringbuf_memcpy_into(console_tx_buffer, "\r\n", 2);
+#ifdef TOKENBUCKET
+        os_sprintf(response, "|set [upstream_kbps|downstream_kbps] <val>\r\n");
+        ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 #ifdef ACLS
         os_sprintf(response, "|acl [from_sta|to_sta] clear\r\n|acl [from_sta|to_sta] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny]\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
@@ -646,6 +680,16 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#ifdef TOKENBUCKET
+	if (config.kbps_ds != 0) {
+            os_sprintf(response, "Downstream limit: %d kbps\r\n", config.kbps_ds);
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	}
+	if (config.kbps_us != 0) {
+            os_sprintf(response, "Upstream limit: %d kbps\r\n", config.kbps_us);
+            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	}
+#endif
 #ifdef MQTT_CLIENT
         os_sprintf(response, "MQTT: %s\r\n", mqtt_enabled?"enabled":"disabled");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));      
@@ -1105,6 +1149,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
+#ifdef TOKENBUCKET
+            if (strcmp(tokens[1],"downstream_kbps") == 0)
+            {
+                config.kbps_ds = atoi(tokens[2]);
+                os_sprintf(response, "Bitrate set\r\n");
+                goto command_handled;
+            }
+            if (strcmp(tokens[1],"upstream_kbps") == 0)
+            {
+                config.kbps_us = atoi(tokens[2]);
+                os_sprintf(response, "Bitrate set\r\n");
+                goto command_handled;
+            }
+#endif
 #ifdef ALLOW_SLEEP
             if (strcmp(tokens[1],"vmin") == 0)
             {
@@ -1385,6 +1443,9 @@ void ICACHE_FLASH_ATTR timer_func(void *arg){
 uint32_t Vcurr;
 uint64_t t_new;
 uint32_t t_diff;
+#ifdef TOKENBUCKET
+uint32_t Bps;
+#endif
 
     toggle = !toggle;
 #ifdef STATUS_LED_GIPO
@@ -1410,6 +1471,21 @@ uint32_t t_diff;
     }
 
     t_new = get_long_systime();
+
+#ifdef TOKENBUCKET
+    t_diff = (uint32_t)((t_new-t_old_tb)/1000);
+    if (config.kbps_ds != 0) {
+	Bps = config.kbps_ds*1024/8;
+	token_bucket_ds += (t_diff * Bps)/1000;
+	if (token_bucket_ds > MAX_TOKEN_RATIO*Bps) token_bucket_ds = MAX_TOKEN_RATIO*Bps;
+    }
+    if (config.kbps_us != 0) {
+	Bps = config.kbps_us*1024/8;
+	token_bucket_us += (t_diff * Bps)/1000;
+	if (token_bucket_us > MAX_TOKEN_RATIO*Bps) token_bucket_us = MAX_TOKEN_RATIO*Bps;
+    }
+    t_old_tb = t_new;
+#endif
 
 #ifdef MQTT_CLIENT
     t_diff = (uint32_t)((t_new-t_old)/1000000);
@@ -1697,6 +1773,12 @@ struct ip_info info;
     Bytes_in = Bytes_out = Bytes_in_last = Bytes_out_last = 0,
     Packets_in = Packets_out = Packets_in_last = Packets_out_last = 0;
     t_old = 0;
+
+#ifdef TOKENBUCKET
+    t_old_tb = 0;
+    token_bucket_ds = token_bucket_us = 0;
+#endif
+
     console_rx_buffer = ringbuf_new(MAX_CON_CMD_SIZE);
     console_tx_buffer = ringbuf_new(MAX_CON_SEND_SIZE);
 

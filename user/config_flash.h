@@ -50,8 +50,13 @@ typedef struct
     int32_t	Vmin;		// Min voltage of battery
     int32_t	Vmin_sleep;	// Sleep time in sec when battery is low
 #endif
+#ifdef REMOTE_CONFIG
     uint16_t	config_port;	// Port on which the concole listenes (0 if no access)
-
+#endif
+#ifdef TOKENBUCKET
+    uint32_t 	kbps_ds;	// Average downstream bitrate (0 if no limit);
+    uint32_t 	kbps_us;	// Average upstream bitrate (0 if no limit);
+#endif
 #ifdef MQTT_CLIENT
     uint8_t     mqtt_host[32];	// IP or hostname of the MQTT broker, "none" if empty
     uint16_t	mqtt_port;	// Port of the MQTT broker
