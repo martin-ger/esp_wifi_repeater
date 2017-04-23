@@ -180,6 +180,7 @@ static uint16_t monitor_port;
 static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
 static uint8_t monitoring_send_ongoing;
+static uint8_t acl_monitoring;
 
 static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
 {
@@ -326,9 +327,15 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     GPIO_OUTPUT_SET (STATUS_LED_GIPO, 1);
 #endif
 
+#ifdef ACLS
+    // Check ACLs - store result
+    uint8_t acl_check = ACL_ALLOW;
+    if (!acl_is_empty(0))
+       acl_check = acl_check_packet(0, p);
+#endif
+
 #ifdef REMOTE_MONITORING
-    if (monitoring_on) {
-//       system_os_post(user_procTaskPrio, SIG_PACKET, 0 );
+    if (monitoring_on && !acl_monitoring) {
        if (put_packet_to_ringbuf(p) != 0) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
@@ -338,11 +345,19 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
        if (!monitoring_send_ongoing)
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
+#ifdef ACLS
+    // Check if packet should be monitored by ACL
+    if (monitoring_on && acl_monitoring && (acl_check&ACL_MONITOR)) {
+       put_packet_to_ringbuf(p);
+       if (!monitoring_send_ongoing)
+	       tcp_monitor_sent_cb(cur_mon_conn);
+    }
+#endif
 #endif /* REMOTE_MONITORING */
 
 #ifdef ACLS
-    // Check ACLs - if not allowed, drop packet
-    if (!acl_is_empty(0) && !acl_check_packet(0, p)) {
+    // If not allowed, drop packet
+    if (!(acl_check&ACL_ALLOW)) {
 	pbuf_free(p);
 	return;
     };
@@ -373,9 +388,15 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     GPIO_OUTPUT_SET (STATUS_LED_GIPO, 0);
 #endif
 
+#ifdef ACLS
+    // Check ACLs - store result
+    uint8_t acl_check = ACL_ALLOW;
+    if (!acl_is_empty(1))
+       acl_check = acl_check_packet(1, p);
+#endif
+
 #ifdef REMOTE_MONITORING
-    if (monitoring_on) {
-//     system_os_post(user_procTaskPrio, SIG_PACKET, 0 );
+    if (monitoring_on && !acl_monitoring) {
        if (put_packet_to_ringbuf(p) != 0) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
@@ -385,11 +406,20 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
        if (!monitoring_send_ongoing)
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
+
+#ifdef ACLS
+    // Check if packet should be monitored by ACL
+    if (monitoring_on && acl_monitoring && (acl_check&ACL_MONITOR)) {
+       put_packet_to_ringbuf(p);
+       if (!monitoring_send_ongoing)
+	       tcp_monitor_sent_cb(cur_mon_conn);
+    }
+#endif
 #endif /* REMOTE_MONITORING */
 
 #ifdef ACLS
-    // Check ACLs - if not allowed, drop packet
-    if (!acl_is_empty(1) && !acl_check_packet(1, p)) {
+    // If not allowed, drop packet
+    if (!(acl_check&ACL_ALLOW)) {
 	pbuf_free(p);
 	return;
     };
@@ -559,7 +589,7 @@ uint32_t net;
 struct espconn *deny_cb_conn = 0;
 uint8_t acl_debug = 0;
 
-bool ICACHE_FLASH_ATTR acl_deny_cb(uint8_t proto, uint32_t saddr, uint16_t s_port, uint32_t daddr, uint16_t d_port)
+uint8_t acl_deny_cb(uint8_t proto, uint32_t saddr, uint16_t s_port, uint32_t daddr, uint16_t d_port, uint8_t allow)
 {
 char response[128];
 
@@ -567,7 +597,7 @@ char response[128];
 #ifdef MQTT_CLIENT
 	&& !mqtt_enabled
 #endif
-	) return false;
+	) return allow;
 
     os_sprintf(response, "\rdeny: %s Src: %d.%d.%d.%d:%d Dst: %d.%d.%d.%d:%d\r\n", 
 	proto==IP_PROTO_TCP?"TCP":proto==IP_PROTO_UDP?"UDP":"IP4",
@@ -580,7 +610,7 @@ char response[128];
 	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	system_os_post(0, SIG_CONSOLE_TX, (ETSParam) deny_cb_conn);
     }
-    return false;
+    return allow;
 }
 #endif /* ACLS */
 
@@ -640,7 +670,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 #ifdef ACLS
-        os_sprintf(response, "|acl [from_sta|to_sta] clear\r\n|acl [from_sta|to_sta] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny]\r\n");
+        os_sprintf(response, "|acl [from_sta|to_sta] clear\r\n|acl [from_sta|to_sta] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\n");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 #endif
 #ifdef MQTT_CLIENT
@@ -712,7 +742,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	}
 #ifdef REMOTE_MONITORING
 	if (!config.locked&&monitor_port != 0) {
-           	os_sprintf(response, "Monitor started on port %d\r\n", monitor_port);
+           	os_sprintf(response, "Monitor (mode %s) started on port %d\r\n", acl_monitoring?"acl":"all", monitor_port);
 		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	}
 #endif
@@ -860,8 +890,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             dport = (uint16_t)atoi(tokens[6]);
 	}
 
-	if (strcmp(tokens[last_arg],"allow") == 0) allow = 1;
-	else if (strcmp(tokens[last_arg],"deny") == 0) allow = 0;
+	if (strcmp(tokens[last_arg],"allow") == 0) allow = ACL_ALLOW;
+	else if (strcmp(tokens[last_arg],"deny") == 0) allow = ACL_DENY;
+#ifdef REMOTE_MONITORING
+	else if (strcmp(tokens[last_arg],"allow_monitor") == 0) allow = ACL_ALLOW|ACL_MONITOR;
+	else if (strcmp(tokens[last_arg],"deny_monitor") == 0) allow = ACL_DENY|ACL_MONITOR;
+#endif
         else {
 	    os_sprintf(response, INVALID_ARG);
 	    goto command_handled;
@@ -1031,7 +1065,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             os_sprintf(response, INVALID_LOCKED);
             goto command_handled;
         }
-	if (strcmp(tokens[1],"on") == 0) {
+	if (strcmp(tokens[1],"on") == 0
+#ifdef ACLS
+	    || strcmp(tokens[1],"acl") == 0
+#endif
+					) {
   	    if (nTokens != 3) {
         	os_sprintf(response, "Port number missing\r\n");
 		goto command_handled;
@@ -1043,6 +1081,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    
             monitor_port = atoi(tokens[2]);
 	    if (monitor_port != 0) {
+#ifdef ACLS
+		acl_monitoring = (strcmp(tokens[1],"acl") == 0);
+#endif
 		start_monitor(monitor_port);
 		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);       
                 goto command_handled;
@@ -1051,6 +1092,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		goto command_handled;
 	    }
 	}
+
 	if (strcmp(tokens[1],"off") == 0) {
 	    if (monitor_port == 0) {
 		os_sprintf(response, "Monitor already stopped\r\n");
@@ -1853,7 +1895,7 @@ struct ip_info info;
 
 #ifdef REMOTE_CONFIG
     if (config.config_port != 0) {
-      os_printf("Starting Console TCP Server on %d port\r\n", CONSOLE_SERVER_PORT);
+      os_printf("Starting Console TCP Server on port %d\r\n", config.config_port);
       struct espconn *pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
 
       /* Equivalent to bind */
@@ -1873,6 +1915,7 @@ struct ip_info info;
 #ifdef REMOTE_MONITORING
     monitoring_on = 0;
     monitor_port = 0;
+    acl_monitoring = 0;
 #endif
 
 #ifdef MQTT_CLIENT

@@ -81,7 +81,7 @@ acl_entry *my_entry;
 }
 
 
-bool ICACHE_FLASH_ATTR acl_check_packet(uint8_t acl_no, struct pbuf *p)
+uint8_t ICACHE_FLASH_ATTR acl_check_packet(uint8_t acl_no, struct pbuf *p)
 {
 struct eth_hdr *mac_h;
 struct ip_hdr *ip_h;
@@ -92,34 +92,34 @@ uint16_t src_port, dest_port;
 uint8_t *packet;
 int i;
 acl_entry *my_entry;
-bool allow;
+uint8_t allow;
 
     if (acl_no >= MAX_NO_ACLS)
-	return false;
+	return ACL_DENY;
 
     if (p->len < sizeof(struct eth_hdr))
-	return false;
+	return ACL_DENY;
 
     mac_h = (struct eth_hdr *)p->payload;
 
     // Allow ARP
     if (ntohs(mac_h->type) == ETHTYPE_ARP) {
 	acl_allow_count++;
-	return true;
+	return ACL_ALLOW;
     }
 
     // Drop anything else if not IPv4
     if (ntohs(mac_h->type) != ETHTYPE_IP) {
 	acl_deny_count++;
-	return false;
+	return ACL_DENY;
     }
    
     if (p->len < sizeof(struct eth_hdr)+sizeof(struct ip_hdr)) {
 	acl_deny_count++;
-	return false;
+	return ACL_DENY;
     }
 
-    allow = false;
+    allow = ACL_DENY;
     packet = (uint8_t*)p->payload;
     ip_h = (struct ip_hdr *)&packet[sizeof(struct eth_hdr)];
     proto = IPH_PROTO(ip_h);
@@ -148,7 +148,7 @@ bool allow;
     // Drop anything that is not UDP, TCP, or ICMP
     default:
 	acl_deny_count++;
-	return false;
+	return ACL_DENY;
     }
 
 //    os_printf("Src: %d.%d.%d.%d Dst: %d.%d.%d.%d Proto: %s SP:%d DP:%d\n", 
@@ -169,9 +169,9 @@ bool allow;
     }
 
 done:
-    if (!allow && my_deny_cb != NULL)
-	allow = my_deny_cb(proto, ip_h->src.addr, src_port, ip_h->dest.addr, dest_port);
-    if (allow) acl_allow_count++; else acl_deny_count++;
+    if (!(allow & ACL_ALLOW) && my_deny_cb != NULL)
+	allow = my_deny_cb(proto, ip_h->src.addr, src_port, ip_h->dest.addr, dest_port, allow);
+    if (allow & ACL_ALLOW) acl_allow_count++; else acl_deny_count++;
 //    os_printf(" allow: %d\r\n",  allow);
     return allow;
 }
@@ -224,15 +224,17 @@ uint8_t line[80], addr1[21], addr2[21], port1[6], port2[6];
 	addr2str(addr2, my_entry->dest, my_entry->d_mask);
 	port2str(port2, my_entry->d_port);
 	if (my_entry->proto != 0)
-	    os_sprintf(line, "%s %s:%s %s:%s %s (%d hits)\r\n",
+	    os_sprintf(line, "%s %s:%s %s:%s%s %s (%d hits)\r\n",
 		my_entry->proto==IP_PROTO_TCP?"TCP":"UDP", 
 		addr1, port1, addr2, port2,
-		my_entry->allow?"allow":"deny",
+		(my_entry->allow & ACL_ALLOW)?"allow":"deny",
+		(my_entry->allow & ACL_MONITOR)?"_monitor":"",
 		my_entry->hit_count);
 	else 
-	    os_sprintf(line, "IP %s %s %s (%d hits)\r\n",
+	    os_sprintf(line, "IP %s %s %s%s (%d hits)\r\n",
 		addr1, addr2,
-		my_entry->allow?"allow":"deny",
+		(my_entry->allow & ACL_ALLOW)?"allow":"deny",
+		(my_entry->allow & ACL_MONITOR)?"_monitor":"",
 		my_entry->hit_count);
         os_memcpy(&buf[os_strlen(buf)], line, os_strlen(line)+1);
     }
