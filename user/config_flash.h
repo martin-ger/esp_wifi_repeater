@@ -73,6 +73,9 @@ typedef struct
     uint16_t	mqtt_topic_mask;// Mask for active topics
 #endif
 
+    uint8_t     AP_MAC_address[6];	// MAC address of the AP
+    uint8_t     STA_MAC_address[6];	// MAC address of the STA
+
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];		// DHCP entries
 #ifdef ACLS

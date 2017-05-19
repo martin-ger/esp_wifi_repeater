@@ -57,6 +57,7 @@ Basic commands (enough to get it working in nearly all environments):
 - quit: terminates a remote session
 
 Advanced commands:
+(Most of the set-commands are effective only after save and reset)
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
 - set dns dhcp: configures use of the dynamic DNS address from DHCP, default
@@ -64,6 +65,7 @@ Advanced commands:
 - set ip dhcp: configures dynamic IP address for the ESP in the uplink network, default
 - set netmask _netmask_: sets a static netmask for the uplink network
 - set gw _gw-addr_: sets a static gateway address in the uplink network
+- set [ap_mac|sta_mac] _hh:hh:hh:hh:hh:hh_: sets the MAC address of the STA and SOFTAP to a user defined value
 - scan: does a scan for APs
 - set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
 - set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)

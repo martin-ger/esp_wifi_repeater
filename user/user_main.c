@@ -614,6 +614,24 @@ char response[128];
 }
 #endif /* ACLS */
 
+bool parse_mac(uint8_t *mac, uint8_t *inp)
+{
+int i;
+
+    if (os_strlen(inp) != 17) return false;
+    for (i=0; i<17; i++) {
+	if (inp[i] == ':') continue;
+	inp[i] = toupper(inp[i]);
+        inp[i] = inp[i] <= '9'? inp[i]-'0' : (inp[i]-'A')+10;
+	if (inp[i] >= 16) return false;
+    }
+
+    for (i=0; i<17; i+=3) {
+	*mac++ = inp[i]*16+inp[i+1];
+    }
+    return true;
+}
+
 static char INVALID_LOCKED[] = "Invalid command. Config locked\r\n";
 static char INVALID_NUMARGS[] = "Invalid number of arguments\r\n";
 static char INVALID_ARG[] = "Invalid argument\r\n";
@@ -644,7 +662,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_on|ap_open|vmin|vmin_sleep|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
+        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_mac|sta_mac|ap_on|ap_open|vmin|vmin_sleep|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
 #ifdef MQTT_CLIENT
 		"|mqtt"
 #else
@@ -707,6 +725,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	os_sprintf(response, config.my_addr.addr?"Static IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
 		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+
+	os_sprintf(response, "STA MAC: %02x:%02x:%02x:%02x:%02x:%02x\r\nAP MAC:  %02x:%02x:%02x:%02x:%02x:%02x\r\n",  
+		   config.STA_MAC_address[0], config.STA_MAC_address[1], config.STA_MAC_address[2],
+		   config.STA_MAC_address[3], config.STA_MAC_address[4], config.STA_MAC_address[5],
+		   config.AP_MAC_address[0], config.AP_MAC_address[1], config.AP_MAC_address[2],
+		   config.AP_MAC_address[3], config.AP_MAC_address[4], config.AP_MAC_address[5]);
+	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
@@ -1311,6 +1336,24 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1],"ap_mac") == 0)
+            {
+                if (!parse_mac(config.AP_MAC_address, tokens[2]))
+		  os_sprintf(response, INVALID_ARG);
+		else
+                  os_sprintf(response, "AP MAC set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"sta_mac") == 0)
+            {
+                if (!parse_mac(config.STA_MAC_address, tokens[2]))
+		  os_sprintf(response, INVALID_ARG);
+		else
+                  os_sprintf(response, "STA MAC set\r\n");
+                goto command_handled;
+            }
+
 #ifdef MQTT_CLIENT
 	    if (strcmp(tokens[1], "mqtt_host") == 0)
 	    {
@@ -1867,6 +1910,9 @@ struct ip_info info;
     easygpio_pinMode(USER_GPIO_OUT, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
 #endif
+
+    wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
+    wifi_set_macaddr(STATION_IF, config.STA_MAC_address);
 
     // Configure the AP and start it, if required
     if (config.dns_addr.addr == 0)

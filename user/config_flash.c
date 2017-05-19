@@ -1,3 +1,4 @@
+#include "user_interface.h"
 #include "lwip/ip.h"
 #include "config_flash.h"
 
@@ -57,6 +58,10 @@ uint8_t mac[6];
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
     config->mqtt_topic_mask		= 0xffff;
 #endif
+
+    wifi_get_macaddr(SOFTAP_IF, config->AP_MAC_address);	
+    wifi_get_macaddr(STATION_IF, config->STA_MAC_address);	
+
     config->dhcps_entries		= 0;
 #ifdef ACLS
     acl_init();	// initializes the ACLs, written in config during save
