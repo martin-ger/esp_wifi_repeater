@@ -24,6 +24,7 @@ uint8_t mac[6];
     os_sprintf(config->ap_password,"%s",WIFI_AP_PASSWORD);
     config->ap_open			= 1;
     config->ap_on			= 1;
+    config->ssid_hidden			= 0;
     config->locked			= 0;
 
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);

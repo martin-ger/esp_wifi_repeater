@@ -662,7 +662,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_mac|sta_mac|ap_on|ap_open|vmin|vmin_sleep|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
+        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_mac|sta_mac|ap_on|ap_open|ssid_hidden|vmin|vmin_sleep|speed|config_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
 #ifdef MQTT_CLIENT
 		"|mqtt"
 #else
@@ -711,8 +711,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                    config.auto_connect?"":" [AutoConnect:0]");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 
-        os_sprintf(response, "AP:  SSID:%s PW:%s%s%s IP:%d.%d.%d.%d/24",
+        os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24",
                    config.ap_ssid,
+		   config.ssid_hidden?"[hidden]":"",
                    config.locked?"***":(char*)config.ap_password,
                    config.ap_open?" [open]":"",
                    config.ap_on?"":" [disabled]",
@@ -1195,6 +1196,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.ap_open = atoi(tokens[2]);
                 os_sprintf(response, "Open Auth set\r\n");
+                goto command_handled;
+            }
+            if (strcmp(tokens[1],"ssid_hidden") == 0)
+            {
+                config.ssid_hidden = atoi(tokens[2]);
+                os_sprintf(response, "Hidden SSID set\r\n");
                 goto command_handled;
             }
 #ifdef ACLS
@@ -1739,6 +1746,7 @@ struct softap_config apConfig;
    apConfig.ssid_len = 0;// or its actual length
 
    apConfig.max_connection = MAX_CLIENTS; // how many stations can connect to ESP8266 softAP at most.
+   apConfig.ssid_hidden = config.ssid_hidden;
 
    // Set ESP8266 softap config
    wifi_softap_set_config(&apConfig);

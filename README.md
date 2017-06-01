@@ -26,7 +26,7 @@ For some reasons that I still do not understand, the firmware compiled with the 
 
 # Usage
 The Firmware starts with the following default configuration:
-- ssid: ssid, pasword: password
+- ssid: ssid, password: password
 - ap_ssid: MyAP, ap_password: none, ap_on: 1, ap_open: 1
 - network: 192.168.4.0/24
 
@@ -67,8 +67,9 @@ Advanced commands:
 - set gw _gw-addr_: sets a static gateway address in the uplink network
 - set [ap_mac|sta_mac] _hh:hh:hh:hh:hh:hh_: sets the MAC address of the STA and SOFTAP to a user defined value
 - scan: does a scan for APs
-- set ap_on [0|1]: selects, wheter the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
-- set ap_open [0|1]: selects, wheter the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
+- set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
+- set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
+- set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens

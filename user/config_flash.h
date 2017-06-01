@@ -35,6 +35,7 @@ typedef struct
     uint8_t     ap_password[64];   // Password of the own network
     uint8_t     ap_open;           // Should we use no WPA?
     uint8_t	ap_on;		   // AP enabled?
+    uint8_t	ssid_hidden;	   // Hidden SSID?
 
     uint8_t     locked;		// Should we allow for config changes
     ip_addr_t	network_addr;	// Address of the internal network
