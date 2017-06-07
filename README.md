@@ -24,6 +24,8 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead (addresses 0x00000 and 0x40000).
 
+If your downloaded firmware doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
+
 # Usage
 The Firmware starts with the following default configuration:
 - ssid: ssid, password: password
@@ -65,7 +67,7 @@ Advanced commands:
 - set ip dhcp: configures dynamic IP address for the ESP in the uplink network, default
 - set netmask _netmask_: sets a static netmask for the uplink network
 - set gw _gw-addr_: sets a static gateway address in the uplink network
-- set [ap_mac|sta_mac] _hh:hh:hh:hh:hh:hh_: sets the MAC address of the STA and SOFTAP to a user defined value
+- set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value
 - scan: does a scan for APs
 - set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)

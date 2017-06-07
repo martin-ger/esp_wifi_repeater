@@ -104,7 +104,7 @@ uint8_t buf[256];
 
   os_sprintf(buf, "%s/%s", config.mqtt_prefix, sub_topic);
 //os_printf("Publish: %s %s\r\n", buf, str);
-  MQTT_Publish(&mqttClient, buf, str, os_strlen(str), 2, 0);
+  MQTT_Publish(&mqttClient, buf, str, os_strlen(str), 0, 0);
 }
 
 void ICACHE_FLASH_ATTR mqtt_publish_int(uint16_t mask, uint8_t *sub_topic, uint8_t *format, uint32_t val)
@@ -798,9 +798,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   }
 	   ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
 	   if (config.ap_on)
-		   os_sprintf(response, "%d Stations connected\r\n", wifi_softap_get_station_num());
+		os_sprintf(response, "%d Station%s connected to AP\r\n", wifi_softap_get_station_num(),
+		  wifi_softap_get_station_num()==1?"":"s");
 	   else
-		   os_sprintf(response, "AP disabled\r\n");
+		os_sprintf(response, "AP disabled\r\n");
            ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
            for (i = 0; p = dhcps_get_mapping(i); i++) {
 		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
