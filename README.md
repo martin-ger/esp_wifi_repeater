@@ -14,6 +14,8 @@ To build this binary you download and install the esp-open-sdk (https://github.c
 
 Then download this source tree in a separate directory and adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h.
 
+NEW: If you want to build the esp_wifi_repeater using a plain vanilla version of the esp-open-sdk (without the lwip patch), you can download the sources from the "standalone" branch (https://github.com/martin-ger/esp_wifi_repeater/tree/standalone). It already contains a binary version of the patched lwip-lib that does the main work of NAT routing and compiles right out of the box.
+
 Build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
 
 If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32m 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8m for an ESP-01)
