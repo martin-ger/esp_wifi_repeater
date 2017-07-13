@@ -710,7 +710,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                    config.locked?"***":(char*)config.password,
                    config.auto_connect?"":" [AutoConnect:0]");
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
-
+	if (*(int*)config.bssid != 0) {
+		os_sprintf(response, "BSSID: %02x:%02x:%02x:%02x:%02x:%02x\r\n", 
+		    config.bssid[0], config.bssid[1], config.bssid[2],
+		    config.bssid[3], config.bssid[4], config.bssid[5]);
+		ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+	}
         os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24",
                    config.ap_ssid,
 		   config.ssid_hidden?"[hidden]":"",
@@ -1362,6 +1367,15 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1],"bssid") == 0)
+            {
+                if (!parse_mac(config.bssid, tokens[2]))
+		  os_sprintf(response, INVALID_ARG);
+		else
+                  os_sprintf(response, "bssid set\r\n");
+                goto command_handled;
+            }
+
 #ifdef MQTT_CLIENT
 	    if (strcmp(tokens[1], "mqtt_host") == 0)
 	    {
@@ -1804,9 +1818,14 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
     char hostname[40];
 
     /* Setup AP credentials */
-    stationConf.bssid_set = 0;
     os_sprintf(stationConf.ssid, "%s", config.ssid);
     os_sprintf(stationConf.password, "%s", config.password);
+    if (*(int*)config.bssid != 0) {
+	stationConf.bssid_set = 1;
+	os_memcpy(stationConf.bssid, config.bssid, 6);
+    } else {
+	stationConf.bssid_set = 0;
+    }
     wifi_station_set_config(&stationConf);
 
     os_sprintf(hostname, "NET_%s", config.ap_ssid);

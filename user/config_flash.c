@@ -20,6 +20,7 @@ uint8_t mac[6];
     os_sprintf(config->ssid,"%s",       WIFI_SSID);
     os_sprintf(config->password,"%s",   WIFI_PASSWORD);
     config->auto_connect                = 1;
+    os_memset(config->bssid, 0, 6);
     os_sprintf(config->ap_ssid,"%s",    WIFI_AP_SSID);
     os_sprintf(config->ap_password,"%s",WIFI_AP_PASSWORD);
     config->ap_open			= 1;

@@ -30,6 +30,7 @@ typedef struct
     uint8_t     ssid[32];       // SSID of the AP to connect to
     uint8_t     password[64];   // Password of the network
     uint8_t     auto_connect;   // Should we auto connect
+    uint8_t     bssid[6];	// Optional: BSSID the AP
 
     uint8_t     ap_ssid[32];       // SSID of the own AP
     uint8_t     ap_password[64];   // Password of the own network
