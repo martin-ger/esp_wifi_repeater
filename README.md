@@ -30,8 +30,8 @@ If you like, you can mark the "lock" checkbox and click "Lock". Now the config c
 
 If you did a mistake and you lost any contact with ESP you can still use the serial console to recover it ("reset facory", see below).
 
-# Commandline Interface
-Advanced configuration has to be done via the commandline on the console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
+# Command Line Interface
+Advanced configuration has to be done via the command line on the console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
 
 Use the following commands for an initial setup:
 - set ssid your_home_router's_SSID
@@ -42,7 +42,9 @@ Use the following commands for an initial setup:
 - save
 - reset
 
-It understands a lot more commands:
+If you want to enter non-ASCII or special characters on the command line you can use quoting: either use C-style quotes with backslash like this "My\ AccessPoint" or use HTTP-style hex encoding like "My%20AccessPoint". Both methods will result in a string "My AccessPoint". With the hex encoding you can enter any byte value you like, except for 0 (for C-internal reasons).
+
+The command line understands a lot more commands:
 
 Basic commands (enough to get it working in nearly all environments):
 - help: prints a short help message
@@ -71,7 +73,7 @@ Advanced commands:
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
 - set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
-- det status_led _GPIOno_: selects an GPIO pin for the status LED (default 2, >16 disbabled)
+- det status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
