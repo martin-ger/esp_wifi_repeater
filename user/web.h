@@ -115,7 +115,7 @@ setTimeout(\"location.href = '/'\",1000);\
 <table>\
 <tr>\
 <td>Password:</td>\
-<td><input type='text' name='unlock_password'/></td>\
+<td><input type='password' name='unlock_password'/></td>\
 </tr>\
 <tr>\
 <td></td>\

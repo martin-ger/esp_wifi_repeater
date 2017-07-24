@@ -18,13 +18,13 @@ The esp_wifi_repeater starts with the following default configuration:
 After first boot (or factory reset) it will offer a WiFi network with an open AP and the ssid "MyAP". Connect to this WiFi network and do the basic configuration either via a simple web interface or the full config with all options via the console. 
 
 # Basic Web Config Interface
-The web interface allows for the configuration of all parameters required for the basic forwaring functionality. Thanks to rubfi for the major work on that: https://github.com/rubfi/esp_wifi_repeater/ . Point your browser to "http://192.168.4.1". This page should appear:
+The web interface allows for the configuration of all parameters required for the basic forwarding functionality. Thanks to rubfi for the major work on that: https://github.com/rubfi/esp_wifi_repeater/ . Point your browser to "http://192.168.4.1". This page should appear:
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/WebConfig.jpg">
 
 First enter the appropriate values for the uplink WiFi network, the "STA Settings", and click "Connect". The ESP reboots and will connect to your WiFi router. The status LED should be blinking after some seconds.
 
-Now you can reaload the page and change the "Soft AP Settings". Click "Set" and again the ESP reboots. Now it is ready for forwarding traffic over the newly configured Soft AP. Be aware that these changes also affect the config interface, i.e. to do further configuration, connect to the ESP through one of the newly configured WiFi networks. For access through the Soft AP remember the address of the Soft APs network if you have changed that (the ESP has always the adress x.x.x.1 in this network).
+Now you can reload the page and change the "Soft AP Settings". Click "Set" and again the ESP reboots. Now it is ready for forwarding traffic over the newly configured Soft AP. Be aware that these changes also affect the config interface, i.e. to do further configuration, connect to the ESP through one of the newly configured WiFi networks. For access through the Soft AP remember the address of the Soft APs network if you have changed that (the ESP has always the adress x.x.x.1 in this network).
 
 If you like, you can mark the "lock" checkbox and click "Lock". Now the config cannot be changed anymore without first unlocking it with the uplink WiFi network's password (define one even if the network is open).
 

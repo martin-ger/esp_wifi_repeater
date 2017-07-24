@@ -468,39 +468,53 @@ ip_addr_t ap_ip;
 }
 
 
-int parse_str_into_tokens(char *str, char **tokens, int max_tokens)
+int ICACHE_FLASH_ATTR parse_str_into_tokens(char *str, char **tokens, int max_tokens)
 {
-char    *p, *q;
+char    *p, *q, *end;
 int     token_count = 0;
 bool    in_token = false;
 
    // preprocessing
    for (p = q = str; *p != 0; p++) {
-	if (*p == '\\') {
-	   // next char is quoted, copy it skip, this one
-	   if (*(p+1) != 0) *q++ = *++p;
+	if (*(p) == '%' && *(p+1) != 0 && *(p+2) != 0) {
+	   // quoted hex
+		uint8_t a;
+		p++;
+		if (*p <= '9')
+		    a = *p - '0';
+		else
+		    a = toupper(*p) - 'A' + 10;
+		a <<= 4;
+		p++;
+		if (*p <= '9')
+		    a += *p - '0';
+		else
+		    a += toupper(*p) - 'A' + 10;
+		*q++ = a;
+	} else if (*p == '\\' && *(p+1) != 0) {
+	   // next char is quoted - just copy it, skip this one
+	   *q++ = *++p;
 	} else if (*p == 8) {
 	   // backspace - delete previous char
 	   if (q != str) q--;
 	} else if (*p <= ' ') {
 	   // mark this as whitespace
-	   *q++ = 1;
+	   *q++ = 0;
 	} else {
 	   *q++ = *p;
 	}
    }
 
+   end = q;
    *q = 0;
 
    // cut into tokens
-   for (p = str; *p != 0; p++) {
-	if (*p == 1) {
+   for (p = str; p != end; p++) {
+	if (*p == 0) {
 	   if (in_token) {
-		*p = 0;
 		in_token = false;
 	   }
 	} else {
-	   if (*p & 0x80) *p &= 0x7f;
 	   if (!in_token) {
 		tokens[token_count++] = p;
 		if (token_count == max_tokens)
@@ -1702,6 +1716,10 @@ static void ICACHE_FLASH_ATTR web_config_client_discon_cb(void *arg)
 {
     os_printf("web_config_client_discon_cb(): client disconnected\n");
     struct espconn *pespconn = (struct espconn *)arg;
+
+    if (page_buf != NULL)
+	os_free(page_buf);
+    page_buf = NULL;
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
@@ -1728,7 +1746,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
     ringbuf_reset(console_tx_buffer);
 
     if (!config.locked) {
-    os_printf("config_str: %d\r\n", os_strlen(CONFIG_PAGE));
+    //os_printf("config_str: %d\r\n", os_strlen(CONFIG_PAGE));
 	if (page_buf == NULL)
 	    page_buf = (char *)os_malloc(os_strlen(CONFIG_PAGE)+200);
 	os_sprintf(page_buf, CONFIG_PAGE, config.ssid, config.password,
