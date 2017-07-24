@@ -35,12 +35,17 @@ uint8_t mac[6];
     config->my_gw.addr			= 0;  // use DHCP   
 
     config->clock_speed			= 80;
+    config->status_led			= STATUS_LED_GIPO;
 #ifdef ALLOW_SLEEP
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;
 #endif
+#ifdef REMOTE_CONFIG
     config->config_port			= CONSOLE_SERVER_PORT;
-
+#endif
+#ifdef WEB_CONFIG
+    config->web_port			= WEB_CONFIG_PORT;
+#endif
 #ifdef TOKENBUCKET
     config->kbps_ds			= 0;
     config->kbps_us			= 0;

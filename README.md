@@ -9,32 +9,29 @@ The router also allows for remote monitoring (or packet sniffing), e.g. with Wir
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
-# Building and Flashing
-To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk). Make sure, you can compile and download the included "blinky" example. Then download or clone my version of the esp-open-lwip library and its source tree from (https://github.com/martin-ger/esp-open-lwip). Use it to replace the directory "esp-open-lwip" in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk directory will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
-
-Then download this source tree in a separate directory and adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h.
-
-NEW: If you want to build the esp_wifi_repeater using a plain vanilla version of the esp-open-sdk (without the lwip patch), you can download the sources from the "standalone" branch (https://github.com/martin-ger/esp_wifi_repeater/tree/standalone). It already contains a binary version of the patched lwip-lib that does the main work of NAT routing and compiles right out of the box.
-
-Build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
-
-If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32m 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8m for an ESP-01)
-
-On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x10000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
-
-<img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
-
-For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead (addresses 0x00000 and 0x40000).
-
-If your downloaded firmware doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
-
-# Usage
-The Firmware starts with the following default configuration:
+# First Boot
+The esp_wifi_repeater starts with the following default configuration:
 - ssid: ssid, password: password
 - ap_ssid: MyAP, ap_password: none, ap_on: 1, ap_open: 1
 - network: 192.168.4.0/24
 
-This means it connects to the internet via AP ssid,password and offers an open AP with ap_ssid MyAP. This default can be changed in the file user_config.h. The default can be overwritten and persistenly saved to flash by using a console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
+After first boot (or factory reset) it will offer a WiFi network with an open AP and the ssid "MyAP". Connect to this WiFi network and do the basic configuration either via a simple web interface or the full config with all options via the console. 
+
+# Basic Web Config Interface
+The web interface allows for the configuration of all parameters required for the basic forwaring functionality. Thanks to rubfi for the major work on that: https://github.com/rubfi/esp_wifi_repeater/ . Point your browser to "http://192.168.4.1". This page should appear:
+
+<img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/WebConfig.jpg">
+
+First enter the appropriate values for the uplink WiFi network, the "STA Settings", and click "Connect". The ESP reboots and will connect to your WiFi router. The status LED should be blinking after some seconds.
+
+Now you can reaload the page and change the "Soft AP Settings". Click "Set" and again the ESP reboots. Now it is ready for forwarding traffic over the newly configured Soft AP. Be aware that these changes also affect the config interface, i.e. to do further configuration, connect to the ESP through one of the newly configured WiFi networks. For access through the Soft AP remember the address of the Soft APs network if you have changed that (the ESP has always the adress x.x.x.1 in this network).
+
+If you like, you can mark the "lock" checkbox and click "Lock". Now the config cannot be changed anymore without first unlocking it with the uplink WiFi network's password (define one even if the network is open).
+
+If you did a mistake and you lost any contact with ESP you can still use the serial console to recover it ("reset facory", see below).
+
+# Commandline Interface
+Advanced configuration has to be done via the commandline on the console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
 
 Use the following commands for an initial setup:
 - set ssid your_home_router's_SSID
@@ -45,9 +42,7 @@ Use the following commands for an initial setup:
 - save
 - reset
 
-After reboot it will connect to your home router and itself is ready for stations to connect.
-
-The console understands the following commands:
+It understands a lot more commands:
 
 Basic commands (enough to get it working in nearly all environments):
 - help: prints a short help message
@@ -57,7 +52,7 @@ Basic commands (enough to get it working in nearly all environments):
 - save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
 - reset [factory]: resets the esp, optionally resets WiFi params to default values
 - lock: locks the current config, changes are not allowed
-- unlock _password_: unlocks the config, requires password of the network AP
+- unlock _password_: unlocks the config, requires password of the uplink WiFi (define one even if the network is open)
 - quit: terminates a remote session
 
 Advanced commands:
@@ -76,10 +71,12 @@ Advanced commands:
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
 - set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
+- det status_led _GPIOno_: selects an GPIO pin for the status LED (default 2, >16 disbabled)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
+- set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables remote console config)
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port
@@ -94,7 +91,7 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 - flashing (1 per second): working, connected to the AP
 - unperiodically flashing: working, traffic in the internal network
 
-In user_config.h an alternative GPIO port can be configured. When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
+With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
@@ -186,7 +183,26 @@ The repeater monitors its current supply voltage (shown in the "show stats" comm
 
 You can send the ESP to sleep manually once by using the "sleep" command.
 
-Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediatly shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000. 
+Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediatly shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000.
+
+# Building and Flashing
+To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk). Make sure, you can compile and download the included "blinky" example. Then download or clone my version of the esp-open-lwip library and its source tree from (https://github.com/martin-ger/esp-open-lwip). Use it to replace the directory "esp-open-lwip" in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk directory will do the job. This installs a new version of the liblwip_open.a that contains the NAT-features.
+
+Then download this source tree in a separate directory and adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h.
+
+NEW: If you want to build the esp_wifi_repeater using a plain vanilla version of the esp-open-sdk (without the lwip patch), you can download the sources from the "standalone" branch (https://github.com/martin-ger/esp_wifi_repeater/tree/standalone). It already contains a binary version of the patched lwip-lib that does the main work of NAT routing and compiles right out of the box.
+
+Build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
+
+If you want to use the precompiled binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32m 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8m for an ESP-01)
+
+On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x10000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
+
+<img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
+
+For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead (addresses 0x00000 and 0x40000).
+
+If your downloaded firmware doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.

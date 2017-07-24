@@ -47,6 +47,7 @@ typedef struct
     ip_addr_t	my_gw;		// Optional (if not DHCP): Gateway of the uplink side
 
     uint16_t	clock_speed;	// Freq of the CPU
+    uint16_t	status_led;	// GPIO pin os the status LED (>16 disabled)
 
 #ifdef ALLOW_SLEEP
     int32_t	Vmin;		// Min voltage of battery
@@ -54,6 +55,9 @@ typedef struct
 #endif
 #ifdef REMOTE_CONFIG
     uint16_t	config_port;	// Port on which the concole listenes (0 if no access)
+#endif
+#ifdef WEB_CONFIG
+    uint16_t	web_port;	// Port on which the concole listenes (0 if no access)
 #endif
 #ifdef TOKENBUCKET
     uint32_t 	kbps_ds;	// Average downstream bitrate (0 if no limit);

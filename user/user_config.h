@@ -42,6 +42,19 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define CONSOLE_SERVER_PORT  7777
 
 //
+// Define this if you want to have access to the config console via TCP.
+// Ohterwise only local access via serial is possible
+//
+#define REMOTE_CONFIG      1
+#define CONSOLE_SERVER_PORT  7777
+
+//
+// Define this if you want to have access to the config via Web.
+//
+#define WEB_CONFIG      1
+#define WEB_CONFIG_PORT 80
+
+//
 // Define this if you want to have ACLs for the SoftAP.
 //
 #define ACLS      1
