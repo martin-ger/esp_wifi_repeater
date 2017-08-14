@@ -1049,8 +1049,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 #endif
-    if (strcmp(tokens[0], "reset") == 0)
-    {
+    if (strcmp(tokens[0], "reset") == 0) {
+	if (config.locked && pespconn != NULL) {
+	    os_sprintf(response, INVALID_LOCKED);
+	    goto command_handled;
+	}
 	if (nTokens == 2 && strcmp(tokens[1], "factory") == 0) {
            config_load_default(&config);
            config_save(&config);
@@ -1082,29 +1085,41 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 #endif
-    if (strcmp(tokens[0], "lock") == 0)
-    {
+    if (strcmp(tokens[0], "lock") == 0) {
+	if (config.locked) {
+	    os_sprintf(response, "Config already locked\r\n");
+	    goto command_handled;
+	}
+	if (nTokens == 1) {
+	    if (os_strlen(config.lock_password) == 0) {
+		os_sprintf(response, "No password defined\r\n");
+		goto command_handled;
+	    }
+	}
+	else if (nTokens == 2) {
+	    os_sprintf(config.lock_password, "%s", tokens[1]);
+	}
+	else {
+	    os_sprintf(response, INVALID_NUMARGS);
+	    goto command_handled;
+	}
 	config.locked = 1;
 	config_save(&config);
-	// also save the portmap table
-	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
-	os_sprintf(response, "Config locked\r\n");
-        goto command_handled;
+	os_sprintf(response, "Config locked (pw: %s)\r\n", config.lock_password);
+	goto command_handled;
     }
 
-    if (strcmp(tokens[0], "unlock") == 0)
-    {
-        if (nTokens != 2) {
-            os_sprintf(response, INVALID_NUMARGS);
-        }
-        else if (strcmp(tokens[1],config.password) == 0) {
+    if (strcmp(tokens[0], "unlock") == 0) {
+	if (nTokens != 2) {
+	    os_sprintf(response, INVALID_NUMARGS);
+	} else if (os_strcmp(tokens[1], config.lock_password) == 0) {
 	    config.locked = 0;
 	    config_save(&config);
 	    os_sprintf(response, "Config unlocked\r\n");
-        } else {
+	} else {
 	    os_sprintf(response, "Unlock failed. Invalid password\r\n");
-        }
-        goto command_handled;
+	}
+	goto command_handled;
     }
 
 #ifdef REMOTE_MONITORING
@@ -1188,6 +1203,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"password") == 0)
             {
                 os_sprintf(config.password, "%s", tokens[2]);
+
+		// WiFi pw of the uplink network is also the default lock pw (backward compatibility)
+		os_sprintf(config.lock_password, "%s", tokens[2]);
+
                 os_sprintf(response, "Password set\r\n");
                 goto command_handled;
             }

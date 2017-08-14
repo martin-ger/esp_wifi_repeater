@@ -78,7 +78,7 @@ setTimeout(\"location.href = '/'\",10000);\
 </tr>\
 </table>\
 <small>\
-<i>Use STA password to unlock<br /></i>\
+<i>Default: STA password<br /></i>\
 </small>\
 </form>\
 \
@@ -124,7 +124,7 @@ setTimeout(\"location.href = '/'\",1000);\
 \
 </table>\
 <small>\
-<i>Use STA password to unlock<br />\
+<i>Default: STA password to unlock<br />\
 </small>\
 </form>\
 </div>\

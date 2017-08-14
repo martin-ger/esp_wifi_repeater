@@ -27,6 +27,7 @@ uint8_t mac[6];
     config->ap_on			= 1;
     config->ssid_hidden			= 0;
     config->locked			= 0;
+    config->lock_password[0]		= '\0';
 
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
     config->dns_addr.addr		= 0;  // use DHCP

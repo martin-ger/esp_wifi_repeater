@@ -50,9 +50,9 @@ Basic commands (enough to get it working in nearly all environments):
 - set [ap_ssid|ap_password] _value_: changes the settings for the soft-AP of the ESP (for your stations)
 - show [config|stats]: prints the current config or some status information and statistics
 - save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
-- reset [factory]: resets the esp, optionally resets WiFi params to default values
-- lock: locks the current config, changes are not allowed
-- unlock _password_: unlocks the config, requires password of the uplink WiFi (define one even if the network is open)
+- lock [_password_]: saves and locks the current config, changes are not allowed. Password can be left open if already set before (Default is the password of the uplink WiFi)
+- unlock _password_: unlocks the config, requires password from the lock command
+- reset [factory]: resets the esp, 'factory' optionally resets WiFi params to default values (works on a locked device only from serial console)
 - quit: terminates a remote session
 
 Advanced commands:
@@ -71,7 +71,7 @@ Advanced commands:
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
 - set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
-- det status_led _GPIOno_: selects an GPIO pin for the status LED (default 2, >16 disbabled)
+- det status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
