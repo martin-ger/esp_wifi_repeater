@@ -34,7 +34,9 @@ uint8_t mac[6];
     config->my_addr.addr		= 0;  // use DHCP   
     config->my_netmask.addr		= 0;  // use DHCP   
     config->my_gw.addr			= 0;  // use DHCP   
-
+#ifdef PHY_MODE
+    config->phy_mode			= 3;  // mode n
+#endif
     config->clock_speed			= 80;
     config->status_led			= STATUS_LED_GIPO;
 #ifdef ALLOW_SLEEP

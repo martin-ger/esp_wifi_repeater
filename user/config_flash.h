@@ -46,7 +46,9 @@ typedef struct
     ip_addr_t	my_addr;	// Optional (if not DHCP): IP address of the uplink side
     ip_addr_t	my_netmask;	// Optional (if not DHCP): IP netmask of the uplink side
     ip_addr_t	my_gw;		// Optional (if not DHCP): Gateway of the uplink side
-
+#ifdef PHY_MODE
+    uint16_t	phy_mode;	// WiFi PHY mode
+#endif
     uint16_t	clock_speed;	// Freq of the CPU
     uint16_t	status_led;	// GPIO pin os the status LED (>16 disabled)
 

@@ -72,6 +72,7 @@ Advanced commands:
 - set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
 - set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
+- set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - det status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 

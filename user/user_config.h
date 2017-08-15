@@ -35,6 +35,11 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define ALLOW_SLEEP         1
 
 //
+// Define this to support the setting of the WiFi PHY mode
+//
+#define PHY_MODE	    1
+
+//
 // Define this if you want to have access to the config console via TCP.
 // Ohterwise only local access via serial is possible
 //
