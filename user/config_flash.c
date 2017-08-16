@@ -49,6 +49,7 @@ uint8_t mac[6];
 #ifdef WEB_CONFIG
     config->web_port			= WEB_CONFIG_PORT;
 #endif
+    config->config_access		= LOCAL_ACCESS | REMOTE_ACCESS;
 #ifdef TOKENBUCKET
     config->kbps_ds			= 0;
     config->kbps_us			= 0;

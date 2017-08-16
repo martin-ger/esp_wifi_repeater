@@ -80,6 +80,7 @@ Advanced commands:
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables remote console config)
+- set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port

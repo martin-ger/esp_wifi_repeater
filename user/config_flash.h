@@ -62,6 +62,7 @@ typedef struct
 #ifdef WEB_CONFIG
     uint16_t	web_port;	// Port on which the concole listenes (0 if no access)
 #endif
+    uint8_t	config_access;	// Controls the interfaces that allow config access (default LOCAL_ACCESS | REMOTE_ACCESS)
 #ifdef TOKENBUCKET
     uint32_t 	kbps_ds;	// Average downstream bitrate (0 if no limit);
     uint32_t 	kbps_us;	// Average upstream bitrate (0 if no limit);

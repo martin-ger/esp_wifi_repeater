@@ -678,7 +678,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_mac|sta_mac|ap_on|ap_open|ssid_hidden|vmin|vmin_sleep|speed|status_led|config_port|web_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
+        os_sprintf(response, "show [config|stats%s]\r\n|set [ssid|password|auto_connect|ap_ssid|ap_password|network|dns|ip|netmask|gw|ap_mac|sta_mac|ap_on|ap_open|ssid_hidden|vmin|vmin_sleep|speed|status_led|config_port|config_access|web_port] <val>\r\n|portmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n|quit|save [config|dhcp]|reset [factory]|lock|unlock <password>",
 #ifdef MQTT_CLIENT
 		"|mqtt"
 #else
@@ -758,6 +758,15 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		   config.AP_MAC_address[0], config.AP_MAC_address[1], config.AP_MAC_address[2],
 		   config.AP_MAC_address[3], config.AP_MAC_address[4], config.AP_MAC_address[5]);
 	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+
+#ifdef REMOTE_CONFIG
+	if (config.config_port == 0 || config.config_access == 0) {
+		os_sprintf(response, "No network console access\r\n");
+	} else {
+		os_sprintf(response, "Network console access on port %d (mode %d)\r\n", config.config_port, config.config_access);
+	}
+	ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
+#endif
 
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         ringbuf_memcpy_into(console_tx_buffer, response, os_strlen(response));
@@ -1278,6 +1287,15 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
+	    if (strcmp(tokens[1], "config_access") == 0) {
+		config.config_access = atoi(tokens[2]) & (LOCAL_ACCESS | REMOTE_ACCESS);
+		if (config.config_access == 0)
+		    os_sprintf(response, "WARNING: if you save this, remote console and web access will be disabled!\r\n");
+		else
+		    os_sprintf(response, "Config access set\r\n", config.config_port);
+		goto command_handled;
+	    }
+
 #ifdef WEB_CONFIG
             if (strcmp(tokens[1],"web_port") == 0)
             {
@@ -1579,6 +1597,23 @@ command_handled_2:
     return;
 }
 
+bool ICACHE_FLASH_ATTR check_connection_access(struct espconn *pesp_conn, uint8_t access_flags) {
+    remot_info *premot = NULL;
+    ip_addr_t *remote_addr;
+    bool is_local;
+
+    remote_addr = (ip_addr_t *)&(pesp_conn->proto.tcp->remote_ip);
+    //os_printf("Remote addr is %d.%d.%d.%d\r\n", IP2STR(remote_addr));
+    is_local = (remote_addr->addr & 0x00ffffff) == (config.network_addr.addr & 0x00ffffff);
+
+    if (is_local && (access_flags & LOCAL_ACCESS))
+	return true;
+    if (!is_local && (access_flags & REMOTE_ACCESS))
+	return true;
+
+    return false;
+}
+
 #ifdef REMOTE_CONFIG
 static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
                                                  char *data,
@@ -1621,6 +1656,12 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     struct espconn *pespconn = (struct espconn *)arg;
 
     os_printf("tcp_client_connected_cb(): Client connected\r\n");
+
+    if (!check_connection_access(pespconn, config.config_access)) {
+	os_printf("Client disconnected - no config access on this network\r\n");
+	espconn_disconnect(pespconn);
+	return;
+    }
 
     //espconn_regist_sentcb(pespconn,     tcp_client_sent_cb);
     espconn_regist_disconcb(pespconn,   tcp_client_discon_cb);
@@ -1777,6 +1818,12 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
     struct espconn *pespconn = (struct espconn *)arg;
 
     os_printf("web_config_client_connected_cb(): Client connected\r\n");
+
+    if (!check_connection_access(pespconn, config.config_access)) {
+	os_printf("Client disconnected - no config access on this network\r\n");
+	espconn_disconnect(pespconn);
+	return;
+    }
 
     espconn_regist_disconcb(pespconn,   web_config_client_discon_cb);
     espconn_regist_recvcb(pespconn,     web_config_client_recv_cb);
