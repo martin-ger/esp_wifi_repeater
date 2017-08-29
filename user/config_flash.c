@@ -61,7 +61,7 @@ uint8_t mac[6];
     os_sprintf(config->mqtt_user,"%s", "none");
     config->mqtt_password[0]		= 0;
     wifi_get_macaddr(0, mac);
-    os_sprintf(config->mqtt_id,"%s_%2x%2x%2x", MQTT_ID, mac[3], mac[4], mac[5]);
+    os_sprintf(config->mqtt_id,"%s_%02x%02x%02x", MQTT_ID, mac[3], mac[4], mac[5]);
     os_sprintf(config->mqtt_prefix,"%s/%s/system", MQTT_PREFIX, config->mqtt_id);
     os_sprintf(config->mqtt_command_topic,"%s/%s/%s", MQTT_PREFIX, config->mqtt_id, "command");
     os_sprintf(config->mqtt_gpio_out_topic,"%s/%s/%s", MQTT_PREFIX, config->mqtt_id, "switch");

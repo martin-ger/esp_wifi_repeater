@@ -74,12 +74,12 @@ Advanced commands:
 - set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
 - set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
-- det status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
+- set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
-- set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables remote console config)
+- set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
 - set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
