@@ -9,6 +9,9 @@ The router also allows for remote monitoring (or packet sniffing), e.g. with Wir
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
+### Note on WPA2 KRaCK security issue
+The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRaCK (https://www.krackattacks.com/ ) attack. This patch cannot be appiled for the 1.5.4. firmware. It should be regarded as deprecated.
+
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
 - ssid: ssid, password: password
