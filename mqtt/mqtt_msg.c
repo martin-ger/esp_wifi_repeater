@@ -28,7 +28,7 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 */
-
+#include "c_types.h"
 #include "mem.h"
 #include "ets_sys.h"
 #include "osapi.h"

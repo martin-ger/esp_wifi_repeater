@@ -2221,7 +2221,7 @@ struct ip_info info;
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater V1.4 starting\r\n");
+    os_printf("\r\n\r\nWiFi Repeater V1.5 starting\r\n");
 
     // Load config
     if (config_load(&config)== 0) {
