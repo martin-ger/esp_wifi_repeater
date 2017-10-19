@@ -636,7 +636,10 @@ char response[128];
 }
 #endif /* ACLS */
 
-bool parse_mac(uint8_t *mac, uint8_t *inp)
+// Use this from ROM instead
+int ets_str2macaddr(uint8 *mac, char *str_mac);
+#define parse_mac ets_str2macaddr
+/*bool parse_mac(uint8_t *mac, uint8_t *inp)
 {
 int i;
 
@@ -653,7 +656,7 @@ int i;
     }
     return true;
 }
-
+*/
 static char INVALID_LOCKED[] = "Invalid command. Config locked\r\n";
 static char INVALID_NUMARGS[] = "Invalid number of arguments\r\n";
 static char INVALID_ARG[] = "Invalid argument\r\n";
@@ -1229,7 +1232,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ssid") == 0)
             {
                 os_sprintf(config.ssid, "%s", tokens[2]);
-                os_sprintf(response, "SSID set\r\n");
+		config.auto_connect = 1;
+                os_sprintf(response, "SSID set (auto_connect = 1)\r\n");
                 goto command_handled;
             }
 

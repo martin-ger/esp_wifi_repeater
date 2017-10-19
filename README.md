@@ -14,11 +14,13 @@ The lastest firmware (after 17/Oct/2017) has been build with the patched version
 
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
-- ssid: ssid, password: password
+
 - ap_ssid: MyAP, ap_password: none, ap_on: 1, ap_open: 1
 - network: 192.168.4.0/24
 
-After first boot (or factory reset) it will offer a WiFi network with an open AP and the ssid "MyAP". Connect to this WiFi network and do the basic configuration either via a simple web interface or the full config with all options via the console. 
+After first boot (or factory reset) it will offer a WiFi network with an open AP and the ssid "MyAP". It does not yet try to automatically re-connect to an uplink AP (as it does not know a valid ssid or password).
+
+Connect to this WiFi network and do the basic configuration either via a simple web interface or the full config with all options via the console. 
 
 # Basic Web Config Interface
 The web interface allows for the configuration of all parameters required for the basic forwarding functionality. Thanks to rubfi for the major work on that: https://github.com/rubfi/esp_wifi_repeater/ . Point your browser to "http://192.168.4.1". This page should appear:
