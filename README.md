@@ -9,8 +9,8 @@ The router also allows for remote monitoring (or packet sniffing), e.g. with Wir
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
-### Note on WPA2 KRaCK security issue
-The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRaCK (https://www.krackattacks.com/ ) attack. This patch cannot be appiled for the 1.5.4. firmware. It should be regarded as deprecated.
+### Note on WPA2 KRACK security issue
+The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack. This patch cannot be applied for the 1.5.4. firmware. It should be regarded as deprecated.
 
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
@@ -207,10 +207,9 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
 
-For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead (addresses 0x00000 and 0x40000).
-
-If your downloaded firmware doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
+If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
 - Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vdd and Gnd can help if you experience problems here.
+- For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead (addresses 0x00000 and 0x40000, deprecated as it doesn't have the KRACK WPA2 patch).
