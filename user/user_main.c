@@ -701,7 +701,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nreset [factory] | lock | unlock <password> | quit\r\n");
         to_console(response);
-
+#ifdef WPA2_PEAP
+        os_sprintf(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
+        to_console(response);
+#endif
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "scan\r\n");
         to_console(response);
@@ -752,6 +755,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    config.bssid[3], config.bssid[4], config.bssid[5]);
 		to_console(response);
 	}
+#ifdef WPA2_PEAP
+	if (config.use_PEAP) {
+	        os_sprintf(response, "PEAP: Identity:%s Username:%s Password: %s\r\n",
+			   config.PEAP_identity, config.PEAP_username,
+			   config.locked?"***":(char*)config.PEAP_password);
+        	to_console(response);	
+	}
+#endif
         os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24",
                    config.ap_ssid,
 		   config.ssid_hidden?"[hidden]":"",
@@ -1265,7 +1276,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ap_password") == 0)
             {
 		if (os_strlen(tokens[2])<8) {
-		    os_sprintf(response, "Password to short (min. 8)\r\n");
+		    os_sprintf(response, "Password too short (min. 8)\r\n");
 		} else {
                     os_sprintf(config.ap_password, "%s", tokens[2]);
 		    config.ap_open = 0;
@@ -1280,12 +1291,54 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Open Auth set\r\n");
                 goto command_handled;
             }
+
             if (strcmp(tokens[1],"ssid_hidden") == 0)
             {
                 config.ssid_hidden = atoi(tokens[2]);
                 os_sprintf(response, "Hidden SSID set\r\n");
                 goto command_handled;
             }
+#ifdef WPA2_PEAP
+            if (strcmp(tokens[1],"use_peap") == 0)
+            {
+                config.use_PEAP = atoi(tokens[2]);
+                os_sprintf(response, "PEAP authenticaton set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"peap_identity") == 0)
+            {
+		if (os_strlen(tokens[2]) > sizeof(config.PEAP_password)-1) {
+		    os_sprintf(response, "Identity too long (max. %d)\r\n", sizeof(config.PEAP_identity)-1);
+		} else {
+                    os_sprintf(config.PEAP_identity, "%s", tokens[2]);
+                    os_sprintf(response, "PEAP identity set\r\n");
+		}
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"peap_username") == 0)
+            {
+		if (os_strlen(tokens[2]) > sizeof(config.PEAP_password)-1) {
+		    os_sprintf(response, "Username too long (max. %d)\r\n", sizeof(config.PEAP_username)-1);
+		} else {
+                    os_sprintf(config.PEAP_username, "%s", tokens[2]);
+                    os_sprintf(response, "PEAP username set\r\n");
+		}
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"peap_password") == 0)
+            {
+		if (os_strlen(tokens[2]) > sizeof(config.PEAP_password)-1) {
+		    os_sprintf(response, "Password too long (max. %d)\r\n", sizeof(config.PEAP_password)-1);
+		} else {
+                    os_sprintf(config.PEAP_password, "%s", tokens[2]);
+                    os_sprintf(response, "PEAP password set\r\n");
+		}
+                goto command_handled;
+            }
+#endif
 #ifdef ACLS
             if (strcmp(tokens[1],"acl_debug") == 0)
             {
@@ -2004,6 +2057,13 @@ void wifi_handle_event_cb(System_Event_t *evt)
     case EVENT_STAMODE_CONNECTED:
         os_printf("connect to ssid %s, channel %d\n", evt->event_info.connected.ssid, evt->event_info.connected.channel);
 	my_channel = evt->event_info.connected.channel;
+#ifdef WPA2_PEAP
+	if (config.use_PEAP) {
+	    wifi_station_clear_enterprise_identity();
+	    wifi_station_clear_enterprise_username();
+	    wifi_station_clear_enterprise_password();
+	}
+#endif
         break;
 
     case EVENT_STAMODE_DISCONNECTED:
@@ -2135,6 +2195,23 @@ int i;
        dhcps_set_mapping(&config.dhcps_p[i].ip, &config.dhcps_p[i].mac[0], 100000 /* several month */);
    }
 }
+
+
+#ifdef WPA2_PEAP
+void ICACHE_FLASH_ATTR user_set_wpa2_config()
+{
+   wifi_station_set_wpa2_enterprise_auth(1);
+
+   //This is an option. If not call this API, the outer identity will be "anonymous@espressif.com".
+   wifi_station_set_enterprise_identity(config.PEAP_identity, os_strlen(config.PEAP_identity));
+
+   wifi_station_set_enterprise_username(config.PEAP_username, os_strlen(config.PEAP_username));
+   wifi_station_set_enterprise_password(config.PEAP_password, os_strlen(config.PEAP_password));
+
+   //This is an option for EAP_PEAP and EAP_TTLS.
+   //wifi_station_set_enterprise_ca_cert(ca, os_strlen(ca)+1);
+}
+#endif
 
 
 void ICACHE_FLASH_ATTR user_set_station_config(void)
@@ -2365,7 +2442,12 @@ struct ip_info info;
 
     // Now start the STA-Mode
     user_set_station_config();
-
+#ifdef WPA2_PEAP
+    if (config.use_PEAP) {
+	user_set_wpa2_config();
+	wifi_station_connect();
+    }
+#endif
     // Init power - set it to 3300mV
     Vdd = 3300;
 

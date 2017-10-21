@@ -26,6 +26,12 @@ uint8_t mac[6];
     config->ap_open			= 1;
     config->ap_on			= 1;
     config->ssid_hidden			= 0;
+#ifdef WPA2_PEAP
+    config->use_PEAP			= 0;
+    config->PEAP_identity[0]		= '\0';
+    config->PEAP_username[0]		= '\0';
+    config->PEAP_password[0]		= '\0';
+#endif
     config->locked			= 0;
     config->lock_password[0]		= '\0';
 

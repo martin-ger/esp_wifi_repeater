@@ -12,6 +12,11 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 #define WIFI_AP_SSID         "MyAP"
 #define WIFI_AP_PASSWORD     "none"
 
+//
+// Define this to support WPA2 PEAP authentication (experimental)
+//
+//#define WPA2_PEAP	     1
+
 #define MAX_CLIENTS	     8
 #define MAX_DHCP	     8
 

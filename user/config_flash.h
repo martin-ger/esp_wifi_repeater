@@ -37,7 +37,12 @@ typedef struct
     uint8_t     ap_open;           // Should we use no WPA?
     uint8_t	ap_on;		   // AP enabled?
     uint8_t	ssid_hidden;	   // Hidden SSID?
-
+#ifdef WPA2_PEAP
+    uint8_t	use_PEAP;	   // WPA2 PEAP Authentication
+    uint8_t     PEAP_identity[64]; // PEAP enterprise outer identity
+    uint8_t     PEAP_username[64]; // PEAP enterprise username
+    uint8_t     PEAP_password[32]; // PEAP enterprise password
+#endif
     uint8_t     locked;		// Should we allow for config changes
     uint8_t     lock_password[32];   // Password of config lock
     ip_addr_t	network_addr;	// Address of the internal network
