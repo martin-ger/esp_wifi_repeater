@@ -10,7 +10,7 @@ The router also allows for remote monitoring (or packet sniffing), e.g. with Wir
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
 ### Note on WPA2 KRACK security issue
-The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack. This patch cannot be applied for the 1.5.4. firmware. It should be regarded as deprecated.
+The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
@@ -207,9 +207,12 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
 
-If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
+If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. 
+
+Sometimes, especially on old ESP-01s, there is a wrong or non-matching version of "esp_init_data_default.bin" in the flash. If the firmware files from above flash correctly but after reboot you see only garbage on the serial and/or the LED on GPIO2 is flashing rapidly, try to re-initialize this sector: download https://github.com/espressif/ESP8266_NONOS_SDK/blob/master/bin/esp_init_data_default.bin?raw=true and flash it to 0x7c000 for 512 kB modules (some ESP-01, Sonoff Switch), 0xfc000 for 1 MB modules (most ESP-01), or 0x3fc000 for 4 MB modules (most ESP-12, Wemos D1). 
+
+If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
-- Configuration via TCP (write_flash) requires a good power supply. A large capacitor between Vdd and Gnd can help if you experience problems here.
-- For some reasons that I still do not understand, the firmware compiled with the V2.0.0 SDK fails to start on some ESP-01 modules. If you experience these problem, use the files from the directory firmware_sdk_1.5.4 instead (addresses 0x00000 and 0x40000, deprecated as it doesn't have the KRACK WPA2 patch).
+- Configuration via TCP (write_flash) requires a good power supply. Try to check this, if you ESP runs unstable. A large capacitor between Vdd and Gnd can help if you experience problems here.
