@@ -9,6 +9,9 @@ The router also allows for remote monitoring (or packet sniffing), e.g. with Wir
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
+### Note on WPA2 enterprise (PEAP)
+If you need a "converter" that translates a WPA2 enterprise network with PEAP authentication into a WPA2-PSK network, have a look at https://github.com/martin-ger/esp_peap_psk . Was trying to integrate this functionality into this project - however this is difficult, as WPA2 enterprise requires so much free heap during authentication that there is hardly any mem left for anything else. So I decided to leave that in a separate project.
+
 ### Note on WPA2 KRACK security issue
 The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
