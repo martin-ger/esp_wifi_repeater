@@ -1,7 +1,7 @@
 # esp_wifi_repeater
 A full functional WiFi Repeater (correctly: a WiFi NAT Router)
 
-This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+This is a proof of concept implementation of a WiFi NAT router on the esp8266 and esp8285. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 Measurements show, that it can achieve about 5 Mbps in both directions, so even streaming is possible.
 
@@ -96,6 +96,7 @@ Advanced commands:
 - acl [from_sta|to_sta] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
 - set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
+- sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes) 
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
@@ -204,7 +205,7 @@ Then download this source tree in a separate directory and adjust the BUILD_AREA
 
 The source tree includes a binary version of the liblwip_open plus the required additional includes from my fork of esp-open-lwip. *No additional install action is required for that.* Only if you don't want to use the precompiled library, checkout the sources from https://github.com/martin-ger/esp-open-lwip . Use it to replace the directory "esp-open-lwip" in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk directory. This will compile a liblwip_open.a that contains the NAT-features. Replace liblwip_open_napt.a with that binary.
 
-If you want to use the complete precompiled firmware binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32m 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8m for an ESP-01)
+If you want to use the complete precompiled firmware binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 32MB 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 8MB for an ESP-01). For the esp8255 you must use -fs 1MB and -fm dout.
 
 On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x10000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
 
