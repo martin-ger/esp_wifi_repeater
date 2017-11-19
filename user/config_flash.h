@@ -17,6 +17,8 @@
 
 #define MAGIC_NUMBER    0x014005fc
 
+typedef enum {AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL} automeshmode;
+
 typedef struct
 {
     // To check if the structure is initialized or not in flash
@@ -43,8 +45,13 @@ typedef struct
     uint8_t     PEAP_username[64]; // PEAP enterprise username
     uint8_t     PEAP_password[32]; // PEAP enterprise password
 #endif
-    uint8_t     locked;		// Should we allow for config changes
     uint8_t     lock_password[32];   // Password of config lock
+    uint8_t     locked;		// Should we allow for config changes
+
+    automeshmode automesh_mode;	// The AutoMesh mode
+    uint8_t	automesh_checked; // Flag that it has worked once
+    uint8_t	automesh_tries; // Counter of disconnects
+
     ip_addr_t	network_addr;	// Address of the internal network
     ip_addr_t	dns_addr;	// Optional: address of the dns server
 

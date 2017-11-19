@@ -23,6 +23,9 @@ setTimeout(\"location.href = '/'\",10000);\
 <td>Password:</td>\
 <td><input type='text' name='password' value='%s'/></td>\
 </tr>\
+<td>Automesh:</td>\
+<td><input type='checkbox' name='am' value='mesh' %s></td>\
+</tr>\
 <tr>\
 <td></td>\
 <td><input type='submit' value='Connect'/></td>\
@@ -31,7 +34,7 @@ setTimeout(\"location.href = '/'\",10000);\
 </table>\
 </form>\
 \
-<h2>Soft AP Settings</h2>\
+<h2>AP Settings</h2>\
 <form action='' method='GET'>\
 <table>\
 <tr>\
@@ -70,16 +73,13 @@ setTimeout(\"location.href = '/'\",10000);\
 <table>\
 <tr>\
 <td>Lock Device:</td>\
-<td><input type='checkbox' name='lock' value='locked'></td>\
+<td><input type='checkbox' name='lock' value='l'></td>\
 </tr>\
 <tr>\
 <td></td>\
 <td><input type='submit' name='dolock' value='Lock'/></td>\
 </tr>\
 </table>\
-<small>\
-<i>Default: STA password<br /></i>\
-</small>\
 </form>\
 \
 <h2>Device Management</h2>\

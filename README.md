@@ -1,11 +1,13 @@
 # esp_wifi_repeater
-A full functional WiFi Repeater (correctly: a WiFi NAT Router)
+A full functional WiFi repeater (correctly: a WiFi NAT router)
 
-This is a proof of concept implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+This is an implementation of a WiFi NAT router on the esp8266. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 Measurements show, that it can achieve about 5 Mbps in both directions, so even streaming is possible.
 
-The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark. 
+For a setup with multiple routers in a row to to cover a larger distance or area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode
+
+The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark, port mapping, and ACLs.  
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
@@ -67,6 +69,7 @@ Basic commands (enough to get it working in nearly all environments):
 
 Advanced commands:
 (Most of the set-commands are effective only after save and reset)
+- set automesh [0|1]: selects, whether the automesh mode is on or off (default), see details here https://github.com/martin-ger/esp_wifi_repeater#automesh-mode
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
 - set dns dhcp: configures use of the dynamic DNS address from DHCP, default
@@ -109,6 +112,19 @@ With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
 
 However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achive this, either fixed IP adresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achived with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
+
+# Automesh Mode
+Sometimes you might want to use several esp_wifi_repeaters in a row or a mesh to cover a larger distance or area. Generally, this can be done without any problems with NAT routers, actually you will have several layers of NAT. Of course, the available bandwidth goes down the more hops you need. But uses have reported that even 5 esp_wifi_repeaters in a row work quite well.
+
+In such a setup configuration is quit a time consuming and error-prone activity. To simplify that, the esp_wifi_repeater now has a new mode: "Automesh". Just configure the SSID and the password and switch "automesh" on. (either on the CLI with "set automesh 1" or on the Web interface with just select the checkbox). This will do the following:
+
+Each esp_wifi_repeater configured in that way will automatically offer a WiFi network on the AP with the same SSID/password as it is connected to. Clients can use the same WiFi settings for the original network or the repeated ones. Each esp_wifi_repeater configured with "automesh" will first search for the best other AP to connect to. This is the one which closest to the original WiFi network and has the best signal strength (RSSI).
+
+The signal strenght is easy to measure with a scan, but which is the one closest to the original WiFi network if you see several APs with the same SSID? Therefore I use a somewhat dirty trick: the esp_wifi_repeaters in "automesh" mode manipulate their BSSID, i.e. the MAC address of their AP interface. It uses the format: 24:24:m:r:r:r. "24:24" is just the unique identifier of a repeater (there is the minimal probability that this collides with the real APs MAC, but we can neglect this, as we change that prefix if really required). "m" means the "mesh level", this is the distance in hops to the original WiFi network. The last three "r:r:r" are just random numbers to distinguish the various ESPs.
+
+Now each esp_wifi_repeater can learn which other esp_wifi_repeater is the closest to the the original WiFi network, can connect to that, and chose its own BSSID accordingly. Also the IP address of the internal network is adjusted to the mesh level: 10.24.m.0. This creates a tree (a very special mesh) with the original WiFi network as root and nodes on several mesh levels - actually, it works somewhat similar as the Spanning Tree Protocol (STP) on the link layer or routing the network layer using the Distance Vector protocol. As soon as a link loss is detected, configuration is restarted. This should avoid loops as during (re-)configuration also no beacons with an BSSID are sent.
+
+For convenience, the esp_wifi_repeater after "automesh" configuration first tries to check, whether it can connect to an uplink AP. If this fails, even when an AP with the correct SSID has been found, it assumes, the user did a misstake with the password and resets to factory defaults. After it had connected successfully once, it will assume config is correct and keep on trying after connection loss or reset as long as it takes (to avoid a DOS attack with a missconfigured AP). 
 
 # Monitoring
 From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.
