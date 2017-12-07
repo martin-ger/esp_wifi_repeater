@@ -1813,6 +1813,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
     struct espconn *pespconn = (struct espconn *)arg;
     char *kv, *sv;
     bool do_reset = false;
+    char *token[1];
 
     char *str = strstr(data, " /?");
     if (str != NULL)
@@ -1832,13 +1833,15 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
 
                 if (strcmp(key, "ssid") == 0)
                 {
-                    handle_set_cmd(pespconn, "set ssid", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set ssid", token[0]);
 		    config.automesh_mode = AUTOMESH_OFF;
                     do_reset = true;
                 }
                 else if (strcmp(key, "password") == 0)
                 {
-                    handle_set_cmd(pespconn, "set password", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set password", token[0]);
                     do_reset = true;
                 }
                 else if (strcmp(key, "am") == 0)
@@ -1853,12 +1856,14 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
                 }
                 else if (strcmp(key, "ap_ssid") == 0)
                 {
-                    handle_set_cmd(pespconn, "set ap_ssid", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set ap_ssid", token[0]);
                     do_reset = true;
                 }
                 else if (strcmp(key, "ap_password") == 0)
                 {
-                    handle_set_cmd(pespconn, "set ap_password", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set ap_password", token[0]);
                     do_reset = true;
                 }
                 else if (strcmp(key, "network") == 0)
