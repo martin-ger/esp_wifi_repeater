@@ -189,6 +189,7 @@ static uint8_t monitoring_on;
 static uint16_t monitor_port;
 static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
+struct espconn *cur_mon_listen;
 static uint8_t monitoring_send_ongoing;
 static uint8_t acl_monitoring;
 
@@ -267,23 +268,23 @@ static void ICACHE_FLASH_ATTR start_monitor(uint16_t portno)
     monitoring_send_ongoing = 0;
 
     os_printf("Starting Monitor TCP Server on %d port\r\n", portno);
-    struct espconn *mCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
-    if (mCon == NULL) {
-        os_printf("CONNECT FAIL\r\n");
+    cur_mon_listen = (struct espconn *)os_zalloc(sizeof(struct espconn));
+    if (cur_mon_listen == NULL) {
+        os_printf("Monitor conn open failed\r\n");
         return;
     }
 
     /* Equivalent to bind */
-    mCon->type  = ESPCONN_TCP;
-    mCon->state = ESPCONN_NONE;
-    mCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
-    mCon->proto.tcp->local_port = portno;
+    cur_mon_listen->type  = ESPCONN_TCP;
+    cur_mon_listen->state = ESPCONN_NONE;
+    cur_mon_listen->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
+    cur_mon_listen->proto.tcp->local_port = portno;
 
     /* Register callback when clients connect to the server */
-    espconn_regist_connectcb(mCon, tcp_monitor_connected_cb);
+    espconn_regist_connectcb(cur_mon_listen, tcp_monitor_connected_cb);
 
     /* Put the connection in accept mode */
-    espconn_accept(mCon);
+    espconn_accept(cur_mon_listen);
 }
 
 static void ICACHE_FLASH_ATTR stop_monitor(void)
@@ -293,8 +294,15 @@ static void ICACHE_FLASH_ATTR stop_monitor(void)
 	espconn_disconnect(cur_mon_conn);
     }
 
+    if (cur_mon_listen != NULL) {
+	espconn_delete(cur_mon_listen);
+	os_free(cur_mon_listen->proto.tcp);
+	os_free(cur_mon_listen);
+    }
+
     monitoring_on = 0;
     monitor_port = 0;
+    cur_mon_listen = NULL;
     ringbuf_free(&pcap_buffer);
 }
 
@@ -864,6 +872,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   os_sprintf(response, "Phy mode: %c\r\n", phy == PHY_MODE_11B?'b':phy == PHY_MODE_11G?'g':'n');
            to_console(response);
 #endif
+	   os_sprintf(response, "Free mem: %d\r\n", system_get_free_heap_size());
+	   to_console(response);
 	   if (connected) {
 		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
 	   } else {
