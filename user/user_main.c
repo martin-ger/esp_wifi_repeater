@@ -189,6 +189,7 @@ static uint8_t monitoring_on;
 static uint16_t monitor_port;
 static ringbuf_t pcap_buffer;
 struct espconn *cur_mon_conn;
+struct espconn *cur_mon_listen;
 static uint8_t monitoring_send_ongoing;
 static uint8_t acl_monitoring;
 
@@ -267,23 +268,23 @@ static void ICACHE_FLASH_ATTR start_monitor(uint16_t portno)
     monitoring_send_ongoing = 0;
 
     os_printf("Starting Monitor TCP Server on %d port\r\n", portno);
-    struct espconn *mCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
-    if (mCon == NULL) {
-        os_printf("CONNECT FAIL\r\n");
+    cur_mon_listen = (struct espconn *)os_zalloc(sizeof(struct espconn));
+    if (cur_mon_listen == NULL) {
+        os_printf("Monitor conn open failed\r\n");
         return;
     }
 
     /* Equivalent to bind */
-    mCon->type  = ESPCONN_TCP;
-    mCon->state = ESPCONN_NONE;
-    mCon->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
-    mCon->proto.tcp->local_port = portno;
+    cur_mon_listen->type  = ESPCONN_TCP;
+    cur_mon_listen->state = ESPCONN_NONE;
+    cur_mon_listen->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
+    cur_mon_listen->proto.tcp->local_port = portno;
 
     /* Register callback when clients connect to the server */
-    espconn_regist_connectcb(mCon, tcp_monitor_connected_cb);
+    espconn_regist_connectcb(cur_mon_listen, tcp_monitor_connected_cb);
 
     /* Put the connection in accept mode */
-    espconn_accept(mCon);
+    espconn_accept(cur_mon_listen);
 }
 
 static void ICACHE_FLASH_ATTR stop_monitor(void)
@@ -293,8 +294,15 @@ static void ICACHE_FLASH_ATTR stop_monitor(void)
 	espconn_disconnect(cur_mon_conn);
     }
 
+    if (cur_mon_listen != NULL) {
+	espconn_delete(cur_mon_listen);
+	os_free(cur_mon_listen->proto.tcp);
+	os_free(cur_mon_listen);
+    }
+
     monitoring_on = 0;
     monitor_port = 0;
+    cur_mon_listen = NULL;
     ringbuf_free(&pcap_buffer);
 }
 
@@ -696,7 +704,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	);
         to_console(response);
 
-        os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|ap_mac|sta_mac|ssid_hidden] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
+        os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|ap_mac|sta_mac|ssid_hidden] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\nset [automesh] <val>\r\n");
         to_console(response);
 
         os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nreset [factory] | lock | unlock <password> | quit\r\n");
@@ -763,6 +771,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         	to_console(response);	
 	}
 #endif
+	if (config.automesh_mode != AUTOMESH_OFF) {
+	        os_sprintf(response, "Automesh: on (%s) Level: %d\r\n",
+		config.automesh_mode==AUTOMESH_LEARNING?"learning":"operational", 
+		config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:-1);
+        	to_console(response);	
+	}
         os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24",
                    config.ap_ssid,
 		   config.ssid_hidden?"[hidden]":"",
@@ -858,6 +872,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   os_sprintf(response, "Phy mode: %c\r\n", phy == PHY_MODE_11B?'b':phy == PHY_MODE_11G?'g':'n');
            to_console(response);
 #endif
+	   os_sprintf(response, "Free mem: %d\r\n", system_get_free_heap_size());
+	   to_console(response);
 	   if (connected) {
 		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
 	   } else {
@@ -1243,6 +1259,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ssid") == 0)
             {
                 os_sprintf(config.ssid, "%s", tokens[2]);
+		if (config.automesh_mode != AUTOMESH_OFF) {
+		  config.automesh_checked = 0;
+		  config.automesh_mode = AUTOMESH_LEARNING;
+		}
 		config.auto_connect = 1;
                 os_sprintf(response, "SSID set (auto_connect = 1)\r\n");
                 goto command_handled;
@@ -1251,6 +1271,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"password") == 0)
             {
                 os_sprintf(config.password, "%s", tokens[2]);
+		if (config.automesh_mode != AUTOMESH_OFF) {
+		  config.automesh_checked = 0;
+		  config.automesh_mode = AUTOMESH_LEARNING;
+		}
 
 		// WiFi pw of the uplink network is also the default lock pw (backward compatibility)
 		os_sprintf(config.lock_password, "%s", tokens[2]);
@@ -1298,6 +1322,21 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Hidden SSID set\r\n");
                 goto command_handled;
             }
+
+            if (strcmp(tokens[1],"automesh") == 0)
+            {
+		if (config.automesh_mode != AUTOMESH_OFF && atoi(tokens[2]) == 0) {
+		    config.automesh_mode = AUTOMESH_OFF;
+		    *(int*)config.bssid = 0;
+		    wifi_get_macaddr(SOFTAP_IF, config.AP_MAC_address);
+		} else {
+		    config.automesh_mode = AUTOMESH_LEARNING;
+		    config.automesh_checked = 0;
+		}
+                os_sprintf(response, "Set automesh %s\r\n", config.automesh_mode?"on":"off");
+                goto command_handled;
+            }
+
 #ifdef WPA2_PEAP
             if (strcmp(tokens[1],"use_peap") == 0)
             {
@@ -1784,6 +1823,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
     struct espconn *pespconn = (struct espconn *)arg;
     char *kv, *sv;
     bool do_reset = false;
+    char *token[1];
 
     char *str = strstr(data, " /?");
     if (str != NULL)
@@ -1803,13 +1843,22 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
 
                 if (strcmp(key, "ssid") == 0)
                 {
-                    handle_set_cmd(pespconn, "set ssid", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set ssid", token[0]);
+		    config.automesh_mode = AUTOMESH_OFF;
                     do_reset = true;
                 }
                 else if (strcmp(key, "password") == 0)
                 {
-                    handle_set_cmd(pespconn, "set password", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set password", token[0]);
                     do_reset = true;
+                }
+                else if (strcmp(key, "am") == 0)
+                {
+                    config.automesh_mode = AUTOMESH_LEARNING;
+		    config.automesh_checked = 0;
+		    do_reset = true;
                 }
                 else if (strcmp(key, "lock") == 0)
                 {
@@ -1817,12 +1866,14 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
                 }
                 else if (strcmp(key, "ap_ssid") == 0)
                 {
-                    handle_set_cmd(pespconn, "set ap_ssid", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set ap_ssid", token[0]);
                     do_reset = true;
                 }
                 else if (strcmp(key, "ap_password") == 0)
                 {
-                    handle_set_cmd(pespconn, "set ap_password", val);
+		    parse_str_into_tokens(val, token, 1);
+                    handle_set_cmd(pespconn, "set ap_password", token[0]);
                     do_reset = true;
                 }
                 else if (strcmp(key, "network") == 0)
@@ -1908,6 +1959,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 	if (page_buf == NULL)
 	    page_buf = (char *)os_malloc(os_strlen(CONFIG_PAGE)+200);
 	os_sprintf(page_buf, CONFIG_PAGE, config.ssid, config.password,
+		   config.automesh_mode!=AUTOMESH_OFF?"checked":"",
 		   config.ap_ssid, config.ap_password,
 		   config.ap_open?" selected":"", config.ap_open?"":" selected",
 		   IP2STR(&config.network_addr));
@@ -2055,7 +2107,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
     switch (evt->event)
     {
     case EVENT_STAMODE_CONNECTED:
-        os_printf("connect to ssid %s, channel %d\n", evt->event_info.connected.ssid, evt->event_info.connected.channel);
+        os_printf("connect to ssid %s, channel %d\r\n", evt->event_info.connected.ssid, evt->event_info.connected.channel);
 	my_channel = evt->event_info.connected.channel;
 #ifdef WPA2_PEAP
 	if (config.use_PEAP) {
@@ -2067,20 +2119,48 @@ void wifi_handle_event_cb(System_Event_t *evt)
         break;
 
     case EVENT_STAMODE_DISCONNECTED:
-        os_printf("disconnect from ssid %s, reason %d\n", evt->event_info.disconnected.ssid, evt->event_info.disconnected.reason);
+        os_printf("disconnect from ssid %s, reason %d\r\n", evt->event_info.disconnected.ssid, evt->event_info.disconnected.reason);
 	connected = false;
 
 #ifdef MQTT_CLIENT
 	if (mqtt_enabled) MQTT_Disconnect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
+	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
+	  config.automesh_tries++;
+
+	  if (config.automesh_checked) {
+	    if (config.automesh_tries <= 3)
+	      break;
+            os_printf("Connect to known SSID %s failed, rouge AP?\r\n", config.ssid);
+	    *(int*)config.bssid = 0;
+	    config.automesh_mode = AUTOMESH_LEARNING;
+	  } else {
+	    if (config.automesh_tries > 3) {
+	      os_printf("Initial connect to SSID %s failed, check password - factory reset\r\n", config.ssid);
+	      config_load_default(&config);
+	    } else {
+	      os_printf("Cannot connect to SSID %s - %d. trial\r\n", config.ssid, config.automesh_tries);
+	    }
+	  }
+
+	  config_save(&config);
+	  system_restart();
+	  return;
+	}
+
         break;
 
     case EVENT_STAMODE_AUTHMODE_CHANGE:
-        os_printf("mode: %d -> %d\n", evt->event_info.auth_change.old_mode, evt->event_info.auth_change.new_mode);
+        //os_printf("mode: %d -> %d\r\n", evt->event_info.auth_change.old_mode, evt->event_info.auth_change.new_mode);
         break;
 
     case EVENT_STAMODE_GOT_IP:
+	if (config.automesh_mode == AUTOMESH_OPERATIONAL && config.automesh_checked == 0) {
+	  config.automesh_checked = 1;
+	  config_save(&config);
+	}
+
 	if (config.dns_addr.addr == 0) {
 	    dns_ip = dns_getserver(0);
 	}
@@ -2108,7 +2188,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
     case EVENT_SOFTAPMODE_STACONNECTED:
 	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_connected.mac));
-        os_printf("station: %s join, AID = %d\n", mac_str, evt->event_info.sta_connected.aid);
+        os_printf("station: %s join, AID = %d\r\n", mac_str, evt->event_info.sta_connected.aid);
 #ifdef MQTT_CLIENT
 	mqtt_publish_str(MQTT_TOPIC_JOIN, "join", mac_str);
 #endif
@@ -2117,7 +2197,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
     case EVENT_SOFTAPMODE_STADISCONNECTED:
 	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_disconnected.mac));
-        os_printf("station: %s leave, AID = %d\n", mac_str, evt->event_info.sta_disconnected.aid);
+        os_printf("station: %s leave, AID = %d\r\n", mac_str, evt->event_info.sta_disconnected.aid);
 #ifdef MQTT_CLIENT
 	mqtt_publish_str(MQTT_TOPIC_LEAVE, "leave", mac_str);
 #endif
@@ -2278,6 +2358,86 @@ LOCAL void  gpio_intr_handler(void *dummy)
 #endif /* USER_GPIO_IN */
 #endif /* MQTT_CLIENT */
 
+#define RANDOM_REG (*(volatile u32 *)0x3FF20E44)
+
+uint8_t mesh_level;
+void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
+{
+  if (status == OK)
+  {
+    mesh_level = 0xff;
+    int rssi = -1000;
+
+    struct bss_info *bss_link;
+
+    for (bss_link = (struct bss_info *)arg; bss_link != NULL; bss_link = bss_link->next.stqe_next)
+    {
+      if (os_strcmp(bss_link->ssid, config.ssid) == 0) {
+	uint8_t this_mesh_level;
+
+        os_printf("Found: %d,\"%s\",%d,\""MACSTR"\",%d",
+                 bss_link->authmode, bss_link->ssid, bss_link->rssi,
+                 MAC2STR(bss_link->bssid),bss_link->channel);
+	if (bss_link->bssid[0] != 0x24 || bss_link->bssid[1] != 0x24)  {
+	  this_mesh_level = 0;
+	} else {
+	  this_mesh_level = bss_link->bssid[2];
+	}
+
+	// If it is bad quality, give is a handicap of one level
+	if (bss_link->rssi < -85)
+	  this_mesh_level++;
+
+	os_printf(", mesh level: %d\r\n", this_mesh_level);
+
+	// Lower mesh level or same but better RSSI
+	if (this_mesh_level < mesh_level ||
+	    (this_mesh_level == mesh_level && bss_link->rssi > rssi)) {
+	  rssi = bss_link->rssi;
+	  mesh_level = this_mesh_level;
+	  os_memcpy(config.bssid, bss_link->bssid, 6);
+	} 
+      }
+    }
+
+    if (mesh_level < 0xff) {
+      os_printf("Using: "MACSTR"\r\n", MAC2STR(config.bssid));
+
+      config.AP_MAC_address[0] = 0x24;
+      config.AP_MAC_address[1] = 0x24;
+      config.AP_MAC_address[2] = mesh_level+1;
+      config.AP_MAC_address[3] = RANDOM_REG & 0xff;
+      config.AP_MAC_address[4] = RANDOM_REG & 0xff;
+      config.AP_MAC_address[5] = RANDOM_REG & 0xff;
+
+      IP4_ADDR(&config.network_addr, 10, 24, mesh_level, 1);
+
+      config.automesh_mode = AUTOMESH_OPERATIONAL;
+      config.automesh_tries = 0;
+
+      config_save(&config);
+      //wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
+
+      system_restart();
+      return;
+    }
+
+  }
+  else
+  {
+     os_printf("Scan fail !!!\r\n");
+  }
+
+  os_printf("No AP with ssid %s found\r\n", config.ssid);
+  wifi_station_scan(NULL, automesh_scan_done);
+}
+
+void ICACHE_FLASH_ATTR to_scan(void) {
+    if (config.automesh_mode == AUTOMESH_LEARNING){
+      wifi_station_scan(NULL, automesh_scan_done);
+    }
+}
+
 void ICACHE_FLASH_ATTR user_init()
 {
 struct ip_info info;
@@ -2302,7 +2462,7 @@ struct ip_info info;
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater V1.5 starting\r\n");
+    os_printf("\r\n\r\nWiFi Repeater V1.6 starting\r\n");
 
     // Load config
     if (config_load(&config)== 0) {
@@ -2342,8 +2502,20 @@ struct ip_info info;
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
 #endif
 
-    wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
-    wifi_set_macaddr(STATION_IF, config.STA_MAC_address);
+    // In Automesh STA and AP passwords and credentials are the same
+    if (config.automesh_mode != AUTOMESH_OFF) {
+	os_memcpy(config.ap_ssid, config.ssid, sizeof(config.ssid));
+	os_memcpy(config.ap_password, config.password, sizeof(config.password));
+
+	if (config.automesh_mode == AUTOMESH_LEARNING) {
+	  config.ap_on = 0;
+	  config.auto_connect = 0;
+	} else {
+	  config.ap_on = 1;
+	  config.auto_connect = 1;
+	  config.ap_open = os_strncmp(config.password, "none", 4) == 0;
+	}
+    }
 
     // Configure the AP and start it, if required
     if (config.dns_addr.addr == 0)
@@ -2355,11 +2527,13 @@ struct ip_info info;
 
     if (config.ap_on) {
 	wifi_set_opmode(STATIONAP_MODE);
+	wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
     	user_set_softap_wifi_config();
 	do_ip_config = true;
     } else {
 	wifi_set_opmode(STATION_MODE);
     }
+    wifi_set_macaddr(STATION_IF, config.STA_MAC_address);
 
 #ifdef PHY_MODE
     wifi_set_phy_mode(config.phy_mode);
@@ -2439,6 +2613,8 @@ struct ip_info info;
 #endif /* MQTT_CLIENT */
 
     remote_console_disconnect = 0;
+	
+    system_init_done_cb(to_scan);	
 
     // Now start the STA-Mode
     user_set_station_config();

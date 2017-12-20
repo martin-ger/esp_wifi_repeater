@@ -32,8 +32,12 @@ uint8_t mac[6];
     config->PEAP_username[0]		= '\0';
     config->PEAP_password[0]		= '\0';
 #endif
-    config->locked			= 0;
     config->lock_password[0]		= '\0';
+    config->locked			= 0;
+
+    config->automesh_mode		= 0;
+    config->automesh_checked		= 0;
+    config->automesh_tries		= 0;
 
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
     config->dns_addr.addr		= 0;  // use DHCP
