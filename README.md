@@ -233,7 +233,7 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. 
 
-Sometimes, especially on old ESP-01s, there is a wrong or non-matching version of "esp_init_data_default.bin" in the flash. If the firmware files from above flash correctly but after reboot you see only garbage on the serial and/or the LED on GPIO2 is flashing rapidly, try to re-initialize this sector: download https://github.com/espressif/ESP8266_NONOS_SDK/blob/master/bin/esp_init_data_default.bin?raw=true and flash it to 0x7c000 for 512 kB modules (some ESP-01, Sonoff Switch), 0xfc000 for 1 MB modules (most ESP-01), or 0x3fc000 for 4 MB modules (most ESP-12, Wemos D1). 
+Sometimes, especially on old ESP-01s, there is a wrong or non-matching version of "esp_init_data_default.bin" in the flash. If the firmware files from above flash correctly but after reboot you see only garbage on the serial and/or the LED on GPIO2 is flashing rapidly, try to re-initialize this sector: download https://github.com/espressif/ESP8266_NONOS_SDK/raw/master/bin/esp_init_data_default_v08.bin and flash it to 0x7c000 for 512 kB modules (some ESP-01, Sonoff Switch), 0xfc000 for 1 MB modules (most ESP-01), or 0x3fc000 for 4 MB modules (most ESP-12, Wemos D1). 
 
 If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
 
