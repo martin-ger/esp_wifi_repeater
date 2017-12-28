@@ -38,7 +38,7 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 
 //
 // Define this to support the "sleep" command for power management and deep sleep
-// Requires a connection of GPIO16 and RST (probably not availabe on ESP01 modules)
+// Requires a connection of GPIO16 and RST (probably not available on ESP01 modules)
 //
 #define ALLOW_SLEEP         1
 

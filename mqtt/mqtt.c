@@ -283,7 +283,7 @@ mqtt_client_delete(MQTT_Client *mqttClient)
   * @brief  Client received callback function.
   * @param  arg: contain the ip link information
   * @param  pdata: received data
-  * @param  len: the lenght of received data
+  * @param  len: the length of received data
   * @retval None
   */
 void ICACHE_FLASH_ATTR
