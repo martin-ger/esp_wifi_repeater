@@ -78,7 +78,7 @@ Advanced commands:
 - set netmask _netmask_: sets a static netmask for the uplink network
 - set gw _gw-addr_: sets a static gateway address in the uplink network
 - set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
-- set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value
+- set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
 - scan: does a scan for APs
 - set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
