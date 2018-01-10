@@ -51,6 +51,8 @@ typedef struct
     automeshmode automesh_mode;	// The AutoMesh mode
     uint8_t	automesh_checked; // Flag that it has worked once
     uint8_t	automesh_tries; // Counter of disconnects
+    uint32_t	am_scan_time;	// Seconds for scanning
+    uint32_t	am_sleep_time;	// Seconds for sleeping
 
     ip_addr_t	network_addr;	// Address of the internal network
     ip_addr_t	dns_addr;	// Optional: address of the dns server

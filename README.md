@@ -89,7 +89,7 @@ Advanced commands:
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
-- set vmin_sleep _time_: sets the time interval in seconds the ESP sleeps on low voltage
+- set vmin_sleep _secs_: sets the time interval in seconds the ESP sleeps on low voltage
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
 - set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
@@ -100,7 +100,9 @@ Advanced commands:
 - acl [from_sta|to_sta] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
 - set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
-- sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes) 
+- sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
+- set am_scan_time _secs_: sets the time interval in seconds the ESP tries in automesh mode to find an uplink AP before going to sleep (0 disabled, default)
+- set am_sleep_time _secs_: sets the time interval in seconds the ESP sleeps in automesh mode if no uplink AP is found (0 disabled, default)
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
@@ -129,6 +131,8 @@ The signal strength is easy to measure with a scan, but which is the one closest
 Now each esp_wifi_repeater can learn which other esp_wifi_repeater is the closest to the the original WiFi network, can connect to that, and chose its own BSSID accordingly. Also the IP address of the internal network is adjusted to the mesh level: 10.24.m.0. This creates a tree (a very special mesh) with the original WiFi AP as root and repeating nodes on several mesh levels (actually, it works somewhat similar as the Spanning Tree Protocol (STP) on the link layer or routing on the network layer using a Distance Vector protocol). As soon as an uplink link loss is detected, configuration is restarted. This should avoid loops, as during (re-)configuration also no beacons with an BSSID are sent.
 
 For convenience, the esp_wifi_repeater after "automesh" configuration first tries to check, whether it can connect to an uplink AP. If this fails, even when an AP with the correct SSID has been found, it assumes, the user did a mistake with the password and resets to factory defaults. After it had connected successfully once, it will assume config is correct and keep on trying after connection loss or reset as long as it takes (to avoid a DOS attack with a misconfigured AP). 
+
+Using the two parameters _am_scan_time_ and _am_sleep_time_ power management can be implemented in automesh mode, if you have connected GPIO16 to RST. After booting the esp_wifi_repeater scans for avilable uplink APs for _am_scan_time_ seconds. If none is found, it goes to deepsleep for _am_sleep_time_ seconds and tries again after reboot (default is 0 = disabled for both parameters).
 
 # Monitoring
 From the console a monitor service can be started ("monitor on [portno]"). This service mirrors the traffic of the internal network in pcap format to a TCP stream. E.g. with a "netcat [external_ip_of_the_repeater] [portno] | sudo wireshark -k -S -i -" from an computer in the external network you can now observe the traffic in the internal network in real time. Use this e.g. to observe with which internet sites your internals clients are communicating. Be aware that this at least doubles the load on the esp and the WiFi network. Under heavy load this might result in some packets beeing cut short or even dropped in the monitor session. CAUTION: leaving this port open is a potential security issue. Anybody from the local networks can connect and observe your traffic.

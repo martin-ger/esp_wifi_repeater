@@ -706,7 +706,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|ap_mac|sta_mac|ssid_hidden] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\nset [automesh] <val>\r\n");
         to_console(response);
-
+#ifdef ALLOW_SLEEP
+        os_sprintf(response, "set [am_scan_time|am_sleep_time] <val>\r\n");
+        to_console(response);
+#endif
         os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nreset [factory] | lock | unlock <password> | quit\r\n");
         to_console(response);
 #ifdef WPA2_PEAP
@@ -777,6 +780,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:-1);
         	to_console(response);	
 	}
+#ifdef ALLOW_SLEEP
+	if (config.am_scan_time != 0 && config.automesh_mode != AUTOMESH_OFF) {
+            os_sprintf(response, "Automesh: Scan time: %d Sleep time: %d s\r\n", config.am_scan_time, config.am_sleep_time);
+            to_console(response);
+	}
+#endif
         os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24",
                    config.ap_ssid,
 		   config.ssid_hidden?"[hidden]":"",
@@ -1443,6 +1452,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.Vmin_sleep = atoi(tokens[2]);
                 os_sprintf(response, "Vmin sleep time set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"am_scan_time") == 0)
+            {
+                config.am_scan_time = atoi(tokens[2]);
+                os_sprintf(response, "Automesh scan time set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"am_sleep_time") == 0)
+            {
+                config.am_sleep_time = atoi(tokens[2]);
+                os_sprintf(response, "Automesh sleep time set\r\n");
                 goto command_handled;
             }
 #endif
@@ -2429,6 +2452,20 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
   }
 
   os_printf("No AP with ssid %s found\r\n", config.ssid);
+
+#ifdef ALLOW_SLEEP
+  if (config.am_scan_time && config.am_sleep_time) {
+    int32_t secs_left = config.am_scan_time - ((uint32_t)(get_long_systime()/1000000));
+    os_printf("%d s scanning time left\r\n", secs_left);
+
+    if (secs_left < 0) {
+      os_printf("Scan time exceeded - going to sleep\r\n");
+      system_deep_sleep(config.am_sleep_time * 1000000);
+      return;
+    }    
+  }
+#endif
+
   wifi_station_scan(NULL, automesh_scan_done);
 }
 
