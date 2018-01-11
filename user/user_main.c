@@ -2150,6 +2150,10 @@ void wifi_handle_event_cb(System_Event_t *evt)
 #endif /* MQTT_CLIENT */
 
 	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
+	  if (evt->event_info.disconnected.reason != 201) {
+	    wifi_set_opmode(STATION_MODE);
+	  }
+
 	  config.automesh_tries++;
 
 	  if (config.automesh_checked) {
