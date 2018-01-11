@@ -32,7 +32,7 @@ The web interface allows for the configuration of all parameters required for th
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/WebConfig.jpg">
 
-First enter the appropriate values for the uplink WiFi network, the "STA Settings", and click "Connect". The ESP reboots and will connect to your WiFi router. The status LED should be blinking after some seconds.
+First enter the appropriate values for the uplink WiFi network, the "STA Settings", and click "Connect". Use password "none" for open networks. The ESP reboots and will connect to your WiFi router. The status LED should be blinking after some seconds.
 
 Now you can reload the page and change the "Soft AP Settings". Click "Set" and again the ESP reboots. Now it is ready for forwarding traffic over the newly configured Soft AP. Be aware that these changes also affect the config interface, i.e. to do further configuration, connect to the ESP through one of the newly configured WiFi networks. For access through the Soft AP remember the address of the Soft APs network if you have changed that (the ESP has always the address x.x.x.1 in this network).
 
@@ -56,9 +56,10 @@ If you want to enter non-ASCII or special characters on the command line you can
 
 The command line understands a lot more commands:
 
-Basic commands (enough to get it working in nearly all environments):
+## Basic commands
+Enough to get it working in nearly all environments.
 - help: prints a short help message
-- set [ssid|password] _value_: changes the settings for the uplink AP (WiFi config of your home-router)
+- set [ssid|password] _value_: changes the settings for the uplink AP (WiFi config of your home-router), use password "none" for open networks.
 - set [ap_ssid|ap_password] _value_: changes the settings for the soft-AP of the ESP (for your stations)
 - show [config|stats]: prints the current config or some status information and statistics
 - save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
@@ -67,9 +68,22 @@ Basic commands (enough to get it working in nearly all environments):
 - reset [factory]: resets the esp, 'factory' optionally resets WiFi params to default values (works on a locked device only from serial console)
 - quit: terminates a remote session
 
-Advanced commands:
-(Most of the set-commands are effective only after save and reset)
+## Advanced commands
+Most of the set-commands are effective only after save and reset.
+### Automesh config
 - set automesh [0|1]: selects, whether the automesh mode is on or off (default), see details here https://github.com/martin-ger/esp_wifi_repeater#automesh-mode
+- set am_scan_time _secs_: sets the time interval in seconds the ESP tries in automesh mode to find an uplink AP before going to sleep (0 disabled, default)
+- set am_sleep_time _secs_: sets the time interval in seconds the ESP sleeps in automesh mode if no uplink AP is found (0 disabled, default)
+### WiFi config
+- set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
+- set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
+- set auto_connect [0|1]: selects, whether the STA should keep retrying to reconnect to the AP. auto_connect is off (0) after first flashing or after "reset factory". When you enter a new SSID it will be automatically set on (1).
+- set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
+- set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
+- set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
+- set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
+ scan: does a scan for APs
+### TCP/IP config
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
 - set dns dhcp: configures use of the dynamic DNS address from DHCP, default
@@ -77,32 +91,25 @@ Advanced commands:
 - set ip dhcp: configures dynamic IP address for the ESP in the uplink network, default
 - set netmask _netmask_: sets a static netmask for the uplink network
 - set gw _gw-addr_: sets a static gateway address in the uplink network
-- set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
-- set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
-- scan: does a scan for APs
-- set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
-- set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
-- set auto_connect [0|1]: selects, whether the STA should keep retrying to reconnect to the AP. auto_connect is off (0) after first flashing or after "reset factory". When you enter a new SSID it will be automatically set on (1).
-- set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
-- set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
-- set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
-- set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
-- set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
-- set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
-- set vmin_sleep _secs_: sets the time interval in seconds the ESP sleeps on low voltage
-- set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
-- set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
-- set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
-- monitor [on|off|acl] _port_: starts and stops monitor server on a given port
+### Firewall/Monitor config
 - acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
 - acl [from_sta|to_sta] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
 - set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
+- set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
+- monitor [on|off|acl] _port_: starts and stops monitor server on a given port
+### Interface config
+- set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
+- set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
+- set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
+### Chip config
+- set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
-- set am_scan_time _secs_: sets the time interval in seconds the ESP tries in automesh mode to find an uplink AP before going to sleep (0 disabled, default)
-- set am_sleep_time _secs_: sets the time interval in seconds the ESP sleeps in automesh mode if no uplink AP is found (0 disabled, default)
+- set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
+- set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
+- set vmin_sleep _secs_: sets the time interval in seconds the ESP sleeps on low voltage
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
