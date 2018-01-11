@@ -1405,7 +1405,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		  os_sprintf(response, "Config port set to %d\r\n", config.config_port);
                 goto command_handled;
             }
-#endif
+
 	    if (strcmp(tokens[1], "config_access") == 0) {
 		config.config_access = atoi(tokens[2]) & (LOCAL_ACCESS | REMOTE_ACCESS);
 		if (config.config_access == 0)
@@ -1414,7 +1414,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf(response, "Config access set\r\n", config.config_port);
 		goto command_handled;
 	    }
-
+#endif
 #ifdef WEB_CONFIG
             if (strcmp(tokens[1],"web_port") == 0)
             {
