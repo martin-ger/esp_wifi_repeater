@@ -2152,6 +2152,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
 	  if (evt->event_info.disconnected.reason != 201) {
 	    wifi_set_opmode(STATION_MODE);
+os_printf(">>> Disable AP\r\n");
 	  }
 
 	  config.automesh_tries++;
@@ -2203,6 +2204,11 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	  if(ip_portmap_table[i].valid) {
 	     ip_portmap_table[i].maddr = my_ip.addr;
 	  }
+	}
+
+	if (config.automesh_mode != AUTOMESH_OFF) {
+	  wifi_set_opmode(STATIONAP_MODE);
+os_printf(">>> Enable AP\r\n");
 	}
 
 #ifdef MQTT_CLIENT
@@ -2437,7 +2443,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       config.AP_MAC_address[4] = RANDOM_REG & 0xff;
       config.AP_MAC_address[5] = RANDOM_REG & 0xff;
 
-      IP4_ADDR(&config.network_addr, 10, 24, mesh_level, 1);
+      IP4_ADDR(&config.network_addr, 10, 24, mesh_level+1, 1);
 
       config.automesh_mode = AUTOMESH_OPERATIONAL;
       config.automesh_tries = 0;
