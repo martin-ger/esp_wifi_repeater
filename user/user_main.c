@@ -11,6 +11,9 @@
 #include "lwip/app/dhcpserver.h"
 #include "lwip/app/espconn.h"
 #include "lwip/app/espconn_tcp.h"
+#ifdef ALLOW_PING
+#include "lwip/app/ping.h"
+#endif
 
 #include "user_interface.h"
 #include "string.h"
@@ -75,6 +78,7 @@ static netif_input_fn orig_input_ap;
 static netif_linkoutput_fn orig_output_ap;
 
 uint8_t remote_console_disconnect;
+struct espconn *currentconn;
 
 void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
 void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
@@ -183,6 +187,49 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
 }
 #endif /* MQTT_CLIENT */
 
+#ifdef ALLOW_PING
+struct ping_option ping_opt;
+uint8_t ping_success_count;
+
+void ICACHE_FLASH_ATTR user_ping_recv(void *arg, void *pdata)
+{
+    struct ping_resp *ping_resp = pdata;
+    struct ping_option *ping_opt = arg;
+    char response[128];
+
+    if (ping_resp->ping_err == -1) {
+        os_sprintf(response, "ping failed\r\n");
+    } else {
+        os_sprintf(response, "ping recv bytes: %d time: %d ms\r\n",ping_resp->bytes,ping_resp->resp_time);
+	ping_success_count++;
+    }
+
+    to_console(response);
+    system_os_post(0, SIG_CONSOLE_TX_RAW, (ETSParam) currentconn);
+}
+
+void ICACHE_FLASH_ATTR user_ping_sent(void *arg, void *pdata)
+{
+    char response[128];
+
+    os_sprintf(response, "ping finished (%d/%d)\r\n", ping_success_count, ping_opt.count);
+    to_console(response);
+    system_os_post(0, SIG_CONSOLE_TX, (ETSParam) currentconn);
+}
+
+void ICACHE_FLASH_ATTR user_do_ping(uint32_t ipaddr)
+{
+    ping_opt.count = 4;    //  try to ping how many times
+    ping_opt.coarse_time = 2;  // ping interval
+    ping_opt.ip = ipaddr;
+    ping_success_count = 0;
+
+    ping_regist_recv(&ping_opt,user_ping_recv);
+    ping_regist_sent(&ping_opt,user_ping_sent);
+
+    ping_start(&ping_opt);
+}
+#endif
 
 #ifdef REMOTE_MONITORING
 static uint8_t monitoring_on;
@@ -541,7 +588,7 @@ bool    in_token = false;
 }
 
 
-void console_send_response(struct espconn *pespconn)
+void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
 {
     char payload[MAX_CON_SEND_SIZE+4];
     uint16_t len = ringbuf_bytes_used(console_tx_buffer);
@@ -553,17 +600,19 @@ void console_send_response(struct espconn *pespconn)
 	mqtt_publish_str(MQTT_TOPIC_RESPONSE, "response", payload);
     }
 #endif
-    os_memcpy(&payload[len], "CMD>", 4);
+    if (do_cmd) {
+	os_memcpy(&payload[len], "CMD>", 4);
+	len += 4;
+    }
 
     if (pespconn != NULL)
-	espconn_sent(pespconn, payload, len+4);
+	espconn_sent(pespconn, payload, len);
     else
-	UART_Send(0, &payload, len+4);
+	UART_Send(0, &payload, len);
 }
 
 
 #ifdef ALLOW_SCANNING
-struct espconn *scanconn;
 void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 {
   char response[128];
@@ -590,7 +639,7 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
      os_sprintf(response, "scan fail !!!\r\n");
      to_console(response);
   }
-  system_os_post(0, SIG_CONSOLE_TX, (ETSParam) scanconn);
+  system_os_post(0, SIG_CONSOLE_TX, (ETSParam) currentconn);
 }
 #endif
 
@@ -718,6 +767,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "scan\r\n");
+        to_console(response);
+#endif
+#ifdef ALLOW_PING
+        os_sprintf(response, "ping <ip_addr>\r\n");
         to_console(response);
 #endif
 #ifdef PHY_MODE
@@ -1115,9 +1168,21 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #ifdef ALLOW_SCANNING
     if (strcmp(tokens[0], "scan") == 0)
     {
-        scanconn = pespconn;
+        currentconn = pespconn;
         wifi_station_scan(NULL,scan_done);
         os_sprintf(response, "Scanning...\r\n");
+        goto command_handled;
+    }
+#endif
+#ifdef ALLOW_PING
+    if (strcmp(tokens[0], "ping") == 0)
+    {
+	if (nTokens != 2) {
+	    os_sprintf(response, INVALID_NUMARGS);
+	    goto command_handled;
+	}
+        currentconn = pespconn;
+        user_do_ping(ipaddr_addr(tokens[1]));
         goto command_handled;
     }
 #endif
@@ -2086,9 +2151,10 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 	break;
 
     case SIG_CONSOLE_TX:
+    case SIG_CONSOLE_TX_RAW:
         {
             struct espconn *pespconn = (struct espconn *) events->par;
-            console_send_response(pespconn);
+            console_send_response(pespconn, events->sig == SIG_CONSOLE_TX);
 
 	    if (pespconn != 0 && remote_console_disconnect) espconn_disconnect(pespconn);
 	    remote_console_disconnect = 0;

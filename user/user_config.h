@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_GPIO_INT} USER_SIGNALS;
+typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT} USER_SIGNALS;
 
 #define LOCAL_ACCESS 0x01
 #define REMOTE_ACCESS 0x02
@@ -35,6 +35,11 @@ typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SI
 // Define this to support the "scan" command for AP search
 //
 #define ALLOW_SCANNING      1
+
+//
+// Define this to support the "ping" command for IP connectivity check
+//
+#define ALLOW_PING      1
 
 //
 // Define this to support the "sleep" command for power management and deep sleep
