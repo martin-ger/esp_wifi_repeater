@@ -1,13 +1,17 @@
 # esp_wifi_repeater
 A full functional WiFi repeater (correctly: a WiFi NAT router)
 
-This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It can be used as range extender for an existing WiFi network. The esp acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes a basic firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), MQTT management interface, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
+
+Typical usage scenarios include:
+- Simple range extender for an existing WiFi network
+- Setting up an additional WiFi network with different SSID/password for guests or IoT devices
+- Battery powered outdoor (mesh) networks
+- Monitor probe for WiFi traffic analysis 
+
+The ESP acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 Measurements show, that it can achieve about 5 Mbps in both directions, so even streaming is possible.
-
-For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode
-
-The router also allows for remote monitoring (or packet sniffing), e.g. with Wireshark, port mapping, and ACLs.  
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
