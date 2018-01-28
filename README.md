@@ -82,7 +82,10 @@ Most of the set-commands are effective only after save and reset.
 - set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
 - set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
 - set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
- scan: does a scan for APs
+- set sta_hostname _name_: sets the name of the STA (visible to the uplink AP)
+- scan: does a scan for APs
+- connect: tries to connect to an AP with the currently configured _ssid_ and _password_
+- disconnect: disconnects from any uplink AP
 ### TCP/IP config
 - ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1

@@ -13,6 +13,8 @@ void config_load_default(sysconfig_p config)
 {
 uint8_t mac[6];
 
+    wifi_get_macaddr(STATION_IF, mac);
+
     os_memset(config, 0, sizeof(sysconfig_t));
     os_printf("Loading default configuration\r\n");
     config->magic_number                = MAGIC_NUMBER;
@@ -21,6 +23,7 @@ uint8_t mac[6];
     os_sprintf(config->password,"%s",   WIFI_PASSWORD);
     config->auto_connect                = 0;
     os_memset(config->bssid, 0, 6);
+    os_sprintf(config->sta_hostname,"ESP_%02x%02x%02x", mac[3], mac[4], mac[5]);
     os_sprintf(config->ap_ssid,"%s",    WIFI_AP_SSID);
     os_sprintf(config->ap_password,"%s",WIFI_AP_PASSWORD);
     config->ap_open			= 1;
@@ -72,7 +75,6 @@ uint8_t mac[6];
     config->mqtt_port			= 1883;
     os_sprintf(config->mqtt_user,"%s", "none");
     config->mqtt_password[0]		= 0;
-    wifi_get_macaddr(0, mac);
     os_sprintf(config->mqtt_id,"%s_%02x%02x%02x", MQTT_ID, mac[3], mac[4], mac[5]);
     os_sprintf(config->mqtt_prefix,"%s/%s/system", MQTT_PREFIX, config->mqtt_id);
     os_sprintf(config->mqtt_command_topic,"%s/%s/%s", MQTT_PREFIX, config->mqtt_id, "command");

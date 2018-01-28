@@ -82,6 +82,7 @@ struct espconn *currentconn;
 
 void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void);
 void ICACHE_FLASH_ATTR user_set_softap_ip_config(void);
+void ICACHE_FLASH_ATTR user_set_station_config(void);
 
 void ICACHE_FLASH_ATTR to_console(char *str) {
     ringbuf_memcpy_into(console_tx_buffer, str, os_strlen(str));
@@ -753,13 +754,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	);
         to_console(response);
 
-        os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|ap_mac|sta_mac|ssid_hidden] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\nset [automesh] <val>\r\n");
+        os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open] <val>\r\nset [ap_mac|sta_mac|ssid_hidden|sta_hostname] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\nset [automesh] <val>\r\n");
         to_console(response);
 #ifdef ALLOW_SLEEP
         os_sprintf(response, "set [am_scan_time|am_sleep_time] <val>\r\n");
         to_console(response);
 #endif
-        os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nreset [factory] | lock | unlock <password> | quit\r\n");
+        os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nconnect | disconnect| reset [factory] | lock | unlock <password> | quit\r\n");
         to_console(response);
 #ifdef WPA2_PEAP
         os_sprintf(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
@@ -808,6 +809,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       ip_addr_t i_ip;
 
       if (nTokens == 1 || (nTokens == 2 && strcmp(tokens[1], "config") == 0)) {
+        os_sprintf(response, "Version %s (build: %s)\r\n", ESP_REPEATER_VERSION, __TIMESTAMP__);
+        to_console(response);
+
         os_sprintf(response, "STA: SSID:%s PW:%s%s\r\n",
                    config.ssid,
                    config.locked?"***":(char*)config.password,
@@ -860,6 +864,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		   config.STA_MAC_address[3], config.STA_MAC_address[4], config.STA_MAC_address[5],
 		   config.AP_MAC_address[0], config.AP_MAC_address[1], config.AP_MAC_address[2],
 		   config.AP_MAC_address[3], config.AP_MAC_address[4], config.AP_MAC_address[5]);
+	to_console(response);
+	os_sprintf(response, "STA hostname: %s\r\n", config.sta_hostname);
 	to_console(response);
 
 #ifdef REMOTE_CONFIG
@@ -943,7 +949,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   }
 	   to_console(response);
 	   if (config.ap_on)
-		os_sprintf(response, "%d Station%s connected to AP\r\n", wifi_softap_get_station_num(),
+		os_sprintf(response, "%d Station%s connected to SoftAP\r\n", wifi_softap_get_station_num(),
 		  wifi_softap_get_station_num()==1?"":"s");
 	   else
 		os_sprintf(response, "AP disabled\r\n");
@@ -1134,6 +1140,43 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 
+    if (strcmp(tokens[0], "connect") == 0)
+    {
+      if (config.locked) {
+        os_sprintf(response, INVALID_LOCKED);
+        goto command_handled;
+      }
+      if (nTokens > 1) {
+        os_sprintf(response, INVALID_NUMARGS);
+	goto command_handled;
+      }
+
+      user_set_station_config();
+      os_sprintf(response, "Trying to connect to ssid %s, password: %s\r\n", config.ssid, config.password);
+
+      wifi_station_disconnect();
+      wifi_station_connect();
+
+      goto command_handled;
+    }
+
+    if (strcmp(tokens[0], "disconnect") == 0)
+    {
+      if (config.locked) {
+        os_sprintf(response, INVALID_LOCKED);
+        goto command_handled;
+      }
+      if (nTokens > 1) {
+        os_sprintf(response, INVALID_NUMARGS);
+	goto command_handled;
+      }
+
+      os_sprintf(response, "Disconnect from ssid\r\n");
+
+      wifi_station_disconnect();
+
+      goto command_handled;
+    }
 
     if (strcmp(tokens[0], "save") == 0)
     {
@@ -1361,6 +1404,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.auto_connect = atoi(tokens[2]);
                 os_sprintf(response, "Auto Connect set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"sta_hostname") == 0)
+            {
+                os_sprintf(config.sta_hostname, "%s", tokens[2]);
+                os_sprintf(response, "STA hostname set\r\n");
                 goto command_handled;
             }
 
@@ -2409,9 +2459,7 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
     }
     wifi_station_set_config(&stationConf);
 
-    os_sprintf(hostname, "NET_%s", config.ap_ssid);
-    hostname[32] = '\0';
-    wifi_station_set_hostname(hostname);
+    wifi_station_set_hostname(config.sta_hostname);
 
     wifi_set_event_handler_cb(wifi_handle_event_cb);
 
@@ -2575,7 +2623,7 @@ struct ip_info info;
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater V1.6 starting\r\n");
+    os_printf("\r\n\r\nWiFi Repeater %s starting\r\n", ESP_REPEATER_VERSION);
 
     // Load config
     if (config_load(&config)== 0) {
