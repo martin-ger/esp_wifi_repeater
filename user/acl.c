@@ -224,7 +224,7 @@ uint8_t line[80], addr1[21], addr2[21], port1[6], port2[6];
 	addr2str(addr2, my_entry->dest, my_entry->d_mask);
 	port2str(port2, my_entry->d_port);
 	if (my_entry->proto != 0)
-	    os_sprintf(line, "%s %s:%s %s:%s%s %s (%d hits)\r\n",
+	    os_sprintf(line, "%s %s:%s %s:%s %s%s (%d hits)\r\n",
 		my_entry->proto==IP_PROTO_TCP?"TCP":"UDP", 
 		addr1, port1, addr2, port2,
 		(my_entry->allow & ACL_ALLOW)?"allow":"deny",

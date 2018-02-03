@@ -4,7 +4,7 @@
 #include "lwip/ip.h"
 #include "lwip/pbuf.h"
 
-#define MAX_NO_ACLS 2
+#define MAX_NO_ACLS 4
 #define MAX_ACL_ENTRIES 16
 
 #define ACL_DENY     0x0
@@ -12,14 +12,13 @@
 #define ACL_MONITOR  0x2
 
 typedef struct _acl_entry {
-uint8_t *acl_freep[MAX_NO_ACLS];
 uint32_t	src;
 uint32_t	s_mask;
 uint32_t	dest;
 uint32_t	d_mask;
-uint8_t		proto;
 uint16_t	s_port;
 uint16_t	d_port;
+uint8_t		proto;
 uint8_t		allow;
 uint32_t	hit_count;
 } acl_entry;

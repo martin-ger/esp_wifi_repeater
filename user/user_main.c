@@ -74,8 +74,8 @@ bool connected;
 uint8_t my_channel;
 bool do_ip_config;
 
-static netif_input_fn orig_input_ap;
-static netif_linkoutput_fn orig_output_ap;
+static netif_input_fn orig_input_ap, orig_input_sta;
+static netif_linkoutput_fn orig_output_ap, orig_output_sta;
 
 uint8_t remote_console_disconnect;
 struct espconn *currentconn;
@@ -506,25 +506,42 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     orig_output_ap (outp, p);
 }
 
+#ifdef ACLS
+err_t ICACHE_FLASH_ATTR my_input_sta (struct pbuf *p, struct netif *inp) {
 
-static void ICACHE_FLASH_ATTR patch_netif_ap(netif_input_fn ifn, netif_linkoutput_fn ofn, bool nat)
+    if (!acl_is_empty(2) && !(acl_check_packet(2, p) & ACL_ALLOW)) {
+	pbuf_free(p);
+	return;
+    };
+
+    orig_input_sta (p, inp);
+}
+
+err_t ICACHE_FLASH_ATTR my_output_sta (struct netif *outp, struct pbuf *p) {
+
+    if (!acl_is_empty(3) && !(acl_check_packet(3, p) & ACL_ALLOW)) {
+	pbuf_free(p);
+	return;
+    };
+
+    orig_output_sta (outp, p);
+}
+#endif
+
+static void ICACHE_FLASH_ATTR patch_netif(ip_addr_t netif_ip, netif_input_fn ifn, netif_input_fn *orig_ifn, netif_linkoutput_fn ofn, netif_linkoutput_fn *orig_ofn, bool nat)
 {	
 struct netif *nif;
-ip_addr_t ap_ip;
-
-	ap_ip = config.network_addr;
-	ip4_addr4(&ap_ip) = 1;
 	
-	for (nif = netif_list; nif != NULL && nif->ip_addr.addr != ap_ip.addr; nif = nif->next);
+	for (nif = netif_list; nif != NULL && nif->ip_addr.addr != netif_ip.addr; nif = nif->next);
 	if (nif == NULL) return;
 
 	nif->napt = nat?1:0;
-	if (nif->input != ifn) {
-	  orig_input_ap = nif->input;
+	if (ifn != NULL && nif->input != ifn) {
+	  *orig_ifn = nif->input;
 	  nif->input = ifn;
 	}
-	if (nif->linkoutput != ofn) {
-	  orig_output_ap = nif->linkoutput;
+	if (ofn != NULL && nif->linkoutput != ofn) {
+	  *orig_ofn = nif->linkoutput;
 	  nif->linkoutput = ofn;
 	}
 }
@@ -792,7 +809,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #endif
 #ifdef ACLS
-        os_sprintf(response, "acl [from_sta|to_sta] clear\r\nacl [from_sta|to_sta] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\n");
+        os_sprintf(response, "acl [from_sta|to_sta|from_ap|to_ap] clear\r\nacl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\n");
         to_console(response);
 #endif
 #ifdef MQTT_CLIENT
@@ -964,15 +981,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       }
 #ifdef ACLS
       if (nTokens == 2 && strcmp(tokens[1], "acl") == 0) {
-	   if (!acl_is_empty(0)) {
-		ringbuf_memcpy_into(console_tx_buffer, "From STA:\r\n", 11);
-		acl_show(0, response);
-		to_console(response);
-	   }
-	   if (!acl_is_empty(1)) {
-		ringbuf_memcpy_into(console_tx_buffer, "To STA:\r\n", 9);
-		acl_show(1, response);
-		to_console(response);
+	   char *txt[] = {"From STA:\r\n", "To STA:\r\n", "From AP:\r\n", "To AP:\r\n"};
+	   for (i = 0; i<MAX_NO_ACLS; i++) {
+	       if (!acl_is_empty(i)) {
+		   ringbuf_memcpy_into(console_tx_buffer, txt[i], os_strlen(txt[i]));
+		   acl_show(i, response);
+		   to_console(response);
+	       }
 	   }
 	   os_sprintf(response, "Packets denied: %d Packets allowed: %d\r\n", 
 			acl_deny_count, acl_allow_count);
@@ -1029,6 +1044,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    acl_no = 0;
         else if (strcmp(tokens[1],"to_sta")==0)
 	    acl_no = 1;
+        else if (strcmp(tokens[1],"from_ap")==0)
+	    acl_no = 2;
+        else if (strcmp(tokens[1],"to_ap")==0)
+	    acl_no = 3;
 	else {
 	    os_sprintf(response, INVALID_ARG);
 	    goto command_handled;
@@ -2268,7 +2287,6 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
 	  if (evt->event_info.disconnected.reason != 201) {
 	    wifi_set_opmode(STATION_MODE);
-os_printf(">>> Disable AP\r\n");
 	  }
 
 	  config.automesh_tries++;
@@ -2315,6 +2333,10 @@ os_printf(">>> Disable AP\r\n");
 	my_ip = evt->event_info.got_ip.ip;
 	connected = true;
 
+#ifdef ACLS
+	patch_netif(my_ip, my_input_sta, &orig_input_sta, my_output_sta, &orig_output_sta, false);
+#endif
+
 	// Update any predefined portmaps to the new IP addr
         for (i = 0; i<IP_PORTMAP_MAX; i++) {
 	  if(ip_portmap_table[i].valid) {
@@ -2341,7 +2363,9 @@ os_printf(">>> Enable AP\r\n");
 #ifdef MQTT_CLIENT
 	mqtt_publish_str(MQTT_TOPIC_JOIN, "join", mac_str);
 #endif
-	patch_netif_ap(my_input_ap, my_output_ap, true);
+	ip_addr_t ap_ip = config.network_addr;
+	ip4_addr4(&ap_ip) = 1;
+	patch_netif(ap_ip, my_input_ap, &orig_input_ap, my_output_ap, &orig_output_ap, true);
         break;
 
     case EVENT_SOFTAPMODE_STADISCONNECTED:
@@ -2636,8 +2660,10 @@ struct ip_info info;
     }
 #ifdef ACLS
     acl_debug = 0;
-    acl_clear_stats(0);
-    acl_clear_stats(1);
+    int i;
+    for(i=0; i< MAX_NO_ACLS; i++) {
+	acl_clear_stats(i);
+    }
     acl_set_deny_cb(acl_deny_cb);
 #endif
     // Config GPIO pin as output
