@@ -41,6 +41,7 @@ uint8_t mac[6];
     config->automesh_mode		= 0;
     config->automesh_checked		= 0;
     config->automesh_tries		= 0;
+    config->automesh_threshold		= 85;
     config->am_scan_time		= 0;
     config->am_sleep_time		= 0;
 

@@ -15,7 +15,7 @@
 
 #define FLASH_BLOCK_NO 0xc
 
-#define MAGIC_NUMBER    0x014005fc
+#define MAGIC_NUMBER    0x112005fc
 
 typedef enum {AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL} automeshmode;
 
@@ -52,6 +52,7 @@ typedef struct
     automeshmode automesh_mode;	// The AutoMesh mode
     uint8_t	automesh_checked; // Flag that it has worked once
     uint8_t	automesh_tries; // Counter of disconnects
+    int8_t	automesh_threshold; // RSSI limit
     uint32_t	am_scan_time;	// Seconds for scanning
     uint32_t	am_sleep_time;	// Seconds for sleeping
 

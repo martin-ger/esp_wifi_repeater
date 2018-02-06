@@ -773,10 +773,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open] <val>\r\nset [ap_mac|sta_mac|ssid_hidden|sta_hostname] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\nset [automesh] <val>\r\n");
         to_console(response);
+        os_sprintf(response, "set [am_threshold");
+        to_console(response);
 #ifdef ALLOW_SLEEP
-        os_sprintf(response, "set [am_scan_time|am_sleep_time] <val>\r\n");
+        os_sprintf(response, "|am_scan_time|am_sleep_time");
         to_console(response);
 #endif
+        os_sprintf(response, "] <val>\r\n");
+        to_console(response);
         os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nconnect | disconnect| reset [factory] | lock | unlock <password> | quit\r\n");
         to_console(response);
 #ifdef WPA2_PEAP
@@ -849,9 +853,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	}
 #endif
 	if (config.automesh_mode != AUTOMESH_OFF) {
-	        os_sprintf(response, "Automesh: on (%s) Level: %d\r\n",
+	        os_sprintf(response, "Automesh: on (%s) Level: %d Threshold: -%d\r\n",
 		config.automesh_mode==AUTOMESH_LEARNING?"learning":"operational", 
-		config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:-1);
+		config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:-1,
+		config.automesh_threshold);
         	to_console(response);	
 	}
 #ifdef ALLOW_SLEEP
@@ -1480,6 +1485,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1],"am_threshold") == 0)
+            {
+                config.automesh_threshold = atoi(tokens[2]);
+                os_sprintf(response, "Automesh threshold set to -%d\r\n", config.automesh_threshold);
+                goto command_handled;
+            }
 #ifdef WPA2_PEAP
             if (strcmp(tokens[1],"use_peap") == 0)
             {
@@ -2556,7 +2567,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 	}
 
 	// If it is bad quality, give is a handicap of one level
-	if (bss_link->rssi < -85)
+	if (bss_link->rssi < -config.automesh_threshold)
 	  this_mesh_level++;
 
 	os_printf(", mesh level: %d\r\n", this_mesh_level);
