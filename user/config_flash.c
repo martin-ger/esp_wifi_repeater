@@ -38,6 +38,9 @@ uint8_t mac[6];
     config->lock_password[0]		= '\0';
     config->locked			= 0;
 
+    config->ap_watchdog			= -1;
+    config->client_watchdog		= -1;
+
     config->automesh_mode		= 0;
     config->automesh_checked		= 0;
     config->automesh_tries		= 0;

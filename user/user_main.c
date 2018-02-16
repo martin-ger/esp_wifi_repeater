@@ -51,7 +51,10 @@ uint32_t Vdd;
 os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
-static os_timer_t ptimer;	
+static os_timer_t ptimer;
+
+int32_t ap_watchdog_cnt;
+int32_t client_watchdog_cnt;
 
 /* Some stats */
 uint64_t Bytes_in, Bytes_out, Bytes_in_last, Bytes_out_last;
@@ -392,6 +395,8 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     if (config.status_led <= 16)
 	GPIO_OUTPUT_SET (config.status_led, 1);
 
+    client_watchdog_cnt = config.client_watchdog;
+
 #ifdef ACLS
     // Check ACLs - store result
     uint8_t acl_check = ACL_ALLOW;
@@ -506,27 +511,28 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     orig_output_ap (outp, p);
 }
 
-#ifdef ACLS
+
 err_t ICACHE_FLASH_ATTR my_input_sta (struct pbuf *p, struct netif *inp) {
 
+    ap_watchdog_cnt = config.ap_watchdog;
+#ifdef ACLS
     if (!acl_is_empty(2) && !(acl_check_packet(2, p) & ACL_ALLOW)) {
 	pbuf_free(p);
 	return;
     };
-
+#endif
     orig_input_sta (p, inp);
 }
 
 err_t ICACHE_FLASH_ATTR my_output_sta (struct netif *outp, struct pbuf *p) {
-
+#ifdef ACLS
     if (!acl_is_empty(3) && !(acl_check_packet(3, p) & ACL_ALLOW)) {
 	pbuf_free(p);
 	return;
     };
-
+#endif
     orig_output_sta (outp, p);
 }
-#endif
 
 static void ICACHE_FLASH_ATTR patch_netif(ip_addr_t netif_ip, netif_input_fn ifn, netif_input_fn *orig_ifn, netif_linkoutput_fn ofn, netif_linkoutput_fn *orig_ofn, bool nat)
 {	
@@ -787,6 +793,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
         to_console(response);
 #endif
+        os_sprintf(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
+        to_console(response);
 #ifdef ALLOW_SCANNING
         os_sprintf(response, "scan\r\n");
         to_console(response);
@@ -980,6 +988,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
 		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
 		   IP2STR(&p->ip));
+		to_console(response);
+	   }
+	   if (config.ap_watchdog >= 0 || config.client_watchdog >= 0) {
+		os_sprintf(response, "AP watchdog: %d Client watchdog: %d\r\n", ap_watchdog_cnt, client_watchdog_cnt);
 		to_console(response);
 	   }
 	   goto command_handled_2;
@@ -1482,6 +1494,40 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    config.automesh_checked = 0;
 		}
                 os_sprintf(response, "Set automesh %s\r\n", config.automesh_mode?"on":"off");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"ap_watchdog") == 0)
+            {
+		if (strcmp(tokens[2],"none") == 0) {
+		    config.ap_watchdog = ap_watchdog_cnt = -1;
+		    os_sprintf(response, "AP watchdog off\r\n");
+		    goto command_handled;
+		}
+		int32_t wd_val = atoi(tokens[2]);
+		if (wd_val < 30) {
+		    os_sprintf(response, "AP watchdog value invalid\r\n");
+		    goto command_handled;
+		}
+                config.ap_watchdog = ap_watchdog_cnt = wd_val;
+                os_sprintf(response, "AP watchdog set to %d\r\n", config.ap_watchdog);
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"client_watchdog") == 0)
+            {
+		if (strcmp(tokens[2],"none") == 0) {
+		    config.client_watchdog = client_watchdog_cnt = -1;
+		    os_sprintf(response, "Client watchdog off\r\n");
+		    goto command_handled;
+		}
+		int32_t wd_val = atoi(tokens[2]);
+		if (wd_val < 30) {
+		    os_sprintf(response, "Client watchdog value invalid\r\n");
+		    goto command_handled;
+		}
+                config.client_watchdog = client_watchdog_cnt = wd_val;
+                os_sprintf(response, "Client watchdog set to %d\r\n", config.client_watchdog);
                 goto command_handled;
             }
 
@@ -2153,6 +2199,25 @@ uint32_t Bps;
 
     toggle = !toggle;
 
+    // Check if watchdogs
+    if (toggle){
+	if (ap_watchdog_cnt >= 0) {
+	    if (ap_watchdog_cnt == 0) {
+		os_printf("AP watchdog reset\r\n");
+		system_restart();
+	    }
+	    ap_watchdog_cnt--;
+	}
+
+	if (client_watchdog_cnt >= 0) {
+	    if (client_watchdog_cnt == 0) {
+		os_printf("Client watchdog reset\r\n");
+		system_restart();
+	    }
+	    client_watchdog_cnt--;
+	}
+    } 
+
     if (config.status_led <= 16)
 	GPIO_OUTPUT_SET (config.status_led, toggle && connected);
 
@@ -2216,7 +2281,7 @@ uint32_t Bps;
     }
 #endif
 
-    os_timer_arm(&ptimer, toggle?1000:100, 0); 
+    os_timer_arm(&ptimer, toggle?900:100, 0); 
 }
 
 //Priority 0 Task
@@ -2344,9 +2409,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	my_ip = evt->event_info.got_ip.ip;
 	connected = true;
 
-#ifdef ACLS
 	patch_netif(my_ip, my_input_sta, &orig_input_sta, my_output_sta, &orig_output_sta, false);
-#endif
 
 	// Update any predefined portmaps to the new IP addr
         for (i = 0; i<IP_PORTMAP_MAX; i++) {
@@ -2682,6 +2745,9 @@ struct ip_info info;
 	// Disable output if serial pin is used as status LED
 	system_set_os_print(0);
     }
+
+    ap_watchdog_cnt = config.ap_watchdog;
+    client_watchdog_cnt = config.client_watchdog;
 
     if (config.status_led <= 16) {
 	easygpio_pinMode(config.status_led, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);

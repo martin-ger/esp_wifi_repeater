@@ -48,6 +48,9 @@ typedef struct
 #endif
     uint8_t     lock_password[32];   // Password of config lock
     uint8_t     locked;		// Should we allow for config changes
+	
+    int32_t	ap_watchdog;    // Seconds without ap traffic will cause reset (-1 off, default)
+    int32_t	client_watchdog; // Seconds without client traffic will cause reset (-1 off, default)
 
     automeshmode automesh_mode;	// The AutoMesh mode
     uint8_t	automesh_checked; // Flag that it has worked once

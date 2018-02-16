@@ -117,6 +117,8 @@ Most of the set-commands are effective only after save and reset.
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
+- set ap_watchdog _secs_: sets the AP watchdog timeout - if there are no packets received for _secs_ from the uplink AP the repeater resets ("none" = no timeout, default)
+- set client_watchdog _secs_: sets the client watchdog timeout - if there are no packets received for _secs_ from any connected client the repeater resets ("none" = no timeout, default)
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _secs_: sets the time interval in seconds the ESP sleeps on low voltage
 
