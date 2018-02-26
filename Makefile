@@ -12,7 +12,7 @@
 # - 2014-11-23: Updated for SDK 0.9.3
 # - 2014-12-25: Replaced esptool by esptool.py
 
-BUILD_AREA = /home/mfg/github
+BUILD_AREA = /home/martin/github
 
 # Output directors to store intermediate compiled files
 # relative to the project directory
@@ -27,7 +27,10 @@ SDK_BASE	?= $(BUILD_AREA)/esp-open-sdk/sdk
 
 # # esptool.py path and port
 ESPTOOL		?= $(BUILD_AREA)/esp-open-sdk/esptool/esptool.py
+#ESPTOOL		?= /home/martin/.local/bin/esptool.py
 ESPPORT		?= /dev/ttyUSB0
+ESPTOOLBAUD	?= 115200
+ESPTOOLOPTS	= -ff 40m -fm dio -fs 32m
 
 # name for the target project
 TARGET		= app
@@ -134,7 +137,7 @@ $(FW_BASE):
 	$(Q) mkdir -p $@
 
 flash: $(FW_FILE_1) $(FW_FILE_2)
-	sudo $(ESPTOOL) --port $(ESPPORT) write_flash $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+	sudo $(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
 
 clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)

@@ -393,7 +393,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 //  os_printf("Got packet from STA\r\n");
 
     if (config.status_led <= 16)
-	GPIO_OUTPUT_SET (config.status_led, 1);
+	easygpio_outputSet (config.status_led, 1);
 
     client_watchdog_cnt = config.client_watchdog;
 
@@ -455,7 +455,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 //  os_printf("Send packet to STA\r\n");
 
     if (config.status_led <= 16)
-	GPIO_OUTPUT_SET (config.status_led, 0);
+	easygpio_outputSet (config.status_led, 0);
 
 #ifdef ACLS
     // Check ACLs - store result
@@ -1699,7 +1699,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    if (strcmp(tokens[1], "status_led") == 0)
 	    {
 	    	if (config.status_led <= 16) {
-		    GPIO_OUTPUT_SET (config.status_led, 1);
+		    easygpio_outputSet (config.status_led, 1);
 		}
 		if (config.status_led == 1) {
 		    // Enable output if serial pin was used as status LED
@@ -1715,7 +1715,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    system_set_os_print(0);
 		}
 		easygpio_pinMode(config.status_led, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
-		GPIO_OUTPUT_SET (config.status_led, 0);
+		easygpio_outputSet (config.status_led, 0);
 		os_sprintf(response, "Status led set to GPIO %d\r\n", config.status_led);
         	goto command_handled;
 	    }
@@ -2219,7 +2219,7 @@ uint32_t Bps;
     } 
 
     if (config.status_led <= 16)
-	GPIO_OUTPUT_SET (config.status_led, toggle && connected);
+	easygpio_outputSet (config.status_led, toggle && connected);
 
     // Power measurement
     // Measure Vdd every second, sliding mean over the last 16 secs
@@ -2751,7 +2751,7 @@ struct ip_info info;
 
     if (config.status_led <= 16) {
 	easygpio_pinMode(config.status_led, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
-	GPIO_OUTPUT_SET (config.status_led, 0);
+	easygpio_outputSet (config.status_led, 0);
     }
 
 #ifdef MQTT_CLIENT
