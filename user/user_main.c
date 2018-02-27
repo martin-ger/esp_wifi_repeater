@@ -42,7 +42,6 @@
 #include "mqtt.h"
 #endif
 
-uint32_t readvdd33(void);
 uint32_t Vdd;
 
 /* System Task, for signals refer to user_config.h */
@@ -2224,8 +2223,9 @@ uint32_t Bps;
     // Power measurement
     // Measure Vdd every second, sliding mean over the last 16 secs
     if (toggle) {
-	Vcurr = (readvdd33()*1000)/1024;
-	Vdd = (Vdd * 15 + Vcurr)/16;
+
+	Vcurr = (system_get_vdd33()*1000)/1024;
+	Vdd = (Vdd * 3 + Vcurr)/4;
 #ifdef ALLOW_SLEEP
 	if (config.Vmin != 0 && Vdd<config.Vmin) {
             os_printf("Vdd (%d mV) < Vmin (%d mV) -> going to deep sleep\r\n", Vdd, config.Vmin);
