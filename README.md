@@ -108,7 +108,7 @@ Most of the set-commands are effective only after save and reset.
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 
-*IP routing is still experimental*
+*Static IP routing is still experimental*
 
 - route clear: clears all static routes
 - route add _network_ _gw_: adds a static route to a network (network given CIDR notation ('x.x.x.x/n')) via gateway gw
@@ -121,7 +121,7 @@ Most of the set-commands are effective only after save and reset.
 - set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port
-### Interface config
+### User Interface config
 
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
@@ -229,14 +229,35 @@ The router can publish the following status topics periodically (every mqtt_inte
 - _prefix_path_/Uptime: System uptime since last reset in s (mask: 0x0020)
 - _prefix_path_/Vdd: Voltage of the power supply in mV (mask: 0x0040)
 - _prefix_path_/Bpsin: Bytes/s from stations into the AP (mask: 0x0800)
-- _prefix_path_/Bpsout: Bytes/s from the AP to stations (mask: 0x1000)
+- _prefix_path_/Bpsout: Bytes/s from the AP to stations (mask: 0x0800)
 - _prefix_path_/Ppsin: Packets/s from stations into the AP (mask: 0x0200)
 - _prefix_path_/Ppsout: Packets/s from the AP to stations  (mask: 0x0400)
 - _prefix_path_/Bin: Total bytes from stations into the AP (mask: 0x0100)
 - _prefix_path_/Bout: Total bytes from the AP to stations  (mask: 0x0100)
 - _prefix_path_/NoStations: Number of stations currently connected to the AP  (mask: 0x2000)
+- _prefix_path_/TopologyInfo: JSON struct with the current topology info of the node (mask: 0x1000)
 
-In addition it can publish on an event basis:
+The TopologyInfo contains the following JSON structure, that can be used to reconstruct a complete graph of an automesh network:
+
+```
+{
+"nodeinfo" {
+	"id":"ESP_07e37e",
+	"ap_mac":"ee:7c:87:07:e3:7e",
+	"sta_mac":"ec:fa:bc:07:e3:7e",
+	"uplink_bssid":"00:1a:54:93:23:0a",
+	"ap_ip":"192.168.4.1",
+	"sta_ip":"192.168.178.33",
+	"rssi":"-66","no_stas":"2"
+},
+"stas":[
+	{"mac:":"5c:cf:45:11:7f:13","ip":"192.168.4.2"},
+	{"mac:":"00:14:22:76:99:c5","ip":"192.168.4.3"}
+]
+}
+```
+
+In addition the repeater can publish on an event basis:
 - _prefix_path_/join: MAC address of a station joining the AP (mask: 0x0008)
 - _prefix_path_/leave: MAC address of a station leaving the AP (mask: 0x0010)
 - _prefix_path_/IP: IP address of the router when received via DHCP (mask: 0x0002)
@@ -248,6 +269,8 @@ The router can be configured using the following topics:
 - _prefix_path_/response: The router publishes on this topic the command line output (mask: 0x0001)
 
 If you now want the router to publish e.g. only Vdd, its IP, and the command line output, set the mqtt_mask to 0x0001 | 0x0002 | 0x0040 (= "set mqtt_mask 0043").
+
+
 
 # Power Management
 The repeater monitors its current supply voltage (shown in the "show stats" command). This only works, if the 107th byte in esp_init_data_default.bin, named as vdd33_const, is set to 255(0xFF). The easiest way to achive that, is to write esp_init_data_default_v08_vdd33.bin to flash (see below).

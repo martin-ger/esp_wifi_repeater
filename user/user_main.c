@@ -100,6 +100,11 @@ void ICACHE_FLASH_ATTR to_console(char *str) {
     ringbuf_memcpy_into(console_tx_buffer, str, os_strlen(str));
 }
 
+void ICACHE_FLASH_ATTR mac_2_buff(char *buf, uint8_t mac[6]) {
+    os_sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x", 
+		    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
 #ifdef MQTT_CLIENT
 
 #define MQTT_TOPIC_RESPONSE	0x0001
@@ -114,7 +119,8 @@ void ICACHE_FLASH_ATTR to_console(char *str) {
 #define MQTT_TOPIC_PIN		0x0200
 #define MQTT_TOPIC_POUT		0x0400
 #define MQTT_TOPIC_BPSIN	0x0800
-#define MQTT_TOPIC_BPSOUT	0x1000
+#define MQTT_TOPIC_BPSOUT	0x0800
+#define MQTT_TOPIC_TOPOLOGY	0x1000
 #define MQTT_TOPIC_NOSTATIONS	0x2000
 #define MQTT_TOPIC_GPIOIN	0x4000
 #define MQTT_TOPIC_GPIOOUT	0x8000
@@ -790,7 +796,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
         os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
         to_console(response);
-        os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\n");
+        os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
+        to_console(response);
 #ifdef ACLS
         os_sprintf_flash(response, "acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
         to_console(response);
@@ -803,7 +810,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         os_sprintf_flash(response, "] <val>\r\n");
         to_console(response);
-        os_sprintf_flash(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nconnect | disconnect| reset [factory] | lock | unlock <password> | quit\r\n");
+        os_sprintf_flash(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
         to_console(response);
 #ifdef WPA2_PEAP
         os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
@@ -824,7 +831,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #endif
 #ifdef ALLOW_SLEEP
-        os_sprintf_flash(response, "sleep\r\nset [vmin|vmin_sleep] <val>\r\n");
+        os_sprintf_flash(response, "sleep <secs>\r\nset [vmin|vmin_sleep] <val>\r\n");
         to_console(response);
 #endif
 #ifdef REMOTE_MONITORING
@@ -908,18 +915,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	}
 	to_console(response);
 
-	os_sprintf(response, "STA MAC: %02x:%02x:%02x:%02x:%02x:%02x\r\nAP MAC:  %02x:%02x:%02x:%02x:%02x:%02x\r\n",  
-		   config.STA_MAC_address[0], config.STA_MAC_address[1], config.STA_MAC_address[2],
-		   config.STA_MAC_address[3], config.STA_MAC_address[4], config.STA_MAC_address[5],
-		   config.AP_MAC_address[0], config.AP_MAC_address[1], config.AP_MAC_address[2],
-		   config.AP_MAC_address[3], config.AP_MAC_address[4], config.AP_MAC_address[5]);
+	uint8_t ap_mac[20], sta_mac[20];
+	mac_2_buff(ap_mac, config.AP_MAC_address);
+	mac_2_buff(sta_mac, config.STA_MAC_address);
+	os_sprintf(response, "STA MAC: %s\r\nAP MAC:  %s\r\n", sta_mac, ap_mac);
 	to_console(response);
 	os_sprintf(response, "STA hostname: %s\r\n", config.sta_hostname);
 	to_console(response);
 
 #ifdef REMOTE_CONFIG
 	if (config.config_port == 0 || config.config_access == 0) {
-		os_sprintf(response, "No network console access\r\n");
+		os_sprintf_flash(response, "No network console access\r\n");
 	} else {
 		os_sprintf(response, "Network console access on port %d (mode %d)\r\n", config.config_port, config.config_access);
 	}
@@ -994,7 +1000,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   if (connected) {
 		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
 	   } else {
-		os_sprintf(response, "Not connected to AP\r\n");
+		os_sprintf_flash(response, "Not connected to AP\r\n");
 	   }
 	   to_console(response);
 	   if (config.ap_on)
@@ -1005,10 +1011,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            to_console(response);
            struct station_info *station = wifi_softap_get_station_info();
 	   while(station) {
-		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
-		   station->bssid[0], station->bssid[1], station->bssid[2], 
-                   station->bssid[3], station->bssid[4], station->bssid[5],
-                   IP2STR(&station->ip));
+		uint8_t sta_mac[20];
+		mac_2_buff(sta_mac, station->bssid);
+		os_sprintf(response, "Station: %s - "  IPSTR "\r\n", sta_mac, IP2STR(&station->ip));
 		to_console(response);
                 station = STAILQ_NEXT(station, next);
            }
@@ -2449,6 +2454,44 @@ uint32_t Bps;
 #ifdef USER_GPIO_OUT
 	mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
 #endif
+
+	if (config.mqtt_topic_mask & MQTT_TOPIC_TOPOLOGY) {
+	    uint8_t *buffer = (uint8_t *)os_malloc(1024);
+
+	    if (buffer != NULL) {
+		uint8_t ap_mac[20], sta_mac[20], bssid_mac[20];
+		ip_addr_t my_ap_ip = config.network_addr;
+		my_ap_ip.addr |= 0x01000000;
+
+		mac_2_buff(ap_mac, config.AP_MAC_address);
+		mac_2_buff(sta_mac, config.STA_MAC_address);
+
+		struct station_config sta_config[5];
+		wifi_station_get_ap_info(sta_config);
+		mac_2_buff(bssid_mac, sta_config[wifi_station_get_current_ap_id()].bssid);
+		
+		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"no_stas\":\"%d\"},\"stas\":[",
+			config.sta_hostname, ap_mac, sta_mac, bssid_mac, 
+			IP2STR(&my_ap_ip), IP2STR(&my_ip), 
+			wifi_station_get_rssi(), wifi_softap_get_station_num());
+
+		struct station_info *station = wifi_softap_get_station_info();
+		bool do_colon = false;
+		while(station) {
+		    if (do_colon)
+			os_sprintf(&buffer[os_strlen(buffer)], ",");
+		    do_colon = true;
+		    mac_2_buff(sta_mac, station->bssid);
+		    os_sprintf(&buffer[os_strlen(buffer)], "{\"mac:\":\"%s\",\"ip\":\""  IPSTR "\"}", sta_mac, IP2STR(&station->ip));
+		    station = STAILQ_NEXT(station, next);
+		}
+		wifi_softap_free_station_info();
+		os_sprintf(&buffer[os_strlen(buffer)], "]}");
+
+		mqtt_publish_str(MQTT_TOPIC_TOPOLOGY, "Topology", buffer);
+		os_free(buffer);
+	    }
+	}
 
         t_old = t_new;
         Bytes_in_last = Bytes_in;
