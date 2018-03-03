@@ -162,9 +162,31 @@ The signal strength is easy to measure with a scan, but which is the one closest
 
 Now each esp_wifi_repeater can learn which other esp_wifi_repeater is the closest to the the original WiFi network, can connect to that, and chose its own BSSID accordingly. Also the IP address of the internal network is adjusted to the mesh level: 10.24.m.0. This creates a tree (a very special mesh) with the original WiFi AP as root and repeating nodes on several mesh levels (actually, it works somewhat similar as the Spanning Tree Protocol (STP) on the link layer or routing on the network layer using a Distance Vector protocol). As soon as an uplink link loss is detected, configuration is restarted. This should avoid loops, as during (re-)configuration also no beacons with an BSSID are sent.
 
+For convenience, the esp_wifi_repeater after "automesh" configuration first tries to check, whether it can connect to an uplink AP. If this fails, even when an AP with the correct SSID has been found, it assumes, the user did a mistake with the password and resets to factory defaults. After it had connected successfully once, it will assume config is correct and keep on trying after connection loss or reset as long as it takes (to avoid a DOS attack with a misconfigured AP). 
+
+## Tuning Automesh
 If there are more than one ESP in range, there might be a trade-off between a shorter "bad" path and a longer "good" path (good and bad in terms of link quality). The parameter _am_threshold_ determines what a bad connection is: if the RSSI in a scan is less than this threshold, a connection is bad and path with one more hop is prefered. I.e. given _am_threshold_ is 85 and there are two automesh nodes detected in the scan: A with level 1 and RSSI -88 dB and B with level 2 and RSSI 60 dB, then a link to A is considered as too bad (-88 dB < -_am_threshold_) and B is preferred. The new node will become a level 3 node with uplink via B. _am_threshold_ is given as a positive value but means a negative dB. A smaller value is better. 
 
-For convenience, the esp_wifi_repeater after "automesh" configuration first tries to check, whether it can connect to an uplink AP. If this fails, even when an AP with the correct SSID has been found, it assumes, the user did a mistake with the password and resets to factory defaults. After it had connected successfully once, it will assume config is correct and keep on trying after connection loss or reset as long as it takes (to avoid a DOS attack with a misconfigured AP). 
+If you want to get more insight into the topology of an automesh network, you might consider to connect all node to an MQTT broker and let them publish the "Topology" topic (see below). If you now subscribe on "/WiFi/#/system/Topology" you will get all the node and link infos you need to reconstruct the complete graph:
+The TopologyInfo topic contains the following JSON structure, that can be used to reconstruct a complete graph of an automesh network:
+```
+{
+"nodeinfo" {
+	"id":"ESP_07e37e",
+	"ap_mac":"ee:7c:87:07:e3:7e",
+	"sta_mac":"ec:fa:bc:07:e3:7e",
+	"uplink_bssid":"00:1a:54:93:23:0a",
+	"ap_ip":"192.168.4.1",
+	"sta_ip":"192.168.178.33",
+	"rssi":"-66",
+	"no_stas":"2"
+},
+"stas":[
+	{"mac:":"5c:cf:45:11:7f:13","ip":"192.168.4.2"},
+	{"mac:":"00:14:22:76:99:c5","ip":"192.168.4.3"}
+]
+}
+```
 
 Using the two parameters _am_scan_time_ and _am_sleep_time_ power management can be implemented in automesh mode, if you have connected GPIO16 to RST. After booting the esp_wifi_repeater scans for avilable uplink APs for _am_scan_time_ seconds. If none is found, it goes to deepsleep for _am_sleep_time_ seconds and tries again after reboot (default is 0 = disabled for both parameters).
 
@@ -236,26 +258,6 @@ The router can publish the following status topics periodically (every mqtt_inte
 - _prefix_path_/Bout: Total bytes from the AP to stations  (mask: 0x0100)
 - _prefix_path_/NoStations: Number of stations currently connected to the AP  (mask: 0x2000)
 - _prefix_path_/TopologyInfo: JSON struct with the current topology info of the node (mask: 0x1000)
-
-The TopologyInfo contains the following JSON structure, that can be used to reconstruct a complete graph of an automesh network:
-
-```
-{
-"nodeinfo" {
-	"id":"ESP_07e37e",
-	"ap_mac":"ee:7c:87:07:e3:7e",
-	"sta_mac":"ec:fa:bc:07:e3:7e",
-	"uplink_bssid":"00:1a:54:93:23:0a",
-	"ap_ip":"192.168.4.1",
-	"sta_ip":"192.168.178.33",
-	"rssi":"-66","no_stas":"2"
-},
-"stas":[
-	{"mac:":"5c:cf:45:11:7f:13","ip":"192.168.4.2"},
-	{"mac:":"00:14:22:76:99:c5","ip":"192.168.4.3"}
-]
-}
-```
 
 In addition the repeater can publish on an event basis:
 - _prefix_path_/join: MAC address of a station joining the AP (mask: 0x0008)
