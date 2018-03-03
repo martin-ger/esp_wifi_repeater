@@ -79,6 +79,7 @@ Most of the set-commands are effective only after save and reset.
 - set am_threshold _dB_: sets the threshold for a "bad" connection (in negative dB, default 85, i.e. -85 dB) 
 - set am_scan_time _secs_: sets the time interval in seconds the ESP tries in automesh mode to find an uplink AP before going to sleep (0 disabled, default)
 - set am_sleep_time _secs_: sets the time interval in seconds the ESP sleeps in automesh mode if no uplink AP is found (0 disabled, default)
+
 ### WiFi config
 - set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
 - set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
@@ -91,6 +92,7 @@ Most of the set-commands are effective only after save and reset.
 - scan: does a scan for APs
 - connect: tries to connect to an AP with the currently configured _ssid_ and _password_
 - disconnect: disconnects from any uplink AP
+
 ### TCP/IP config
 - ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
@@ -105,10 +107,13 @@ Most of the set-commands are effective only after save and reset.
 - show dhcp: prints the current status of the dhcp lease table
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
+
 *IP routing is still experimental*
+
 - route clear: clears all static routes
 - route add _network_ _gw_: adds a static route to a network (network given CIDR notation ('x.x.x.x/n')) via gateway gw
 - route delete _network_: removes a static route to a network
+
 ### Firewall/Monitor config
 - acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
 - acl [from_sta|to_sta] clear: clears the whole ACL
@@ -117,10 +122,12 @@ Most of the set-commands are effective only after save and reset.
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port
 ### Interface config
+
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
 - set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
 ### Chip config
+
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
