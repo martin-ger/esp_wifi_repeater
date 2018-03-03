@@ -8,6 +8,7 @@
 #include "lwip/netif.h"
 #include "lwip/dns.h"
 #include "lwip/lwip_napt.h"
+#include "lwip/ip_route.h"
 #include "lwip/app/dhcpserver.h"
 #include "lwip/app/espconn.h"
 #include "lwip/app/espconn_tcp.h"
@@ -41,6 +42,15 @@
 #ifdef MQTT_CLIENT
 #include "mqtt.h"
 #endif
+
+#define os_sprintf_flash(str, fmt, ...) do {	\
+	static const char flash_str[] ICACHE_RODATA_ATTR STORE_ATTR = fmt;	\
+	int flen = (sizeof(flash_str) + 4) & ~3;	\
+	char *f = (char *)os_malloc(flen);	\
+	os_memcpy(f, flash_str, flen);	\
+	ets_vsprintf(str, f,  ##__VA_ARGS__);	\
+	os_free(f);	\
+	} while(0)
 
 uint32_t Vdd;
 
@@ -767,7 +777,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats%s]\r\n",
+        os_sprintf(response, "show [config|stats|route|dhcp%s]\r\n",
 #ifdef MQTT_CLIENT
 		"|mqtt"
 #else
@@ -776,55 +786,58 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	);
         to_console(response);
 
-        os_sprintf(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open] <val>\r\nset [ap_mac|sta_mac|ssid_hidden|sta_hostname] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\nset [automesh] <val>\r\n");
+        os_sprintf_flash(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|nat] <val>\r\n");
         to_console(response);
-        os_sprintf(response, "set [am_threshold");
+        os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
+        to_console(response);
+        os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\n");
+#ifdef ACLS
+        os_sprintf_flash(response, "acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
+        to_console(response);
+#endif
+        os_sprintf_flash(response, "set [automesh|am_threshold");
         to_console(response);
 #ifdef ALLOW_SLEEP
-        os_sprintf(response, "|am_scan_time|am_sleep_time");
+        os_sprintf_flash(response, "|am_scan_time|am_sleep_time");
         to_console(response);
 #endif
-        os_sprintf(response, "] <val>\r\n");
+        os_sprintf_flash(response, "] <val>\r\n");
         to_console(response);
-        os_sprintf(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nconnect | disconnect| reset [factory] | lock | unlock <password> | quit\r\n");
+        os_sprintf_flash(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\nsave [config|dhcp]\r\nconnect | disconnect| reset [factory] | lock | unlock <password> | quit\r\n");
         to_console(response);
 #ifdef WPA2_PEAP
-        os_sprintf(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
+        os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
         to_console(response);
 #endif
-        os_sprintf(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
+        os_sprintf_flash(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
         to_console(response);
 #ifdef ALLOW_SCANNING
-        os_sprintf(response, "scan\r\n");
+        os_sprintf_flash(response, "scan\r\n");
         to_console(response);
 #endif
 #ifdef ALLOW_PING
-        os_sprintf(response, "ping <ip_addr>\r\n");
+        os_sprintf_flash(response, "ping <ip_addr>\r\n");
         to_console(response);
 #endif
 #ifdef PHY_MODE
-        os_sprintf(response, "set phy_mode [1|2|3]\r\n");
+        os_sprintf_flash(response, "set phy_mode [1|2|3]\r\n");
         to_console(response);
 #endif
 #ifdef ALLOW_SLEEP
-        os_sprintf(response, "sleep\r\nset [vmin|vmin_sleep] <val>\r\n");
+        os_sprintf_flash(response, "sleep\r\nset [vmin|vmin_sleep] <val>\r\n");
         to_console(response);
 #endif
 #ifdef REMOTE_MONITORING
-        os_sprintf(response, "monitor [on|off] <portnumber>\r\n");
+        os_sprintf_flash(response, "monitor [on|off] <portnumber>\r\n");
         to_console(response);
 #endif
 
 #ifdef TOKENBUCKET
-        os_sprintf(response, "set [upstream_kbps|downstream_kbps] <val>\r\n");
-        to_console(response);
-#endif
-#ifdef ACLS
-        os_sprintf(response, "acl [from_sta|to_sta|from_ap|to_ap] clear\r\nacl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\n");
+        os_sprintf_flash(response, "set [upstream_kbps|downstream_kbps] <val>\r\n");
         to_console(response);
 #endif
 #ifdef MQTT_CLIENT
-        os_sprintf(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
+        os_sprintf_flash(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
         to_console(response);
 #endif
         goto command_handled_2;
@@ -887,6 +900,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	os_sprintf(response, config.my_addr.addr?"Static IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
 		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
         to_console(response);
+
+	if (config.nat_enable) {
+		os_sprintf_flash(response, "NAT enabled\r\n");
+	} else {
+		os_sprintf_flash(response, "NAT disabled\r\n");
+	}
+	to_console(response);
 
 	os_sprintf(response, "STA MAC: %02x:%02x:%02x:%02x:%02x:%02x\r\nAP MAC:  %02x:%02x:%02x:%02x:%02x:%02x\r\n",  
 		   config.STA_MAC_address[0], config.STA_MAC_address[1], config.STA_MAC_address[2],
@@ -951,7 +971,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
 	   int16_t i;
 	   enum phy_mode phy;
-	   struct dhcps_pool *p;
+	   //struct dhcps_pool *p;
 
            os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
 	      time/3600, (time%3600)/60, time%60, Vdd/1000, Vdd%1000);
@@ -983,14 +1003,83 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   else
 		os_sprintf(response, "AP disabled\r\n");
            to_console(response);
+           struct station_info *station = wifi_softap_get_station_info();
+	   while(station) {
+		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
+		   station->bssid[0], station->bssid[1], station->bssid[2], 
+                   station->bssid[3], station->bssid[4], station->bssid[5],
+                   IP2STR(&station->ip));
+		to_console(response);
+                station = STAILQ_NEXT(station, next);
+           }
+           wifi_softap_free_station_info();
+/*
            for (i = 0; p = dhcps_get_mapping(i); i++) {
 		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
 		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
 		   IP2STR(&p->ip));
 		to_console(response);
 	   }
+*/
 	   if (config.ap_watchdog >= 0 || config.client_watchdog >= 0) {
 		os_sprintf(response, "AP watchdog: %d Client watchdog: %d\r\n", ap_watchdog_cnt, client_watchdog_cnt);
+		to_console(response);
+	   }
+	   goto command_handled_2;
+      }
+
+      if (nTokens == 2 && strcmp(tokens[1], "route") == 0) {
+	   int i;
+	   struct netif *nif;
+	   ip_addr_t ip;
+	   ip_addr_t mask;
+	   ip_addr_t gw;
+	   uint8_t buf[20];
+
+	   os_sprintf_flash(response, "Routing table:\r\nNetwork              Dest\r\n");
+	   to_console(response);
+	   for (nif = netif_list; nif != NULL; nif = nif->next) {
+		if (!netif_is_up(nif))
+		    continue;
+		addr2str(buf, nif->ip_addr.addr&nif->netmask.addr, nif->netmask.addr);
+		os_sprintf(response, buf);
+		to_console(response);
+		int j = 21-os_strlen(buf);
+		for (; j>0; j--)
+		  to_console(" ");
+		os_sprintf(response, "%c%c%d\r\n", nif->name[0], nif->name[1], nif->num);
+		to_console(response);
+	   }
+
+           for (i = 0; ip_get_route(i, &ip, &mask, &gw); i++) {
+		addr2str(buf, ip.addr, mask.addr);
+		os_sprintf(response, buf);
+		to_console(response);
+		int j = 21-os_strlen(buf);
+		for (; j>0; j--)
+		  to_console(" ");
+		os_sprintf(response, IPSTR "\r\n", IP2STR(&gw));
+		to_console(response);
+	   }
+
+	   if ((netif_default != NULL) && (netif_is_up(netif_default))) {
+		os_sprintf_flash(response, "default              ");
+		to_console(response);
+		os_sprintf(response, IPSTR "\r\n", IP2STR(&netif_default->gw));
+		to_console(response);
+	   }
+	   goto command_handled_2;
+      }
+
+      if (nTokens == 2 && strcmp(tokens[1], "dhcp") == 0) {
+	   int i;
+	   struct dhcps_pool *p;
+	   os_sprintf_flash(response, "DHCP table:\r\n");
+	   to_console(response);
+           for (i = 0; p = dhcps_get_mapping(i); i++) {
+		os_sprintf(response, "%02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR " - %d\r\n", 
+		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
+		   IP2STR(&p->ip), p->lease_timer);
 		to_console(response);
 	   }
 	   goto command_handled_2;
@@ -1014,7 +1103,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #ifdef MQTT_CLIENT
       if (nTokens == 2 && strcmp(tokens[1], "mqtt") == 0) {
 	   if (os_strcmp(config.mqtt_host, "none") == 0) {
-	     os_sprintf(response, "MQTT not enabled (no mqtt_host)\r\n");
+	     os_sprintf_flash(response, "MQTT not enabled (no mqtt_host)\r\n");
 	     to_console(response);
 	     goto command_handled_2;
 	   }
@@ -1071,7 +1160,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
 	if (strcmp(tokens[2],"clear")==0) {
 	    acl_clear(acl_no);
-	    os_sprintf(response, "ACL cleared\r\n");
+	    os_sprintf_flash(response, "ACL cleared\r\n");
 	    goto command_handled;
 	}
 
@@ -1116,13 +1205,59 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	}
 
 	if (acl_add(acl_no, saddr, smask, daddr, dmask, proto, sport, dport, allow)) {
-	    os_sprintf(response, "ACL added\r\n");
+	    os_sprintf_flash(response, "ACL added\r\n");
 	} else {
-	    os_sprintf(response, "ACL add failed\r\n");
+	    os_sprintf_flash(response, "ACL add failed\r\n");
 	}
         goto command_handled;
     }
 #endif /* ACLS */
+
+    if (strcmp(tokens[0], "route") == 0)
+    {
+    ip_addr_t daddr;
+    ip_addr_t dmask;
+    ip_addr_t gw;
+
+        if (config.locked)
+        {
+            os_sprintf(response, INVALID_LOCKED);
+            goto command_handled;
+        }
+
+        if (nTokens == 2 && strcmp(tokens[1],"clear")==0) {
+	    ip_delete_routes();
+	    os_sprintf_flash(response, "All routes cleared\r\n");
+	    goto command_handled;
+	}
+
+        if (nTokens == 3 && strcmp(tokens[1],"delete")==0) {
+	    parse_IP_addr(tokens[2], (uint32_t*)&daddr.addr, (uint32_t*)&dmask.addr);
+
+	    if (ip_rm_route(daddr, dmask)) {
+		os_sprintf_flash(response, "Route deleted\r\n");
+	    } else {
+		os_sprintf_flash(response, "Route not found\r\n");
+	    }
+	    goto command_handled;
+        }
+
+        if (nTokens == 4 && strcmp(tokens[1],"add")==0) {
+	    uint32_t dummy;
+	    parse_IP_addr(tokens[2], (uint32_t*)&daddr.addr, (uint32_t*)&dmask.addr);
+	    parse_IP_addr(tokens[3], (uint32_t*)&gw.addr, &dummy);
+
+	    if (ip_add_route(daddr, dmask, gw)) {
+		os_sprintf_flash(response, "Route added\r\n");
+	    } else {
+		os_sprintf_flash(response, "Route add failed\r\n");
+	    }
+	    goto command_handled;
+        }
+
+	os_sprintf(response, INVALID_ARG);
+        goto command_handled;
+    }
 
     if (strcmp(tokens[0], "portmap") == 0)
     {
@@ -1170,7 +1305,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	if (retval) {
 	    os_sprintf(response, "Portmap %s\r\n", add?"set":"deleted");
 	} else {
-	    os_sprintf(response, "Portmap failed\r\n");
+	    os_sprintf_flash(response, "Portmap failed\r\n");
 	}
         goto command_handled;
     }
@@ -1206,7 +1341,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	goto command_handled;
       }
 
-      os_sprintf(response, "Disconnect from ssid\r\n");
+      os_sprintf_flash(response, "Disconnect from ssid\r\n");
 
       wifi_station_disconnect();
 
@@ -1224,22 +1359,32 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         config_save(&config);
 	// also save the portmap table
 	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
-        os_sprintf(response, "Config saved\r\n");
+        os_sprintf_flash(response, "Config saved\r\n");
         goto command_handled;
       }
 
       if (nTokens == 2 && strcmp(tokens[1], "dhcp") == 0) {
-	int16_t i;
-	struct dhcps_pool *p;
+	int16_t i = 0;
 
-	for (i = 0; i<MAX_DHCP && (p = dhcps_get_mapping(i)); i++) {
+	// Copy all active STAs and their DHCP mappings to the config
+        struct station_info *station = wifi_softap_get_station_info();
+	while(station) {
+	    config.dhcps_p[i].ip = station->ip;
+	    os_memcpy(config.dhcps_p[i].mac, station->bssid, sizeof(station->bssid));
+            station = STAILQ_NEXT(station, next);
+	    if (++i >= MAX_DHCP) 
+		break;
+        }
+        
+/*	for (i = 0; i<MAX_DHCP && (p = dhcps_get_mapping(i)); i++) {
 	  os_memcpy(&config.dhcps_p[i], p, sizeof(struct dhcps_pool));
 	}
+*/
 	config.dhcps_entries = i;
         config_save(&config);
 	// also save the portmap table
 	blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
-        os_sprintf(response, "Config and DHCP table saved\r\n");
+        os_sprintf_flash(response, "Config and DHCP table saved\r\n");
         goto command_handled;
       }
     }
@@ -1248,7 +1393,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     {
         currentconn = pespconn;
         wifi_station_scan(NULL,scan_done);
-        os_sprintf(response, "Scanning...\r\n");
+        os_sprintf_flash(response, "Scanning...\r\n");
         goto command_handled;
     }
 #endif
@@ -1278,14 +1423,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_printf("Restarting ... \r\n");
 	system_restart(); // if it works this will not return
 
-	os_sprintf(response, "Reset failed\r\n");
+	os_sprintf_flash(response, "Reset failed\r\n");
         goto command_handled;
     }
 
     if (strcmp(tokens[0], "quit") == 0)
     {
 	remote_console_disconnect = 1;
-	os_sprintf(response, "Quitting console\r\n");
+	os_sprintf_flash(response, "Quitting console\r\n");
         goto command_handled;
     }
 #ifdef ALLOW_SLEEP
@@ -1302,12 +1447,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
     if (strcmp(tokens[0], "lock") == 0) {
 	if (config.locked) {
-	    os_sprintf(response, "Config already locked\r\n");
+	    os_sprintf_flash(response, "Config already locked\r\n");
 	    goto command_handled;
 	}
 	if (nTokens == 1) {
 	    if (os_strlen(config.lock_password) == 0) {
-		os_sprintf(response, "No password defined\r\n");
+		os_sprintf_flash(response, "No password defined\r\n");
 		goto command_handled;
 	    }
 	}
@@ -1330,9 +1475,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	} else if (os_strcmp(tokens[1], config.lock_password) == 0) {
 	    config.locked = 0;
 	    config_save(&config);
-	    os_sprintf(response, "Config unlocked\r\n");
+	    os_sprintf_flash(response, "Config unlocked\r\n");
 	} else {
-	    os_sprintf(response, "Unlock failed. Invalid password\r\n");
+	    os_sprintf_flash(response, "Unlock failed. Invalid password\r\n");
 	}
 	goto command_handled;
     }
@@ -1353,11 +1498,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 					) {
   	    if (nTokens != 3) {
-        	os_sprintf(response, "Port number missing\r\n");
+        	os_sprintf_flash(response, "Port number missing\r\n");
 		goto command_handled;
             }
 	    if (monitor_port != 0) {
-		os_sprintf(response, "Monitor already started\r\n");
+		os_sprintf_flash(response, "Monitor already started\r\n");
 		goto command_handled;
 	    }
 	    
@@ -1370,19 +1515,19 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);       
                 goto command_handled;
             } else {
-		os_sprintf(response, "Invalid monitor port\r\n");
+		os_sprintf_flash(response, "Invalid monitor port\r\n");
 		goto command_handled;
 	    }
 	}
 
 	if (strcmp(tokens[1],"off") == 0) {
 	    if (monitor_port == 0) {
-		os_sprintf(response, "Monitor already stopped\r\n");
+		os_sprintf_flash(response, "Monitor already stopped\r\n");
 		goto command_handled;
 	    }
 	    monitor_port = 0;
 	    stop_monitor();
-	    os_sprintf(response, "Stopped monitor\r\n");
+	    os_sprintf_flash(response, "Stopped monitor\r\n");
 	    goto command_handled;
 	}
     }
@@ -1416,7 +1561,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		  config.automesh_mode = AUTOMESH_LEARNING;
 		}
 		config.auto_connect = 1;
-                os_sprintf(response, "SSID set (auto_connect = 1)\r\n");
+                os_sprintf_flash(response, "SSID set (auto_connect = 1)\r\n");
                 goto command_handled;
             }
 
@@ -1431,39 +1576,39 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		// WiFi pw of the uplink network is also the default lock pw (backward compatibility)
 		os_sprintf(config.lock_password, "%s", tokens[2]);
 
-                os_sprintf(response, "Password set\r\n");
+                os_sprintf_flash(response, "Password set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"auto_connect") == 0)
             {
                 config.auto_connect = atoi(tokens[2]);
-                os_sprintf(response, "Auto Connect set\r\n");
+                os_sprintf_flash(response, "Auto Connect set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"sta_hostname") == 0)
             {
                 os_sprintf(config.sta_hostname, "%s", tokens[2]);
-                os_sprintf(response, "STA hostname set\r\n");
+                os_sprintf_flash(response, "STA hostname set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"ap_ssid") == 0)
             {
                 os_sprintf(config.ap_ssid, "%s", tokens[2]);
-                os_sprintf(response, "AP SSID set\r\n");
+                os_sprintf_flash(response, "AP SSID set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"ap_password") == 0)
             {
 		if (os_strlen(tokens[2])<8) {
-		    os_sprintf(response, "Password too short (min. 8)\r\n");
+		    os_sprintf_flash(response, "Password too short (min. 8)\r\n");
 		} else {
                     os_sprintf(config.ap_password, "%s", tokens[2]);
 		    config.ap_open = 0;
-                    os_sprintf(response, "AP Password set\r\n");
+                    os_sprintf_flash(response, "AP Password set\r\n");
 		}
                 goto command_handled;
             }
@@ -1471,14 +1616,27 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"ap_open") == 0)
             {
                 config.ap_open = atoi(tokens[2]);
-                os_sprintf(response, "Open Auth set\r\n");
+                os_sprintf_flash(response, "Open Auth set\r\n");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"nat") == 0)
+            {
+                config.nat_enable = atoi(tokens[2]);
+		if (config.nat_enable) {
+		    ip_napt_enable_no(1, 1);
+		    os_sprintf_flash(response, "NAT enabled\r\n");
+		} else {
+		    ip_napt_enable_no(1, 0);
+		    os_sprintf_flash(response, "NAT disabled\r\n");
+		}
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"ssid_hidden") == 0)
             {
                 config.ssid_hidden = atoi(tokens[2]);
-                os_sprintf(response, "Hidden SSID set\r\n");
+                os_sprintf_flash(response, "Hidden SSID set\r\n");
                 goto command_handled;
             }
 
@@ -1500,12 +1658,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
 		if (strcmp(tokens[2],"none") == 0) {
 		    config.ap_watchdog = ap_watchdog_cnt = -1;
-		    os_sprintf(response, "AP watchdog off\r\n");
+		    os_sprintf_flash(response, "AP watchdog off\r\n");
 		    goto command_handled;
 		}
 		int32_t wd_val = atoi(tokens[2]);
 		if (wd_val < 30) {
-		    os_sprintf(response, "AP watchdog value invalid\r\n");
+		    os_sprintf_flash(response, "AP watchdog value invalid\r\n");
 		    goto command_handled;
 		}
                 config.ap_watchdog = ap_watchdog_cnt = wd_val;
@@ -1517,12 +1675,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
 		if (strcmp(tokens[2],"none") == 0) {
 		    config.client_watchdog = client_watchdog_cnt = -1;
-		    os_sprintf(response, "Client watchdog off\r\n");
+		    os_sprintf_flash(response, "Client watchdog off\r\n");
 		    goto command_handled;
 		}
 		int32_t wd_val = atoi(tokens[2]);
 		if (wd_val < 30) {
-		    os_sprintf(response, "Client watchdog value invalid\r\n");
+		    os_sprintf_flash(response, "Client watchdog value invalid\r\n");
 		    goto command_handled;
 		}
                 config.client_watchdog = client_watchdog_cnt = wd_val;
@@ -1540,7 +1698,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"use_peap") == 0)
             {
                 config.use_PEAP = atoi(tokens[2]);
-                os_sprintf(response, "PEAP authenticaton set\r\n");
+                os_sprintf_flash(response, "PEAP authenticaton set\r\n");
                 goto command_handled;
             }
 
@@ -1550,7 +1708,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf(response, "Identity too long (max. %d)\r\n", sizeof(config.PEAP_identity)-1);
 		} else {
                     os_sprintf(config.PEAP_identity, "%s", tokens[2]);
-                    os_sprintf(response, "PEAP identity set\r\n");
+                    os_sprintf_flash(response, "PEAP identity set\r\n");
 		}
                 goto command_handled;
             }
@@ -1561,7 +1719,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf(response, "Username too long (max. %d)\r\n", sizeof(config.PEAP_username)-1);
 		} else {
                     os_sprintf(config.PEAP_username, "%s", tokens[2]);
-                    os_sprintf(response, "PEAP username set\r\n");
+                    os_sprintf_flash(response, "PEAP username set\r\n");
 		}
                 goto command_handled;
             }
@@ -1572,7 +1730,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf(response, "Password too long (max. %d)\r\n", sizeof(config.PEAP_password)-1);
 		} else {
                     os_sprintf(config.PEAP_password, "%s", tokens[2]);
-                    os_sprintf(response, "PEAP password set\r\n");
+                    os_sprintf_flash(response, "PEAP password set\r\n");
 		}
                 goto command_handled;
             }
@@ -1581,7 +1739,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"acl_debug") == 0)
             {
 		acl_debug = atoi(tokens[2]);
-                os_sprintf(response, "ACL debug set\r\n");
+                os_sprintf_flash(response, "ACL debug set\r\n");
                 goto command_handled;
             }
 #endif
@@ -1590,7 +1748,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.config_port = atoi(tokens[2]);
 		if (config.config_port == 0) 
-		  os_sprintf(response, "WARNING: if you save this, remote console access will be disabled!\r\n");
+		  os_sprintf_flash(response, "WARNING: if you save this, remote console access will be disabled!\r\n");
 		else
 		  os_sprintf(response, "Config port set to %d\r\n", config.config_port);
                 goto command_handled;
@@ -1599,7 +1757,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    if (strcmp(tokens[1], "config_access") == 0) {
 		config.config_access = atoi(tokens[2]) & (LOCAL_ACCESS | REMOTE_ACCESS);
 		if (config.config_access == 0)
-		    os_sprintf(response, "WARNING: if you save this, remote console and web access will be disabled!\r\n");
+		    os_sprintf_flash(response, "WARNING: if you save this, remote console and web access will be disabled!\r\n");
 		else
 		    os_sprintf(response, "Config access set\r\n", config.config_port);
 		goto command_handled;
@@ -1610,7 +1768,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.web_port = atoi(tokens[2]);
 		if (config.web_port == 0) 
-		  os_sprintf(response, "WARNING: if you save this, web config will be disabled!\r\n");
+		  os_sprintf_flash(response, "WARNING: if you save this, web config will be disabled!\r\n");
 		else
 		  os_sprintf(response, "Web port set to %d\r\n", config.web_port);
                 goto command_handled;
@@ -1620,13 +1778,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"downstream_kbps") == 0)
             {
                 config.kbps_ds = atoi(tokens[2]);
-                os_sprintf(response, "Bitrate set\r\n");
+                os_sprintf_flash(response, "Bitrate set\r\n");
                 goto command_handled;
             }
             if (strcmp(tokens[1],"upstream_kbps") == 0)
             {
                 config.kbps_us = atoi(tokens[2]);
-                os_sprintf(response, "Bitrate set\r\n");
+                os_sprintf_flash(response, "Bitrate set\r\n");
                 goto command_handled;
             }
 #endif
@@ -1634,28 +1792,28 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"vmin") == 0)
             {
                 config.Vmin = atoi(tokens[2]);
-                os_sprintf(response, "Vmin set\r\n");
+                os_sprintf_flash(response, "Vmin set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"vmin_sleep") == 0)
             {
                 config.Vmin_sleep = atoi(tokens[2]);
-                os_sprintf(response, "Vmin sleep time set\r\n");
+                os_sprintf_flash(response, "Vmin sleep time set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"am_scan_time") == 0)
             {
                 config.am_scan_time = atoi(tokens[2]);
-                os_sprintf(response, "Automesh scan time set\r\n");
+                os_sprintf_flash(response, "Automesh scan time set\r\n");
                 goto command_handled;
             }
 
             if (strcmp(tokens[1],"am_sleep_time") == 0)
             {
                 config.am_sleep_time = atoi(tokens[2]);
-                os_sprintf(response, "Automesh sleep time set\r\n");
+                os_sprintf_flash(response, "Automesh sleep time set\r\n");
                 goto command_handled;
             }
 #endif
@@ -1667,18 +1825,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 				user_set_softap_wifi_config();
 				do_ip_config = true;
 				config.ap_on = true;
-	                	os_sprintf(response, "AP on\r\n");
+	                	os_sprintf_flash(response, "AP on\r\n");
 			} else {
-				os_sprintf(response, "AP already on\r\n");
+				os_sprintf_flash(response, "AP already on\r\n");
 			}
 
 		} else {
 			if (config.ap_on) {
 				wifi_set_opmode(STATION_MODE);
 				config.ap_on = false;
-                		os_sprintf(response, "AP off\r\n");
+                		os_sprintf_flash(response, "AP off\r\n");
 			} else {
-				os_sprintf(response, "AP already off\r\n");
+				os_sprintf_flash(response, "AP already off\r\n");
 			}
 		}
                 goto command_handled;
@@ -1706,7 +1864,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		}
 		config.status_led = atoi(tokens[2]);
 		if (config.status_led > 16) {
-		    os_sprintf(response, "Status led disabled\r\n");
+		    os_sprintf_flash(response, "Status led disabled\r\n");
 		    goto command_handled;
 		}
 		if (config.status_led == 1) {
@@ -1743,7 +1901,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
 		if (os_strcmp(tokens[2], "dhcp") == 0) {
 		    config.dns_addr.addr = 0;
-		    os_sprintf(response, "DNS from DHCP\r\n");
+		    os_sprintf_flash(response, "DNS from DHCP\r\n");
 		} else {
 		    config.dns_addr.addr = ipaddr_addr(tokens[2]);
 		    os_sprintf(response, "DNS set to %d.%d.%d.%d\r\n", 
@@ -1760,7 +1918,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
 		if (os_strcmp(tokens[2], "dhcp") == 0) {
 		    config.my_addr.addr = 0;
-		    os_sprintf(response, "IP from DHCP\r\n");
+		    os_sprintf_flash(response, "IP from DHCP\r\n");
 		} else {
 		    config.my_addr.addr = ipaddr_addr(tokens[2]);
 		    os_sprintf(response, "IP address set to %d.%d.%d.%d\r\n", 
@@ -1790,7 +1948,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 if (!parse_mac(config.AP_MAC_address, tokens[2]))
 		  os_sprintf(response, INVALID_ARG);
 		else
-                  os_sprintf(response, "AP MAC set\r\n");
+                  os_sprintf_flash(response, "AP MAC set\r\n");
                 goto command_handled;
             }
 
@@ -1799,7 +1957,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 if (!parse_mac(config.STA_MAC_address, tokens[2]))
 		  os_sprintf(response, INVALID_ARG);
 		else
-                  os_sprintf(response, "STA MAC set\r\n");
+                  os_sprintf_flash(response, "STA MAC set\r\n");
                 goto command_handled;
             }
 
@@ -1808,7 +1966,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 if (!parse_mac(config.bssid, tokens[2]))
 		  os_sprintf(response, INVALID_ARG);
 		else
-                  os_sprintf(response, "bssid set\r\n");
+                  os_sprintf_flash(response, "bssid set\r\n");
                 goto command_handled;
             }
 
@@ -1817,14 +1975,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    {
 		os_strncpy(config.mqtt_host, tokens[2], 32);
 		config.mqtt_host[31] = 0;
-		os_sprintf(response, "MQTT host set\r\n");
+		os_sprintf_flash(response, "MQTT host set\r\n");
         	goto command_handled;
 	    }
 
 	    if (strcmp(tokens[1], "mqtt_port") == 0)
 	    {
 		config.mqtt_port = atoi(tokens[2]);
-		os_sprintf(response, "MQTT port set\r\n");
+		os_sprintf_flash(response, "MQTT port set\r\n");
         	goto command_handled;
 	    }
 
@@ -1832,7 +1990,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    {
 		os_strncpy(config.mqtt_user, tokens[2], 32);
 		config.mqtt_user[31] = 0;
-		os_sprintf(response, "MQTT user set\r\n");
+		os_sprintf_flash(response, "MQTT user set\r\n");
         	goto command_handled;
 	    }
 
@@ -1840,34 +1998,34 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    {
 		os_strncpy(config.mqtt_password, tokens[2], 32);
 		config.mqtt_password[31] = 0;
-		os_sprintf(response, "MQTT password set\r\n");
+		os_sprintf_flash(response, "MQTT password set\r\n");
         	goto command_handled;
 	    }
 	    if (strcmp(tokens[1], "mqtt_id") == 0)
 	    {
 		os_strncpy(config.mqtt_id, tokens[2], 32);
 		config.mqtt_id[31] = 0;
-		os_sprintf(response, "MQTT id set\r\n");
+		os_sprintf_flash(response, "MQTT id set\r\n");
         	goto command_handled;
 	    }
 	    if (strcmp(tokens[1], "mqtt_prefix") == 0)
 	    {
 		os_strncpy(config.mqtt_prefix, tokens[2], 64);
 		config.mqtt_prefix[63] = 0;
-		os_sprintf(response, "MQTT prefix set\r\n");
+		os_sprintf_flash(response, "MQTT prefix set\r\n");
         	goto command_handled;
 	    }
 	    if (strcmp(tokens[1], "mqtt_command_topic") == 0)
 	    {
 		os_strncpy(config.mqtt_command_topic, tokens[2], 64);
 		config.mqtt_command_topic[63] = 0;
-		os_sprintf(response, "MQTT command topic set\r\n");
+		os_sprintf_flash(response, "MQTT command topic set\r\n");
         	goto command_handled;
 	    }
 	    if (strcmp(tokens[1], "mqtt_interval") == 0)
 	    {
 		config.mqtt_interval = atoi(tokens[2]);
-		os_sprintf(response, "MQTT interval set\r\n");
+		os_sprintf_flash(response, "MQTT interval set\r\n");
         	goto command_handled;
 	    }
 	    if (strcmp(tokens[1], "mqtt_mask") == 0)
@@ -1891,7 +2049,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    {
 		os_strncpy(config.mqtt_gpio_out_topic, tokens[2], 64);
 		config.mqtt_gpio_out_topic[63] = 0;
-		os_sprintf(response, "MQTT gpio_out topic set\r\n");
+		os_sprintf_flash(response, "MQTT gpio_out topic set\r\n");
         	goto command_handled;
 	    }
 #endif
@@ -1911,7 +2069,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     }
 
     /* Control comes here only if the tokens[0] command is not handled */
-    os_sprintf(response, "\r\nInvalid Command\r\n");
+    os_sprintf_flash(response, "\r\nInvalid Command\r\n");
 
 command_handled:
     to_console(response);
@@ -2168,18 +2326,37 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
     ringbuf_reset(console_tx_buffer);
 
     if (!config.locked) {
-    //os_printf("config_str: %d\r\n", os_strlen(CONFIG_PAGE));
+    	static const uint8_t config_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = CONFIG_PAGE;
+	uint32_t slen = (sizeof(config_page_str) + 4) & ~3;
+	uint8_t *config_page = (char *)os_malloc(slen);
+	if (config_page == NULL)
+	    return;
+	os_memcpy(config_page, config_page_str, slen);
+
 	if (page_buf == NULL)
-	    page_buf = (char *)os_malloc(os_strlen(CONFIG_PAGE)+200);
-	os_sprintf(page_buf, CONFIG_PAGE, config.ssid, config.password,
+	    page_buf = (char *)os_malloc(slen+200);
+	if (page_buf == NULL)
+	    return;
+	os_sprintf(page_buf, config_page, config.ssid, config.password,
 		   config.automesh_mode!=AUTOMESH_OFF?"checked":"",
 		   config.ap_ssid, config.ap_password,
 		   config.ap_open?" selected":"", config.ap_open?"":" selected",
 		   IP2STR(&config.network_addr));
-	espconn_sent(pespconn, page_buf, os_strlen(CONFIG_PAGE));
+	os_free(config_page);
+
+	espconn_sent(pespconn, page_buf, os_strlen(page_buf));
     }
     else {
-	espconn_sent(pespconn, LOCK_PAGE, os_strlen(LOCK_PAGE));
+    	static const uint8_t lock_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = LOCK_PAGE;
+	uint32_t slen = (sizeof(lock_page_str) + 4) & ~3;
+	uint8_t *lock_page = (char *)os_malloc(slen);
+	if (lock_page == NULL)
+	    return;
+	os_memcpy(lock_page, lock_page_str, slen);
+
+	espconn_sent(pespconn, lock_page, sizeof(lock_page_str));
+	
+	os_free(lock_page);
 	page_buf = NULL;
     }
 }
@@ -2439,7 +2616,7 @@ os_printf(">>> Enable AP\r\n");
 #endif
 	ip_addr_t ap_ip = config.network_addr;
 	ip4_addr4(&ap_ip) = 1;
-	patch_netif(ap_ip, my_input_ap, &orig_input_ap, my_output_ap, &orig_output_ap, true);
+	patch_netif(ap_ip, my_input_ap, &orig_input_ap, my_output_ap, &orig_output_ap, config.nat_enable);
         break;
 
     case EVENT_SOFTAPMODE_STADISCONNECTED:
@@ -2895,7 +3072,7 @@ struct ip_info info;
 
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);
-    os_timer_arm(&ptimer, 500, 0); 
+    os_timer_arm(&ptimer, 500, 0);
 
     //Start task
     system_os_task(user_procTask, user_procTaskPrio, user_procTaskQueue, user_procTaskQueueLen);

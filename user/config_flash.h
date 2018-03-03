@@ -9,13 +9,14 @@
 #include "os_type.h"
 #include "spi_flash.h"
 #include "lwip/app/dhcpserver.h"
+#include "lwip/ip_route.h"
 
 #include "user_config.h"
 #include "acl.h"
 
 #define FLASH_BLOCK_NO 0xc
 
-#define MAGIC_NUMBER    0x112005fc
+#define MAGIC_NUMBER    0x112435fc
 
 typedef enum {AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL} automeshmode;
 
@@ -59,6 +60,7 @@ typedef struct
     uint32_t	am_scan_time;	// Seconds for scanning
     uint32_t	am_sleep_time;	// Seconds for sleeping
 
+    uint8_t	nat_enable;	// Enable NAT on the AP netif;
     ip_addr_t	network_addr;	// Address of the internal network
     ip_addr_t	dns_addr;	// Optional: address of the dns server
 
@@ -105,6 +107,9 @@ typedef struct
     uint8_t     AP_MAC_address[6];	// MAC address of the AP
     uint8_t     STA_MAC_address[6];	// MAC address of the STA
 
+    uint32_t	no_routes;	// Number of static routing entires
+    struct route_entry rt_table[MAX_ROUTES];	// The routing entries
+
     uint16_t	dhcps_entries;	// number of allocated entries in the following table
     struct dhcps_pool dhcps_p[MAX_DHCP];		// DHCP entries
 #ifdef ACLS
@@ -121,3 +126,4 @@ void blob_load(uint8_t blob_no, uint32_t *data, uint16_t len);
 void blob_zero(uint8_t blob_no, uint16_t len);
 
 #endif
+

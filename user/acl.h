@@ -39,6 +39,8 @@ bool acl_add(uint8_t acl_no,
 	uint8_t proto, uint16_t s_port, uint16_t d_port, uint8_t allow);
 uint8_t acl_check_packet(uint8_t acl_no, struct pbuf *p);
 void acl_set_deny_cb(packet_deny_cb cb);
+
+void addr2str(uint8_t *buf, uint32_t addr, uint32_t mask);
 void acl_show(uint8_t acl_no, uint8_t *buf);
 
 #endif /* _ACL_H_ */

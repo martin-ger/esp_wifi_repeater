@@ -48,6 +48,7 @@ uint8_t mac[6];
     config->am_scan_time		= 0;
     config->am_sleep_time		= 0;
 
+    config->nat_enable			= 1;
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
     config->dns_addr.addr		= 0;  // use DHCP
     config->my_addr.addr		= 0;  // use DHCP   
@@ -91,6 +92,8 @@ uint8_t mac[6];
     wifi_get_macaddr(SOFTAP_IF, config->AP_MAC_address);	
     wifi_get_macaddr(STATION_IF, config->STA_MAC_address);	
 
+    config->no_routes			= 0;
+
     config->dhcps_entries		= 0;
 #ifdef ACLS
     acl_init();	// initializes the ACLs, written in config during save
@@ -121,6 +124,10 @@ int config_load(sysconfig_p config)
         config_save(config);
 	return -1;
     }
+
+    ip_route_max = config->no_routes;
+    os_memcpy(ip_rt_table, config->rt_table, sizeof(ip_rt_table));
+
 #ifdef ACLS
     os_memcpy(&acl, &(config->acl), sizeof(acl));
     os_memcpy(&acl_freep, &(config->acl_freep), sizeof(acl_freep));
@@ -131,6 +138,9 @@ int config_load(sysconfig_p config)
 void config_save(sysconfig_p config)
 {
     uint16_t base_address = FLASH_BLOCK_NO;
+    config->no_routes = ip_route_max;
+    os_memcpy(config->rt_table, ip_rt_table, sizeof(ip_rt_table));
+
 #ifdef ACLS
     os_memcpy(&(config->acl), &acl, sizeof(acl));
     os_memcpy(&(config->acl_freep), &acl_freep, sizeof(acl_freep));
@@ -162,3 +172,4 @@ int i;
     spi_flash_erase_sector(base_address);
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, (uint32_t *)z, len);
 }
+
