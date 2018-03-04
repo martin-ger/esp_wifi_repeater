@@ -86,6 +86,8 @@ bool connected;
 uint8_t my_channel;
 bool do_ip_config;
 
+uint8_t mesh_level;
+
 static netif_input_fn orig_input_ap, orig_input_sta;
 static netif_linkoutput_fn orig_output_ap, orig_output_sta;
 
@@ -2470,10 +2472,11 @@ uint32_t Bps;
 		wifi_station_get_ap_info(sta_config);
 		mac_2_buff(bssid_mac, sta_config[wifi_station_get_current_ap_id()].bssid);
 		
-		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"no_stas\":\"%d\"},\"stas\":[",
+		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"mesh_level\":\"%u\",\"no_stas\":\"%d\"},\"stas\":[",
 			config.sta_hostname, ap_mac, sta_mac, bssid_mac, 
 			IP2STR(&my_ap_ip), IP2STR(&my_ip), 
-			wifi_station_get_rssi(), wifi_softap_get_station_num());
+			wifi_station_get_rssi(), mesh_level,
+			wifi_softap_get_station_num());
 
 		struct station_info *station = wifi_softap_get_station_info();
 		bool do_colon = false;
@@ -2825,7 +2828,6 @@ LOCAL void  gpio_intr_handler(void *dummy)
 
 #define RANDOM_REG (*(volatile u32 *)0x3FF20E44)
 
-uint8_t mesh_level;
 void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 {
   if (status == OK)

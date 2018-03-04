@@ -167,8 +167,7 @@ For convenience, the esp_wifi_repeater after "automesh" configuration first trie
 ## Tuning Automesh
 If there are more than one ESP in range, there might be a trade-off between a shorter "bad" path and a longer "good" path (good and bad in terms of link quality). The parameter _am_threshold_ determines what a bad connection is: if the RSSI in a scan is less than this threshold, a connection is bad and path with one more hop is prefered. I.e. given _am_threshold_ is 85 and there are two automesh nodes detected in the scan: A with level 1 and RSSI -88 dB and B with level 2 and RSSI 60 dB, then a link to A is considered as too bad (-88 dB < -_am_threshold_) and B is preferred. The new node will become a level 3 node with uplink via B. _am_threshold_ is given as a positive value but means a negative dB. A smaller value is better. 
 
-If you want to get more insight into the topology of an automesh network, you might consider to connect all node to an MQTT broker and let them publish the "Topology" topic (see below). If you now subscribe on "/WiFi/#/system/Topology" you will get all the node and link infos you need to reconstruct the complete graph:
-The TopologyInfo topic contains the following JSON structure, that can be used to reconstruct a complete graph of an automesh network:
+If you want to get more insight into the topology of an automesh network, you might consider to connect all nodes to an MQTT broker and let them publish the "Topology" topic (see below). If you now subscribe on "/WiFi/#/system/Topology" you will get all the node and link infos including the RSSI (of connected ESPs) you need to reconstruct the complete graph and detect weak links in the mesh. The TopologyInfo topic contains the following JSON structure, that can be used to reconstruct a complete graph of an automesh network:
 ```
 {
 "nodeinfo" {
@@ -179,6 +178,7 @@ The TopologyInfo topic contains the following JSON structure, that can be used t
 	"ap_ip":"192.168.4.1",
 	"sta_ip":"192.168.178.33",
 	"rssi":"-66",
+	"mesh_level":"0",
 	"no_stas":"2"
 },
 "stas":[
