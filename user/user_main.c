@@ -2475,7 +2475,8 @@ uint32_t Bps;
 		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"mesh_level\":\"%u\",\"no_stas\":\"%d\"},\"stas\":[",
 			config.sta_hostname, ap_mac, sta_mac, bssid_mac, 
 			IP2STR(&my_ap_ip), IP2STR(&my_ip), 
-			wifi_station_get_rssi(), mesh_level,
+			wifi_station_get_rssi(),
+			config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:0,
 			wifi_softap_get_station_num());
 
 		struct station_info *station = wifi_softap_get_station_info();
