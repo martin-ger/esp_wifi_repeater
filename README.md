@@ -96,7 +96,6 @@ Most of the set-commands are effective only after save and reset.
 ### TCP/IP config
 - ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
-- set nat [0|1]: selects, whether the soft-AP interface is NATed (nat=1, default) or not (nat=0). Without NAT transparent forwarding of traffic from the internal STAs doesn't work! Useful only if you want to do static routing.
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
 - set dns dhcp: configures use of the dynamic DNS address from DHCP, default
 - set ip _ip-addr_: sets a static IP address for the ESP in the uplink network
@@ -105,11 +104,11 @@ Most of the set-commands are effective only after save and reset.
 - set gw _gw-addr_: sets a static gateway address in the uplink network
 - show route: prints the current routing table
 - show dhcp: prints the current status of the dhcp lease table
+- set nat [0|1]: selects, whether the soft-AP interface is NATed (nat=1, default) or not (nat=0). Without NAT transparent forwarding of traffic from the internal STAs doesn't work! Useful only if you want to do static routing.
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 
-*Static IP routing is still experimental*
-
+### Static Routes
 - route clear: clears all static routes
 - route add _network_ _gw_: adds a static route to a network (network given CIDR notation ('x.x.x.x/n')) via gateway gw
 - route delete _network_: removes a static route to a network
@@ -121,13 +120,13 @@ Most of the set-commands are effective only after save and reset.
 - set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port
-### User Interface config
 
+### User Interface config
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
 - set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
-### Chip config
 
+### Chip config
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
@@ -228,6 +227,33 @@ For deeper analysis the monitoring service can be used (even denied packets are 
 
 will allow all packets and also select all packets for monitoring that go from a station to the 192.168.0.0/16 (local)subnet and from the 192.168.0.0/16 to a station. Of course such a filter can be applied also after the capture to a full monitoring trace, but if you already know, what you are looking for, these online filters will help to reduce monitoring overhead drastically. It can also be used to debug all deny firewall rules by simply using "deny_monitor" instead of deny.
 
+# Static Routes
+By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
+
+For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add <netword> <gateway>" command, like known from Linux boxes or routers. New routes will be always placed in the top of the routing table.
+	
+Here is a simple example of what can be done with static routes. Given the following network setup with two ESPs connected with the STA interfaces via a central home router:
+```
+| 10.0.1.1 AP-ESP1-STA 192.168.1.10 | <-> |Home Router| <-> | 192.168.1.20 STA-ESP2-AP 10.0.2.1|
+```
+Each ESP has a second network behind its AP with different network addresses: 10.0.1.0/24 and 10.0.2.0/24. ESP1 can ping to ESP2 to the 192.168.1.20 but not to the 10.0.2.1, as it doesn't know that it can reach it via the 192.168.1.20. This changes if you add two static routes. On ESP1:
+```
+route add 10.0.2.0/24 92.168.1.20
+```
+and on ESP2:
+```
+route add 10.0.1.0/24 92.168.1.10
+```
+Now a "ping 10.0.2.1" on ESP1 will be successful. It is send to 192.168.1.20 and then answered by ESP2.
+
+Now in each network an additional client connects (with addresses 10.0.1.2 and 10.0.2.2): 
+```
+| STA1 10.0.1.2 | <-> | 10.0.1.1 ESP1 192.168.1.10 | <-> |Home Router| <-> | 192.168.1.20 ESP2 10.0.2.1| <-> | STA2 10.0.2.2 |
+```
+Now even client STA2 with the local address 10.0.1.2 can ping to STA2 with 10.0.2.2 as it send its request first to its default router ESP1 and this knows, that all packets to a 10.0.2.0/24 address have to be forwarded to 192.168.1.20. There the ESP2 knows how to send it to STA2. Tthe same applies for the reply in the other direction.
+
+This allows you to configure a multi-star topology of ESPs, where each ESP and its STA clients can direcly reach each other (without any need for portmaps). Configuration of the required routes maybe somewhat painful - but a nice exercise in networking. Next step would be to port a dynamic routing protocol like RIP on the ESP...
+
 # Bitrate Limits
 By setting upstream_kbps and downstream_kbps to a value != 0 (0 is the default), you can limit the maximum bitrate of the ESP's AP. This value is a limit that applies to the traffic of all connected clients. Packets that would exeed the defined bitrate are dropped. The traffic shaper uses the "Token Bucket" algorithm with a bucket size of currently four times the bitrate per seconds, allowing for bursts, when there was no traffic before.
 
@@ -271,8 +297,6 @@ The router can be configured using the following topics:
 - _prefix_path_/response: The router publishes on this topic the command line output (mask: 0x0001)
 
 If you now want the router to publish e.g. only Vdd, its IP, and the command line output, set the mqtt_mask to 0x0001 | 0x0002 | 0x0040 (= "set mqtt_mask 0043").
-
-
 
 # Power Management
 The repeater monitors its current supply voltage (shown in the "show stats" command). This only works, if the 107th byte in esp_init_data_default.bin, named as vdd33_const, is set to 255(0xFF). The easiest way to achive that, is to write esp_init_data_default_v08_vdd33.bin to flash (see below).
