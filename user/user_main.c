@@ -87,6 +87,7 @@ uint8_t my_channel;
 bool do_ip_config;
 
 uint8_t mesh_level;
+uint8_t uplink_bssid[6];
 
 static netif_input_fn orig_input_ap, orig_input_sta;
 static netif_linkoutput_fn orig_output_ap, orig_output_sta;
@@ -2467,10 +2468,7 @@ uint32_t Bps;
 
 		mac_2_buff(ap_mac, config.AP_MAC_address);
 		mac_2_buff(sta_mac, config.STA_MAC_address);
-
-		struct station_config sta_config[5];
-		wifi_station_get_ap_info(sta_config);
-		mac_2_buff(bssid_mac, sta_config[wifi_station_get_current_ap_id()].bssid);
+		mac_2_buff(bssid_mac, uplink_bssid);
 		
 		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"mesh_level\":\"%u\",\"no_stas\":\"%d\"},\"stas\":[",
 			config.sta_hostname, ap_mac, sta_mac, bssid_mac, 
@@ -2565,8 +2563,29 @@ void wifi_handle_event_cb(System_Event_t *evt)
     switch (evt->event)
     {
     case EVENT_STAMODE_CONNECTED:
-        os_printf("connect to ssid %s, channel %d\r\n", evt->event_info.connected.ssid, evt->event_info.connected.channel);
+	mac_2_buff(mac_str, evt->event_info.connected.bssid);
+        os_printf("connect to ssid %s, bssid %s, channel %d\r\n", evt->event_info.connected.ssid, mac_str, evt->event_info.connected.channel);
 	my_channel = evt->event_info.connected.channel;
+	os_memcpy(uplink_bssid, evt->event_info.connected.bssid, sizeof(uplink_bssid));
+
+	bool wrong_bssid = false;
+	if (*(int*)config.bssid != 0) {
+	    for (i=0; i<6; i++) {
+		if (evt->event_info.connected.bssid[i] != config.bssid[i]) {
+		    wrong_bssid = true;
+		    os_printf("connect to non configured bssid!");
+		    break;
+	        }
+	    }
+	}
+
+	if (config.automesh_mode == AUTOMESH_OPERATIONAL && wrong_bssid) {
+	    config.automesh_mode = AUTOMESH_LEARNING;
+	    config_save(&config);
+	    system_restart();
+	    return;
+	}
+
 #ifdef WPA2_PEAP
 	if (config.use_PEAP) {
 	    wifi_station_clear_enterprise_identity();
@@ -2584,6 +2603,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	if (mqtt_enabled) MQTT_Disconnect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
+	os_memset(uplink_bssid, 0, sizeof(uplink_bssid));
 	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
 	  if (evt->event_info.disconnected.reason != 201) {
 	    wifi_set_opmode(STATION_MODE);
@@ -2618,10 +2638,6 @@ void wifi_handle_event_cb(System_Event_t *evt)
         break;
 
     case EVENT_STAMODE_GOT_IP:
-	if (config.automesh_mode == AUTOMESH_OPERATIONAL && config.automesh_checked == 0) {
-	  config.automesh_checked = 1;
-	  config_save(&config);
-	}
 
 	if (config.dns_addr.addr == 0) {
 	    dns_ip = dns_getserver(0);
@@ -2642,9 +2658,13 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	  }
 	}
 
-	if (config.automesh_mode != AUTOMESH_OFF) {
-	  wifi_set_opmode(STATIONAP_MODE);
-os_printf(">>> Enable AP\r\n");
+	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
+	    wifi_set_opmode(STATIONAP_MODE);
+	    if (config.automesh_checked == 0) {
+		config.automesh_checked = 1;
+		config_save(&config);
+	    }
+	    os_printf("Automesh successfully configured and started\r\n");
 	}
 
 #ifdef MQTT_CLIENT
@@ -2827,8 +2847,6 @@ LOCAL void  gpio_intr_handler(void *dummy)
 #endif /* USER_GPIO_IN */
 #endif /* MQTT_CLIENT */
 
-#define RANDOM_REG (*(volatile u32 *)0x3FF20E44)
-
 void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 {
   if (status == OK)
@@ -2874,9 +2892,12 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       config.AP_MAC_address[0] = 0x24;
       config.AP_MAC_address[1] = 0x24;
       config.AP_MAC_address[2] = mesh_level+1;
-      config.AP_MAC_address[3] = RANDOM_REG & 0xff;
-      config.AP_MAC_address[4] = RANDOM_REG & 0xff;
-      config.AP_MAC_address[5] = RANDOM_REG & 0xff;
+      config.AP_MAC_address[3] = os_random() & 0xff;
+      config.AP_MAC_address[4] = os_random() & 0xff;
+      config.AP_MAC_address[5] = os_random() & 0xff;
+
+      wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
+      user_set_softap_wifi_config();
 
       IP4_ADDR(&config.network_addr, 10, 24, mesh_level+1, 1);
 
@@ -2930,6 +2951,7 @@ struct ip_info info;
     Bytes_in = Bytes_out = Bytes_in_last = Bytes_out_last = 0,
     Packets_in = Packets_out = Packets_in_last = Packets_out_last = 0;
     t_old = 0;
+    os_memset(uplink_bssid, 0, sizeof(uplink_bssid));
 
 #ifdef TOKENBUCKET
     t_old_tb = 0;
@@ -2955,6 +2977,7 @@ struct ip_info info;
 	// clear portmap table
 	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
+
 #ifdef ACLS
     acl_debug = 0;
     int i;
