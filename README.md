@@ -8,7 +8,7 @@ Typical usage scenarios include:
 - Setting up an additional WiFi network with different SSID/password for guests or IoT devices
 - Battery powered outdoor (mesh) networks
 - Monitor probe for WiFi traffic analysis
-- Network experiments with routes, ACLs and Traffic shaping
+- Network experiments with routes, ACLs and traffic shaping
 
 By default, the ESP acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
@@ -64,7 +64,7 @@ Enough to get it working in nearly all environments.
 - set [ssid|password] _value_: changes the settings for the uplink AP (WiFi config of your home-router), use password "none" for open networks.
 - set [ap_ssid|ap_password] _value_: changes the settings for the soft-AP of the ESP (for your stations)
 - show [config|stats]: prints the current config or some status information and statistics
-- save [dhcp]: saves the current config parameters [+ the current DHCP leases] to flash
+- save [dhcp]: saves the current config parameters, ACLs, and routing entires [+ the current DHCP leases] to flash
 - lock [_password_]: saves and locks the current config, changes are not allowed. Password can be left open if already set before (Default is the password of the uplink WiFi)
 - unlock _password_: unlocks the config, requires password from the lock command
 - reset [factory]: resets the esp, 'factory' optionally resets WiFi params to default values (works on a locked device only from serial console)
@@ -100,16 +100,16 @@ Most of the set-commands are effective only after save and reset.
 - set ip dhcp: configures dynamic IP address for the ESP in the uplink network, default
 - set netmask _netmask_: sets a static netmask for the uplink network
 - set gw _gw-addr_: sets a static gateway address in the uplink network
-- show route: prints the current routing table
 - show dhcp: prints the current status of the dhcp lease table
-- set nat [0|1]: selects, whether the soft-AP interface is NATed (nat=1, default) or not (nat=0). Without NAT transparent forwarding of traffic from the internal STAs doesn't work! Useful only if you want to do static routing.
-- portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
-- portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 
-### Static Routes
+### Routing
+- show route: displays the current routing table
 - route clear: clears all static routes
 - route add _network_ _gw_: adds a static route to a network (network given CIDR notation ('x.x.x.x/n')) via gateway gw
 - route delete _network_: removes a static route to a network
+- set nat [0|1]: selects, whether the soft-AP interface is NATed (nat=1, default) or not (nat=0). Without NAT transparent forwarding of traffic from the internal STAs doesn't work! Useful mainly in combination with static routing.
+- portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
+- portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 
 ### Firewall/Monitor config
 - acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
@@ -228,7 +228,7 @@ will allow all packets and also select all packets for monitoring that go from a
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
 
-For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add <netword> <gateway>" command, known from Linux boxes or routers. New routes will be always placed in the top of the routing table.
+For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add <netword> <gateway>" command, known from Linux boxes or routers. New routes will be always placed in the top of the routing table. A "save" command writes the current state of the routing table to flash configuration.
 	
 Here is a simple example of what can be done with static routes. Given the following network setup with two ESPs connected with the STA interfaces via a central home router:
 ```
