@@ -7,9 +7,10 @@ Typical usage scenarios include:
 - Simple range extender for an existing WiFi network
 - Setting up an additional WiFi network with different SSID/password for guests or IoT devices
 - Battery powered outdoor (mesh) networks
-- Monitor probe for WiFi traffic analysis 
+- Monitor probe for WiFi traffic analysis
+- Network experiments with routes, ACLs and Traffic shaping
 
-The ESP acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
+By default, the ESP acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
 Measurements show, that it can achieve about 5 Mbps in both directions, so even streaming is possible.
 
@@ -17,9 +18,6 @@ Some details are explained in this video: https://www.youtube.com/watch?v=OM2Fqn
 
 ### Note on WPA2 enterprise (PEAP)
 If you need a "converter" that translates a WPA2 enterprise network with PEAP authentication into a WPA2-PSK network, have a look at https://github.com/martin-ger/esp_peap_psk . Was trying to integrate this functionality into this project - however this is difficult, as WPA2 enterprise requires so much free heap during authentication that there is hardly any mem left for anything else. So I decided to leave that in a separate project.
-
-### Note on WPA2 KRACK security issue
-The lastest firmware (after 17/Oct/2017) has been build with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
@@ -230,7 +228,7 @@ will allow all packets and also select all packets for monitoring that go from a
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
 
-For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add <netword> <gateway>" command, like known from Linux boxes or routers. New routes will be always placed in the top of the routing table.
+For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add <netword> <gateway>" command, known from Linux boxes or routers. New routes will be always placed in the top of the routing table.
 	
 Here is a simple example of what can be done with static routes. Given the following network setup with two ESPs connected with the STA interfaces via a central home router:
 ```
@@ -329,4 +327,5 @@ If your downloaded firmware still doesn't start properly, please check with the 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
 - Configuration via TCP (write_flash) requires a good power supply. Try to check this, if you ESP runs unstable. A large capacitor between Vdd and Gnd can help if you experience problems here.
+- All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
