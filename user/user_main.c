@@ -1051,6 +1051,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
 	   os_sprintf_flash(response, "Routing table:\r\nNetwork              Dest\r\n");
 	   to_console(response);
+
+           for (i = 0; ip_get_route(i, &ip, &mask, &gw); i++) {
+		addr2str(buf, ip.addr, mask.addr);
+		os_sprintf(response, buf);
+		to_console(response);
+		int j = 21-os_strlen(buf);
+		for (; j>0; j--)
+		  to_console(" ");
+		os_sprintf(response, IPSTR "\r\n", IP2STR(&gw));
+		to_console(response);
+	   }
+
 	   for (nif = netif_list; nif != NULL; nif = nif->next) {
 		if (!netif_is_up(nif))
 		    continue;
@@ -1064,21 +1076,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		to_console(response);
 	   }
 
-           for (i = 0; ip_get_route(i, &ip, &mask, &gw); i++) {
-		addr2str(buf, ip.addr, mask.addr);
-		os_sprintf(response, buf);
-		to_console(response);
-		int j = 21-os_strlen(buf);
-		for (; j>0; j--)
-		  to_console(" ");
-		os_sprintf(response, IPSTR "\r\n", IP2STR(&gw));
-		to_console(response);
-	   }
-
-	   if ((netif_default != NULL) && (netif_is_up(netif_default))) {
+	   struct netif *default_netif = (struct netif *)eagle_lwip_getif(0);
+	   if ((default_netif != NULL) && (netif_is_up(default_netif))) {
 		os_sprintf_flash(response, "default              ");
 		to_console(response);
-		os_sprintf(response, IPSTR "\r\n", IP2STR(&netif_default->gw));
+		os_sprintf(response, IPSTR "\r\n", IP2STR(&default_netif->gw));
 		to_console(response);
 	   }
 	   goto command_handled_2;
