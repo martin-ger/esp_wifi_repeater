@@ -1076,11 +1076,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		to_console(response);
 	   }
 
-	   struct netif *default_netif = (struct netif *)eagle_lwip_getif(0);
-	   if ((default_netif != NULL) && (netif_is_up(default_netif))) {
+	   /* On the ESP the STA netif is the hardcoded default */
+	   struct netif *default_nf = (struct netif *)eagle_lwip_getif(0);
+
+	   /* Only if it is down, the "real" lwip default is used */
+	   if ((default_nf == NULL) || (!netif_is_up(default_nf))) {
+		default_nf = netif_default;
+	   }
+
+	   if ((default_nf != NULL) && (netif_is_up(default_nf))) {
 		os_sprintf_flash(response, "default              ");
 		to_console(response);
-		os_sprintf(response, IPSTR "\r\n", IP2STR(&default_netif->gw));
+		os_sprintf(response, IPSTR "\r\n", IP2STR(&default_nf->gw));
 		to_console(response);
 	   }
 	   goto command_handled_2;

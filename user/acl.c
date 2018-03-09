@@ -185,7 +185,7 @@ void ICACHE_FLASH_ATTR addr2str(uint8_t *buf, uint32_t addr, uint32_t mask)
 {
 uint8_t clidr;
 
-    if (addr == 0) {
+    if (addr == 0 && mask == 0) {
 	os_sprintf(buf, "any");
 	return;
     }

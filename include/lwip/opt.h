@@ -504,6 +504,10 @@
 #define IP_FORWARD                      1
 #endif
 
+#ifndef IP_ROUTING_TAB
+#define IP_ROUTING_TAB                  1
+#endif
+
 #ifndef IP_NAPT
 #define IP_NAPT                         1
 #endif
@@ -1063,7 +1067,7 @@
 
 /**
  * PBUF_POOL_BUFSIZE: the size of each pbuf in the pbuf pool. The default is
- * designed to accommodate single full size TCP frame in one pbuf, including
+ * designed to accomodate single full size TCP frame in one pbuf, including
  * TCP_MSS, IP header, and link header.
  */
 #ifndef PBUF_POOL_BUFSIZE
