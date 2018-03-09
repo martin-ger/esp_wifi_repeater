@@ -41,6 +41,7 @@ typedef struct
     uint8_t     ap_open;           // Should we use no WPA?
     uint8_t	ap_on;		   // AP enabled?
     uint8_t	ssid_hidden;	   // Hidden SSID?
+    uint8_t	max_clients;	   // Max number of STAs on the SoftAP
 #ifdef WPA2_PEAP
     uint8_t	use_PEAP;	   // WPA2 PEAP Authentication
     uint8_t     PEAP_identity[64]; // PEAP enterprise outer identity

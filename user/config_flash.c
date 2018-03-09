@@ -29,6 +29,7 @@ uint8_t mac[6];
     config->ap_open			= 1;
     config->ap_on			= 1;
     config->ssid_hidden			= 0;
+    config->max_clients			= MAX_CLIENTS;
 #ifdef WPA2_PEAP
     config->use_PEAP			= 0;
     config->PEAP_identity[0]		= '\0';

@@ -36,9 +36,11 @@ The web interface allows for the configuration of all parameters required for th
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/WebConfig.jpg">
 
-First enter the appropriate values for the uplink WiFi network, the "STA Settings", and click "Connect". Use password "none" for open networks. The ESP reboots and will connect to your WiFi router. The status LED should be blinking after some seconds.
+First enter the appropriate values for the uplink WiFi network, the "STA Settings". Use password "none" for open networks. Check the "Automesh" box if and only if you really want to use the automesh mode. Click "Connect". The ESP reboots and will connect to your WiFi router. The status LED should be blinking after some seconds.
 
-Now you can reload the page and change the "Soft AP Settings". Click "Set" and again the ESP reboots. Now it is ready for forwarding traffic over the newly configured Soft AP. Be aware that these changes also affect the config interface, i.e. to do further configuration, connect to the ESP through one of the newly configured WiFi networks. For access through the Soft AP remember the address of the Soft APs network if you have changed that (the ESP has always the address x.x.x.1 in this network).
+If you have selected automesh, you are done with config. Configuring the "Soft AP Settings" is not required as in automesh mode these settings are identical to the "STA Settings". The same ssid will be offered by all connected ESP repeaters.
+
+If you are not using automesh, you can now reload the page and change the "Soft AP Settings". Click "Set" and again the ESP reboots. Now it is ready for forwarding traffic over the newly configured Soft AP. Be aware that these changes also affect the config interface, i.e. to do further configuration, connect to the ESP through one of the newly configured WiFi networks. For access through the Soft AP remember the address of the Soft APs network if you have changed that (the ESP has always the address x.x.x.1 in this network).
 
 If you like, you can mark the "lock" checkbox and click "Lock". Now the config cannot be changed anymore without first unlocking it with the uplink WiFi network's password (define one even if the network is open).
 
@@ -89,6 +91,7 @@ Most of the set-commands are effective only after save and reset.
 - set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
 - set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
 - set sta_hostname _name_: sets the name of the STA (visible to the uplink AP)
+- set max_clients [1-8]: sets the number of STAs that can connct to the SoftAP (limit of the ESP's SoftAP implementation is 8, default)
 - scan: does a scan for APs
 - connect: tries to connect to an AP with the currently configured _ssid_ and _password_
 - disconnect: disconnects from any uplink AP

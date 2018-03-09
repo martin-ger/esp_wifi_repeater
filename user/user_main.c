@@ -797,7 +797,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf_flash(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|nat] <val>\r\n");
         to_console(response);
-        os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
+        os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
         to_console(response);
         os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
@@ -895,7 +895,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             to_console(response);
 	}
 #endif
-        os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24",
+        os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24\r\n",
                    config.ap_ssid,
 		   config.ssid_hidden?"[hidden]":"",
                    config.locked?"***":(char*)config.ap_password,
@@ -903,12 +903,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                    config.ap_on?"":" [disabled]",
 		   IP2STR(&config.network_addr));
         to_console(response);
-	// if static DNS, add it
-	os_sprintf(response, config.dns_addr.addr?" DNS: %d.%d.%d.%d\r\n":"\r\n", IP2STR(&config.dns_addr));
-        to_console(response);
+
 	// if static IP, add it
 	os_sprintf(response, config.my_addr.addr?"Static IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
 		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
+        to_console(response);
+	// if static DNS, add it
+	os_sprintf(response, config.dns_addr.addr?" DNS: %d.%d.%d.%d\r\n":"", IP2STR(&config.dns_addr));
         to_console(response);
 
 	if (config.nat_enable) {
@@ -925,6 +926,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	to_console(response);
 	os_sprintf(response, "STA hostname: %s\r\n", config.sta_hostname);
 	to_console(response);
+	if (config.max_clients != MAX_CLIENTS) {
+	    os_sprintf(response, "Max WiFi clients: %d\r\n", config.max_clients);
+	    to_console(response);
+	}
 
 #ifdef REMOTE_CONFIG
 	if (config.config_port == 0 || config.config_access == 0) {
@@ -1648,6 +1653,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1],"max_clients") == 0)
+            {
+		if (atoi(tokens[2]) <= MAX_CLIENTS) {
+		    config.max_clients = atoi(tokens[2]);
+		    os_sprintf_flash(response, "Max clients set\r\n");
+		} else {
+		    os_sprintf(response, INVALID_ARG);
+		}
+                goto command_handled;
+            }
+
             if (strcmp(tokens[1],"automesh") == 0)
             {
 		if (config.automesh_mode != AUTOMESH_OFF && atoi(tokens[2]) == 0) {
@@ -2203,8 +2219,9 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
     char *kv, *sv;
     bool do_reset = false;
     char *token[1];
+    char *str;
 
-    char *str = strstr(data, " /?");
+    str = strstr(data, " /?");
     if (str != NULL)
     {
         str = strtok(str+3," ");
@@ -2716,7 +2733,7 @@ struct softap_config apConfig;
       apConfig.authmode = AUTH_OPEN;
    apConfig.ssid_len = 0;// or its actual length
 
-   apConfig.max_connection = MAX_CLIENTS; // how many stations can connect to ESP8266 softAP at most.
+   apConfig.max_connection = config.max_clients; // how many stations can connect to ESP8266 softAP at most.
    apConfig.ssid_hidden = config.ssid_hidden;
 
    // Set ESP8266 softap config
