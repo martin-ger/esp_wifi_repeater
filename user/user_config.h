@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define ESP_REPEATER_VERSION "V1.7.4"
+#define ESP_REPEATER_VERSION "V1.7.5"
 
 #define LOCAL_ACCESS 0x01
 #define REMOTE_ACCESS 0x02
@@ -34,7 +34,7 @@
 //
 // Define this if you want to have a HW factory reset when this GPIO is pulled low
 //
-#define FACTORY_RESET_PIN 0
+#define FACTORY_RESET_PIN 12
 
 //
 // Define this to support the "scan" command for AP search
