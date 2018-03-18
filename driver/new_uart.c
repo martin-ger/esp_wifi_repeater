@@ -235,6 +235,8 @@ int UART_Send(uint8 uart_no, char *buffer, int len)
         ch = *(buffer+index);
         uart_tx_one_char(uart_no, ch);
     }
+
+    return index;
 }
 
 /*---------------------------------------------------------------------------*

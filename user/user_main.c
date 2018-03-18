@@ -427,7 +427,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
        if (put_packet_to_ringbuf(p) != 0) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
-	       return;
+	       return ERR_OK;
 #endif
        }
        if (!monitoring_send_ongoing)
@@ -447,7 +447,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     // If not allowed, drop packet
     if (!(acl_check&ACL_ALLOW)) {
 	pbuf_free(p);
-	return;
+	return ERR_OK;
     };
 #endif
 
@@ -457,7 +457,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 	    token_bucket_us -= p->tot_len;
         } else {
 	    pbuf_free(p);
-	    return;
+	    return ERR_OK;
 	}
     }
 #endif
@@ -465,7 +465,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     Bytes_in += p->tot_len;
     Packets_in++;
 
-    orig_input_ap (p, inp);
+    return orig_input_ap (p, inp);
 }
 
 err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
@@ -487,7 +487,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
        if (put_packet_to_ringbuf(p) != 0) {
 #ifdef DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
-	       return;
+	       return ERR_OK;
 #endif
        }
        if (!monitoring_send_ongoing)
@@ -508,7 +508,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     // If not allowed, drop packet
     if (!(acl_check&ACL_ALLOW)) {
 	pbuf_free(p);
-	return;
+	return ERR_OK;
     };
 #endif
 
@@ -518,7 +518,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 	    token_bucket_ds -= p->tot_len;
         } else {
 	    pbuf_free(p);
-	    return;
+	    return ERR_OK;
 	}
     }
 #endif
@@ -526,9 +526,8 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     Bytes_out += p->tot_len;
     Packets_out++;
 
-    orig_output_ap (outp, p);
+    return orig_output_ap (outp, p);
 }
-
 
 err_t ICACHE_FLASH_ATTR my_input_sta (struct pbuf *p, struct netif *inp) {
 
@@ -536,20 +535,20 @@ err_t ICACHE_FLASH_ATTR my_input_sta (struct pbuf *p, struct netif *inp) {
 #ifdef ACLS
     if (!acl_is_empty(2) && !(acl_check_packet(2, p) & ACL_ALLOW)) {
 	pbuf_free(p);
-	return;
+	return ERR_OK;
     };
 #endif
-    orig_input_sta (p, inp);
+    return orig_input_sta (p, inp);
 }
 
 err_t ICACHE_FLASH_ATTR my_output_sta (struct netif *outp, struct pbuf *p) {
 #ifdef ACLS
     if (!acl_is_empty(3) && !(acl_check_packet(3, p) & ACL_ALLOW)) {
 	pbuf_free(p);
-	return;
+	return ERR_OK;
     };
 #endif
-    orig_output_sta (outp, p);
+    return orig_output_sta (outp, p);
 }
 
 static void ICACHE_FLASH_ATTR patch_netif(ip_addr_t netif_ip, netif_input_fn ifn, netif_input_fn *orig_ifn, netif_linkoutput_fn ofn, netif_linkoutput_fn *orig_ofn, bool nat)
@@ -2428,6 +2427,23 @@ uint32_t Bps;
 	}
     } 
 
+#ifdef FACTORY_RESET_PIN    
+    static count_pin;
+    bool pin_in = easygpio_inputGet(FACTORY_RESET_PIN);
+    if (!pin_in) {
+	count_pin++;
+	if (count_pin > 4) {
+	    os_printf("Factory reset pressed\r\n");
+	    config_load_default(&config);
+	    config_save(&config);
+	    blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+	    system_restart();
+	}
+    } else {
+	count_pin = 0;
+    }
+#endif
+
     if (config.status_led <= 16)
 	easygpio_outputSet (config.status_led, toggle && connected);
 
@@ -3025,6 +3041,10 @@ struct ip_info info;
 	easygpio_pinMode(config.status_led, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
 	easygpio_outputSet (config.status_led, 0);
     }
+
+#ifdef FACTORY_RESET_PIN
+    easygpio_pinMode(FACTORY_RESET_PIN, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+#endif
 
 #ifdef MQTT_CLIENT
 #ifdef USER_GPIO_IN

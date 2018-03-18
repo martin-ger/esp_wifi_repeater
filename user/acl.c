@@ -127,7 +127,7 @@ uint8_t allow;
     switch (proto) {
     case IP_PROTO_UDP:
 	if (p->len < sizeof(struct eth_hdr)+sizeof(struct ip_hdr)+sizeof(struct udp_hdr))
-	    return;
+	    return ACL_DENY;
 	udp_h = (struct udp_hdr *)&packet[sizeof(struct eth_hdr)+sizeof(struct ip_hdr)];
 	src_port = ntohs(udp_h->src);
 	dest_port = ntohs(udp_h->dest);
@@ -135,7 +135,7 @@ uint8_t allow;
 
     case IP_PROTO_TCP:
 	if (p->len < sizeof(struct eth_hdr)+sizeof(struct ip_hdr)+sizeof(struct tcp_hdr))
-	    return;
+	    return ACL_DENY;
 	tcp_h = (struct tcp_hdr *)&packet[sizeof(struct eth_hdr)+sizeof(struct ip_hdr)];
 	src_port = ntohs(tcp_h->src);
 	dest_port = ntohs(tcp_h->dest);

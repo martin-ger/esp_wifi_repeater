@@ -23,13 +23,18 @@
 //
 // Size of the console buffers
 //
-#define MAX_CON_SEND_SIZE    1024
+#define MAX_CON_SEND_SIZE    1200
 #define MAX_CON_CMD_SIZE     80
 
 //
 // Define this if you have a status LED connected to a GPIO pin
 //
 #define STATUS_LED_GIPO	2
+
+//
+// Define this if you want to have a HW factory reset when this GPIO is pulled low
+//
+#define FACTORY_RESET_PIN 0
 
 //
 // Define this to support the "scan" command for AP search

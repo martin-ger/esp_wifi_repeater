@@ -42,7 +42,9 @@ If you are not using automesh, you can now reload the page and change the "Soft 
 
 If you like, you can mark the "lock" checkbox and click "Lock". Now the config cannot be changed anymore without first unlocking it with the uplink WiFi network's password (define one even if the network is open).
 
-If you did a mistake and you lost any contact with ESP you can still use the serial console to recover it ("reset facory", see below).
+If you want to enter non-ASCII or special characters in the web interface you have to use HTTP-style hex encoding like "My%20AccessPoint". This will result in a string "My AccessPoint". With this hex encoding you can enter any byte value you like, except for 0 (for C-internal reasons).
+
+If you did a mistake and you lost any contact with the ESP you can still use the serial console to recover it ("reset facory", see below).
 
 # Command Line Interface
 Advanced configuration has to be done via the command line on the console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
@@ -56,7 +58,7 @@ Use the following commands for an initial setup:
 - save
 - reset
 
-If you want to enter non-ASCII or special characters on the command line you can use quoting: either use C-style quotes with backslash like this "My\ AccessPoint" or use HTTP-style hex encoding like "My%20AccessPoint". Both methods will result in a string "My AccessPoint". With the hex encoding you can enter any byte value you like, except for 0 (for C-internal reasons).
+Again, if you want to enter non-ASCII or special characters you can use HTTP-style hex encoding (e.g. "My%20AccessPoint") or, only on the CLI, as shortcut C-style quotes with backslash (e.g. "My\ AccessPoint"). Both methods will result in a string "My AccessPoint".
 
 The command line understands a lot more commands:
 
@@ -143,6 +145,9 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 - unperiodically flashing: working, traffic in the internal network
 
 With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
+
+# HW reset
+If you pull low GPIO 0 for more than 2 seconds, the repeater will do a factory reset and restarts with default config.
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 

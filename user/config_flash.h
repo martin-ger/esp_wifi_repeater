@@ -120,6 +120,7 @@ typedef struct
 } sysconfig_t, *sysconfig_p;
 
 int config_load(sysconfig_p config);
+void config_load_default(sysconfig_p config);
 void config_save(sysconfig_p config);
 
 void blob_save(uint8_t blob_no, uint32_t *data, uint16_t len);

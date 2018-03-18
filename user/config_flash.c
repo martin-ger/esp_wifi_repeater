@@ -9,7 +9,7 @@
  * time at least. When you want to change some data in flash, you have to
  * erase the whole sector, and then write it back with the new data.
  *--------------------------------------------------------------------------*/
-void config_load_default(sysconfig_p config)
+void ICACHE_FLASH_ATTR config_load_default(sysconfig_p config)
 {
 uint8_t mac[6];
 
@@ -101,7 +101,7 @@ uint8_t mac[6];
 #endif
 }
 
-int config_load(sysconfig_p config)
+int ICACHE_FLASH_ATTR config_load(sysconfig_p config)
 {
     if (config == NULL) return -1;
     uint16_t base_address = FLASH_BLOCK_NO;
@@ -136,7 +136,7 @@ int config_load(sysconfig_p config)
     return 0;
 }
 
-void config_save(sysconfig_p config)
+void ICACHE_FLASH_ATTR config_save(sysconfig_p config)
 {
     uint16_t base_address = FLASH_BLOCK_NO;
     config->no_routes = ip_route_max;
@@ -151,20 +151,20 @@ void config_save(sysconfig_p config)
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, (uint32 *)config, sizeof(sysconfig_t));
 }
 
-void blob_save(uint8_t blob_no, uint32_t *data, uint16_t len)
+void ICACHE_FLASH_ATTR blob_save(uint8_t blob_no, uint32_t *data, uint16_t len)
 {
     uint16_t base_address = FLASH_BLOCK_NO + 1 + blob_no;
     spi_flash_erase_sector(base_address);
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, data, len);
 }
 
-void blob_load(uint8_t blob_no, uint32_t *data, uint16_t len)
+void ICACHE_FLASH_ATTR blob_load(uint8_t blob_no, uint32_t *data, uint16_t len)
 {
     uint16_t base_address = FLASH_BLOCK_NO + 1 + blob_no;
     spi_flash_read(base_address * SPI_FLASH_SEC_SIZE, data, len);
 }
 
-void blob_zero(uint8_t blob_no, uint16_t len)
+void ICACHE_FLASH_ATTR blob_zero(uint8_t blob_no, uint16_t len)
 {
 int i;
     uint8_t z[len];
