@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define ESP_REPEATER_VERSION "V1.7.5"
+#define ESP_REPEATER_VERSION "V1.7.6"
 
 #define LOCAL_ACCESS 0x01
 #define REMOTE_ACCESS 0x02
@@ -32,7 +32,8 @@
 #define STATUS_LED_GIPO	2
 
 //
-// Define this if you want to have a HW factory reset when this GPIO is pulled low
+// Defines the default GPIO pin for HW factory reset (when this GPIO is pulled low for more than 3 secs)
+// Any value > 16 disables this feature
 //
 #define FACTORY_RESET_PIN 12
 

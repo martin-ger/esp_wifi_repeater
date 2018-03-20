@@ -16,7 +16,7 @@
 
 #define FLASH_BLOCK_NO 0xc
 
-#define MAGIC_NUMBER    0x112435fc
+#define MAGIC_NUMBER    0x152435fc
 
 typedef enum {AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL} automeshmode;
 
@@ -73,6 +73,7 @@ typedef struct
 #endif
     uint16_t	clock_speed;	// Freq of the CPU
     uint16_t	status_led;	// GPIO pin os the status LED (>16 disabled)
+    uint16_t	hw_reset;	// GPIO pin that issues a hw factory reset (>16 disabled)
 
 #ifdef ALLOW_SLEEP
     int32_t	Vmin;		// Min voltage of battery

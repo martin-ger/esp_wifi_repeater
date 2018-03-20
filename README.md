@@ -133,6 +133,7 @@ Most of the set-commands are effective only after save and reset.
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
+- set hw_reset _GPIOno_: selects a GPIO pin for a hardware factory reset (default 12, >16 disabled)
 - set ap_watchdog _secs_: sets the AP watchdog timeout - if there are no packets received for _secs_ from the uplink AP the repeater resets ("none" = no timeout, default)
 - set client_watchdog _secs_: sets the client watchdog timeout - if there are no packets received for _secs_ from any connected client the repeater resets ("none" = no timeout, default)
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
@@ -146,8 +147,8 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 
 With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
-# HW reset
-If you pull low GPIO 12 for more than 2 seconds, the repeater will do a factory reset and restarts with default config. GPIO number can be changed in user_config.h
+# HW factory reset
+If you pull low GPIO 12 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature). A factory reset triggered by this pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 

@@ -358,7 +358,7 @@ static void ICACHE_FLASH_ATTR start_monitor(uint16_t portno)
 
 static void ICACHE_FLASH_ATTR stop_monitor(void)
 {
-    if (monitoring_on = 1) {
+    if (monitoring_on == 1) {
 	os_printf("Stopping Monitor TCP Server\r\n");
 	espconn_disconnect(cur_mon_conn);
     }
@@ -812,7 +812,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         os_sprintf_flash(response, "] <val>\r\n");
         to_console(response);
-        os_sprintf_flash(response, "set [speed|status_led|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
+        os_sprintf_flash(response, "set [speed|status_led|hw_reset|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
         to_console(response);
 #ifdef WPA2_PEAP
         os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
@@ -1097,7 +1097,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   struct dhcps_pool *p;
 	   os_sprintf_flash(response, "DHCP table:\r\n");
 	   to_console(response);
-           for (i = 0; p = dhcps_get_mapping(i); i++) {
+           for (i = 0; (p = dhcps_get_mapping(i)); i++) {
 		os_sprintf(response, "%02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR " - %d\r\n", 
 		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
 		   IP2STR(&p->ip), p->lease_timer);
@@ -1908,6 +1908,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "Status led set to GPIO %d\r\n", config.status_led);
         	goto command_handled;
 	    }
+
+	    if (strcmp(tokens[1], "hw_reset") == 0)
+	    {
+		config.hw_reset = atoi(tokens[2]);
+		if (config.hw_reset > 16) {
+		    os_sprintf_flash(response, "HW factory reset disabled\r\n");
+		    goto command_handled;
+		}
+		easygpio_pinMode(config.hw_reset, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+		os_sprintf(response, "\r\nHW factory reset set to GPIO %d\r\n", config.hw_reset);
+        	goto command_handled;
+	    }
 #ifdef PHY_MODE
 	    if (strcmp(tokens[1], "phy_mode") == 0)
 	    {
@@ -2427,22 +2439,29 @@ uint32_t Bps;
 	}
     } 
 
-#ifdef FACTORY_RESET_PIN    
-    static count_pin;
-    bool pin_in = easygpio_inputGet(FACTORY_RESET_PIN);
-    if (!pin_in) {
-	count_pin++;
-	if (count_pin > 4) {
-	    os_printf("Factory reset pressed\r\n");
-	    config_load_default(&config);
-	    config_save(&config);
-	    blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
-	    system_restart();
+    // Check the HW factory reset pin
+    static count_hw_reset;
+    if (config.hw_reset <= 16) {
+	bool pin_in = easygpio_inputGet(config.hw_reset);
+	if (!pin_in) {
+	    count_hw_reset++;
+	    if (toggle)
+		os_printf(".");
+	    if (count_hw_reset > 6) {
+        	if (config.status_led <= 16)
+		    easygpio_outputSet (config.status_led, true);
+		os_printf("\r\nFactory reset\r\n");
+		uint16_t pin = config.hw_reset;
+		config_load_default(&config);
+		config.hw_reset = pin;
+		config_save(&config);
+		blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+		system_restart();
+	    }
+	} else {
+	    count_hw_reset = 0;
 	}
-    } else {
-	count_pin = 0;
     }
-#endif
 
     if (config.status_led <= 16)
 	easygpio_outputSet (config.status_led, toggle && connected);
@@ -3042,9 +3061,9 @@ struct ip_info info;
 	easygpio_outputSet (config.status_led, 0);
     }
 
-#ifdef FACTORY_RESET_PIN
-    easygpio_pinMode(FACTORY_RESET_PIN, EASYGPIO_PULLUP, EASYGPIO_INPUT);
-#endif
+    if (config.hw_reset <= 16) {
+	easygpio_pinMode(config.hw_reset, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+    }
 
 #ifdef MQTT_CLIENT
 #ifdef USER_GPIO_IN

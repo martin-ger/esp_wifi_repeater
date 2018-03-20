@@ -60,6 +60,7 @@ uint8_t mac[6];
 #endif
     config->clock_speed			= 80;
     config->status_led			= STATUS_LED_GIPO;
+    config->hw_reset			= FACTORY_RESET_PIN;
 #ifdef ALLOW_SLEEP
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;
