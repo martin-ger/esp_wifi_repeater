@@ -113,6 +113,7 @@ Most of the set-commands are effective only after save and reset.
 - route clear: clears all static routes
 - route add _network_ _gw_: adds a static route to a network (network given CIDR notation ('x.x.x.x/n')) via gateway gw
 - route delete _network_: removes a static route to a network
+- interface _inX_ [up|down]: sets the interface state up or down (no IP routing/traffic through down interfaces, default: up)
 - set nat [0|1]: selects, whether the soft-AP interface is NATed (nat=1, default) or not (nat=0). Without NAT transparent forwarding of traffic from the internal STAs doesn't work! Useful mainly in combination with static routing.
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding

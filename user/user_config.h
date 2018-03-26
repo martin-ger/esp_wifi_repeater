@@ -59,6 +59,11 @@
 #define PHY_MODE	    1
 
 //
+// Define this to support a loopback device (127.0.0.1)
+//
+#define HAVE_LOOPBACK	    1
+
+//
 // Define this if you want to have access to the config console via TCP.
 // Ohterwise only local access via serial is possible
 //

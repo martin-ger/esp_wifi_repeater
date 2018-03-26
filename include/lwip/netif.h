@@ -309,12 +309,11 @@ void netif_set_link_callback(struct netif *netif, netif_status_callback_fn link_
 #endif /* LWIP_IGMP */
 
 #if ENABLE_LOOPBACK
+void loopback_netif_init(netif_status_callback_fn cb)ICACHE_FLASH_ATTR;
 err_t netif_loop_output(struct netif *netif, struct pbuf *p, ip_addr_t *dest_ip)ICACHE_FLASH_ATTR;
 void netif_poll(struct netif *netif)ICACHE_FLASH_ATTR;
 #if !LWIP_NETIF_LOOPBACK_MULTITHREADING
 void netif_poll_all(void)ICACHE_FLASH_ATTR;
-
-extern netif_status_callback_fn netif_loop_action;
 #endif /* !LWIP_NETIF_LOOPBACK_MULTITHREADING */
 #endif /* ENABLE_LOOPBACK */
 

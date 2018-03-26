@@ -802,10 +802,22 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
         to_console(response);
-        os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
+        os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #ifdef ACLS
         os_sprintf_flash(response, "acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
+        to_console(response);
+#endif
+#ifdef ALLOW_PING
+        os_sprintf_flash(response, "ping <ip_addr>\r\n");
+        to_console(response);
+#endif
+#ifdef REMOTE_MONITORING
+        os_sprintf_flash(response, "monitor [on|off] <portnumber>\r\n");
+        to_console(response);
+#endif
+#ifdef TOKENBUCKET
+        os_sprintf_flash(response, "set [upstream_kbps|downstream_kbps] <val>\r\n");
         to_console(response);
 #endif
         os_sprintf_flash(response, "set [automesh|am_threshold");
@@ -824,25 +836,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "scan\r\n");
         to_console(response);
 #endif
-#ifdef ALLOW_PING
-        os_sprintf_flash(response, "ping <ip_addr>\r\n");
-        to_console(response);
-#endif
 #ifdef PHY_MODE
         os_sprintf_flash(response, "set phy_mode [1|2|3]\r\n");
         to_console(response);
 #endif
 #ifdef ALLOW_SLEEP
         os_sprintf_flash(response, "sleep <secs>\r\nset [vmin|vmin_sleep] <val>\r\n");
-        to_console(response);
-#endif
-#ifdef REMOTE_MONITORING
-        os_sprintf_flash(response, "monitor [on|off] <portnumber>\r\n");
-        to_console(response);
-#endif
-
-#ifdef TOKENBUCKET
-        os_sprintf_flash(response, "set [upstream_kbps|downstream_kbps] <val>\r\n");
         to_console(response);
 #endif
 #ifdef MQTT_CLIENT
@@ -1366,6 +1365,45 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
       wifi_station_disconnect();
 
+      goto command_handled;
+    }
+
+    if (strcmp(tokens[0], "interface") == 0)
+    {
+      if (config.locked) {
+        os_sprintf(response, INVALID_LOCKED);
+        goto command_handled;
+      }
+      if (nTokens != 3) {
+        os_sprintf(response, INVALID_NUMARGS);
+	goto command_handled;
+      }
+      if (os_strlen(tokens[1]) != 3) {
+	os_sprintf_flash(response, "Invalid interface\r\n");
+	goto command_handled;
+      }
+      struct netif *nif;
+      for (nif = netif_list; nif != NULL; nif = nif->next) {
+	if (nif->name[0] == tokens[1][0] &&
+	    nif->name[1] == tokens[1][1] &&
+	    nif->num == tokens[1][2]-'0') {
+	  break;
+	}
+      }
+      if (nif == NULL) {
+	os_sprintf_flash(response, "Invalid interface\r\n");
+	goto command_handled;
+      }
+
+      if (strcmp(tokens[2], "up") == 0) {
+	netif_set_up(nif);
+      } else if (strcmp(tokens[2], "down") == 0) {
+	netif_set_down(nif);
+      } else {
+	os_sprintf_flash(response, "Invalid command\r\n");
+      }
+
+      os_sprintf(response, "Interface %s %s\r\n", tokens[1], tokens[2]);
       goto command_handled;
     }
 
@@ -2595,14 +2633,14 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
             console_handle_command(pespconn);
         }
         break;
-
+#ifdef HAVE_LOOPBACK
     case SIG_LOOPBACK:
 	{
 	    struct netif *netif = (struct netif *) events->par;
 	    netif_poll(netif);
 	}
         break;
-
+#endif
 #ifdef MQTT_CLIENT
 #ifdef USER_GPIO_IN
     case SIG_GPIO_INT:
@@ -3009,10 +3047,12 @@ void ICACHE_FLASH_ATTR to_scan(void) {
     }
 }
 
-void *schedule_netif_poll(struct netif *netif) {
+#ifdef HAVE_LOOPBACK
+void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
     system_os_post(0, SIG_LOOPBACK, (ETSParam) netif);
     return NULL;
 }
+#endif
 
 void ICACHE_FLASH_ATTR user_init()
 {
@@ -3135,7 +3175,9 @@ struct ip_info info;
 	espconn_dns_setserver(0, &dns_ip);
     }
 
-    netif_loop_action = (netif_status_callback_fn)schedule_netif_poll;
+#ifdef HAVE_LOOPBACK
+    loopback_netif_init(schedule_netif_poll);
+#endif
 
 #ifdef REMOTE_CONFIG
     if (config.config_port != 0) {
@@ -3213,6 +3255,7 @@ struct ip_info info;
 	wifi_station_connect();
     }
 #endif
+
     // Init power - set it to 3300mV
     Vdd = 3300;
 
