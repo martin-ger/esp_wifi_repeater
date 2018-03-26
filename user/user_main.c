@@ -56,7 +56,7 @@ uint32_t Vdd;
 
 /* System Task, for signals refer to user_config.h */
 #define user_procTaskPrio        0
-#define user_procTaskQueueLen    1
+#define user_procTaskQueueLen    2
 os_event_t    user_procTaskQueue[user_procTaskQueueLen];
 static void user_procTask(os_event_t *events);
 
@@ -796,6 +796,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf_flash(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|nat] <val>\r\n");
         to_console(response);
+#ifdef WPA2_PEAP
+        os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
+        to_console(response);
+#endif
         os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
         to_console(response);
         os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
@@ -814,10 +818,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
         os_sprintf_flash(response, "set [speed|status_led|hw_reset|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
         to_console(response);
-#ifdef WPA2_PEAP
-        os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
-        to_console(response);
-#endif
         os_sprintf_flash(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
         to_console(response);
 #ifdef ALLOW_SCANNING
@@ -2437,7 +2437,7 @@ uint32_t Bps;
 	    }
 	    client_watchdog_cnt--;
 	}
-    } 
+    }
 
     // Check the HW factory reset pin
     static count_hw_reset;
@@ -2594,6 +2594,13 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
             struct espconn *pespconn = (struct espconn *) events->par;
             console_handle_command(pespconn);
         }
+        break;
+
+    case SIG_LOOPBACK:
+	{
+	    struct netif *netif = (struct netif *) events->par;
+	    netif_poll(netif);
+	}
         break;
 
 #ifdef MQTT_CLIENT
@@ -3002,6 +3009,11 @@ void ICACHE_FLASH_ATTR to_scan(void) {
     }
 }
 
+void *schedule_netif_poll(struct netif *netif) {
+    system_os_post(0, SIG_LOOPBACK, (ETSParam) netif);
+    return NULL;
+}
+
 void ICACHE_FLASH_ATTR user_init()
 {
 struct ip_info info;
@@ -3060,11 +3072,11 @@ struct ip_info info;
 	easygpio_pinMode(config.status_led, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
 	easygpio_outputSet (config.status_led, 0);
     }
-
+#ifdef FACTORY_RESET_PIN
     if (config.hw_reset <= 16) {
 	easygpio_pinMode(config.hw_reset, EASYGPIO_PULLUP, EASYGPIO_INPUT);
     }
-
+#endif
 #ifdef MQTT_CLIENT
 #ifdef USER_GPIO_IN
     easygpio_pinMode(USER_GPIO_IN, EASYGPIO_PULLUP, EASYGPIO_INPUT);
@@ -3122,6 +3134,8 @@ struct ip_info info;
 	wifi_set_ip_info(STATION_IF, &info);
 	espconn_dns_setserver(0, &dns_ip);
     }
+
+    netif_loop_action = (netif_status_callback_fn)schedule_netif_poll;
 
 #ifdef REMOTE_CONFIG
     if (config.config_port != 0) {
