@@ -1,12 +1,14 @@
 # esp_wifi_repeater
 A full functional WiFi repeater (correctly: a WiFi NAT router)
 
-This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes a basic firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), MQTT management interface, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
+This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for WPA2 Enterprise (PEAP), a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
 
 Typical usage scenarios include:
 - Simple range extender for an existing WiFi network
-- Setting up an additional WiFi network with different SSID/password for guests or IoT devices
 - Battery powered outdoor (mesh) networks
+- Setting up an additional WiFi network with different SSID/password for guests
+- Setting up a secure and restricted network for IoT devices
+- Converting an WPA2 Enterprise ntwork into a simpler WPA2-PSK network
 - Monitor probe for WiFi traffic analysis
 - Network experiments with routes, ACLs and traffic shaping
 
@@ -62,7 +64,7 @@ Again, if you want to enter non-ASCII or special characters you can use HTTP-sty
 
 The command line understands a lot more commands:
 
-## Basic commands
+## Basic Commands
 Enough to get it working in nearly all environments.
 - help: prints a short help message
 - set [ssid|password] _value_: changes the settings for the uplink AP (WiFi config of your home-router), use password "none" for open networks.
@@ -74,17 +76,17 @@ Enough to get it working in nearly all environments.
 - reset [factory]: resets the esp, 'factory' optionally resets WiFi params to default values (works on a locked device only from serial console)
 - quit: terminates a remote session
 
-## Advanced commands
+## Advanced Commands
 Most of the set-commands are effective only after save and reset.
-### Automesh config
+### Automesh Config
 - set automesh [0|1]: selects, whether the automesh mode is on or off (default), see details here https://github.com/martin-ger/esp_wifi_repeater#automesh-mode
 - set am_threshold _dB_: sets the threshold for a "bad" connection (in negative dB, default 85, i.e. -85 dB) 
 - set am_scan_time _secs_: sets the time interval in seconds the ESP tries in automesh mode to find an uplink AP before going to sleep (0 disabled, default)
 - set am_sleep_time _secs_: sets the time interval in seconds the ESP sleeps in automesh mode if no uplink AP is found (0 disabled, default)
 
-### WiFi config
+### WiFi Config
 - set ap_on [0|1]: selects, whether the soft-AP is disabled (ap_on=0) or enabled (ap_on=1, default)
-- set ap_open [0|1]: selects, whether the soft-AP uses WPA2 security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
+- set ap_open [0|1]: selects, whether the soft-AP uses WPA2-PSK security (ap_open=0,  automatic, if an ap_password is set) or open (ap_open=1)
 - set auto_connect [0|1]: selects, whether the STA should keep retrying to reconnect to the AP. auto_connect is off (0) after first flashing or after "reset factory". When you enter a new SSID it will be automatically set on (1).
 - set ssid_hidden [0|1]: selects, whether the SSID of the soft-AP is hidden (ssid_hidden=1) or visible (ssid_hidden=0, default)
 - set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
@@ -96,7 +98,7 @@ Most of the set-commands are effective only after save and reset.
 - connect: tries to connect to an AP with the currently configured _ssid_ and _password_
 - disconnect: disconnects from any uplink AP
 
-### TCP/IP config
+### TCP/IP Config
 - ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
@@ -116,7 +118,7 @@ Most of the set-commands are effective only after save and reset.
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 
-### Firewall/Monitor config
+### Firewall/Monitor Config
 - acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
 - acl [from_sta|to_sta] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
@@ -124,12 +126,12 @@ Most of the set-commands are effective only after save and reset.
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port
 
-### User Interface config
+### User Interface Config
 - set config_port _portno_: sets the port number of the console login (default is 7777, 0 disables remote console config)
 - set web_port _portno_: sets the port number of the web config server (default is 80, 0 disables web config)
 - set config_access _mode_: controls the networks that allow config access for console and web (0: no access, 1: only internal, 2: only external, 3: both (default))
 
-### Chip config
+### Chip Config
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
@@ -147,13 +149,20 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 
 With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
-# HW factory reset
-If you pull low GPIO 12 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature). A factory reset triggered by this pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
+# HW Factory Reset
+If you pull low GPIO 12 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
+
+For many moduls, incl.ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
 
 However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achieve this, either fixed IP addresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achieved with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
+
+# WPA2 Enterprise (PEAP)
+The esp_wifi_repeater can now also work as a "converter" that translates a WPA2 enterprise network with PEAP authentication into a WPA2-PSK network. This solves a common problem especially in companies or university environments: the local WiFi network is a WPA2 Enterprise network with PEAP-MSCHAPv2 authentication. A very prominent example is the "eduroam"-network that is available at many universities around the world. The problem is, that many IoT devices cannot handle WPA2 Enterprise authentication. So development and demos are difficult. What is very helpful is a "converter" that logs into the WPA2 Enterprise network and offers a simpler WPA-PSK network to its clients.
+
+Security caveats: This implementation does not check the certificate of the RADIUS-Server, i.e. it is vulnerable to MITM-attacks, when somebody sets up a rouge AP and RADIUS server. While the password is not sent in plaintext, MSCHAPv2 is known to be broken. Also, be aware of the fact that the ESP8266 now contains your enterprise network credentials. And even when there is no user interface function to read your enterprise network (when config is locked) password on ESP8266, it can be extracted from the flash in plain text. Do not leave your ESP unattended - at least if anybody else knows, what is does... ;-) Also all traffic that is forwarded by the esp_wifi_repeater can be related by the network admin to your account. Do not missuse it and offer it to untrusted others, eg. by configuring an open network.
 
 # Automesh Mode
 Sometimes you might want to use several esp_wifi_repeaters in a row or a mesh to cover a larger distance or area. Generally, this can be done without any problems with NAT routers, actually you will have several layers of NAT. However, this means connectivity is limited: all nodes can talk to the internet, but generally there's no direct IP connectivity between the nodes. And, of course, the available bandwidth goes down the more hops you need. But users have reported that even 5 esp_wifi_repeaters in a row work quite well.
@@ -237,7 +246,7 @@ will allow all packets and also select all packets for monitoring that go from a
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
 
-For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add <netword> <gateway>" command, known from Linux boxes or routers. New routes will be always placed in the top of the routing table. A "save" command writes the current state of the routing table to flash configuration.
+For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add _netword_ _gateway_" command, known from Linux boxes or routers. A "save" command writes the current state of the routing table to flash configuration.
 	
 Here is a simple example of what can be done with static routes. Given the following network setup with two ESPs connected with the STA interfaces via a central home router:
 ```
@@ -329,12 +338,13 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. 
 
-Sometimes, especially on old ESP-01s, there is a wrong or non-matching version of "esp_init_data_default.bin" in the flash. If the firmware files from above flash correctly but after reboot you see only garbage on the serial and/or the LED on GPIO2 is flashing rapidly, try to re-initialize this sector: download https://github.com/martin-ger/esp_wifi_repeater/raw/master/firmware/esp_init_data_default_v08_vdd33.bin and flash it to 0x7c000 for 512 kB modules (some ESP-01, Sonoff Switch), 0xfc000 for 1 MB modules (most ESP-01), or 0x3fc000 for 4 MB modules (most ESP-12, Wemos D1). 
+Sometimes, especially on old ESP-01s, there is a wrong or non-matching version of "esp_init_data_default.bin" in the flash. If the firmware files from above flash correctly but after reboot you see only garbage on the serial and/or the LED on GPIO2 is flashing rapidly, try to re-initialize this sector: download https://github.com/martin-ger/esp_wifi_repeater/raw/master/firmware/esp_init_data_default_v08_vdd33.bin and flash it to 0x7c000 for 512 kB modules (some ESP-01, Sonoff Switch), 0xfc000 for 1 MB modules (most ESP-01), or 0x3fc000 for 4 MB modules (most ESP-12, Wemos D1). Flashing this sector also 
 
 If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
-- Configuration via TCP (write_flash) requires a good power supply. Try to check this, if you ESP runs unstable. A large capacitor between Vdd and Gnd can help if you experience problems here.
+- The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
+- If the supply voltage in the "show stats" command shows a wrong (high) value, the ADC isn't configured correctly. Re-initialize the ESP with the "esp_init_data_default_v08_vdd33.bin" as decribed in the section above.
 - All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
