@@ -3176,7 +3176,7 @@ struct ip_info info;
     }
 
 #ifdef HAVE_LOOPBACK
-    loopback_netif_init(schedule_netif_poll);
+    loopback_netif_init((netif_status_callback_fn)schedule_netif_poll);
 #endif
 
 #ifdef REMOTE_CONFIG
