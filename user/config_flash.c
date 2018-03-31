@@ -61,6 +61,10 @@ uint8_t mac[6];
     config->clock_speed			= 80;
     config->status_led			= STATUS_LED_GIPO;
     config->hw_reset			= FACTORY_RESET_PIN;
+#ifdef DAILY_LIMIT
+    config->daily_limit			= 0;
+    config->ntp_timezone		= 0;
+#endif
 #ifdef ALLOW_SLEEP
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;

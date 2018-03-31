@@ -74,7 +74,10 @@ typedef struct
     uint16_t	clock_speed;	// Freq of the CPU
     uint16_t	status_led;	// GPIO pin os the status LED (>16 disabled)
     uint16_t	hw_reset;	// GPIO pin that issues a hw factory reset (>16 disabled)
-
+#ifdef DAILY_LIMIT
+    uint32_t	daily_limit;	// max KBytes per day (0 if no limit)
+    int32_t	ntp_timezone;	// local timezone (to know when a day is over)
+#endif
 #ifdef ALLOW_SLEEP
     int32_t	Vmin;		// Min voltage of battery
     int32_t	Vmin_sleep;	// Sleep time in sec when battery is low

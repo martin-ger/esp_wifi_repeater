@@ -24,6 +24,7 @@
 #include "user_config.h"
 #include "config_flash.h"
 #include "sys_time.h"
+#include "sntp.h"
 
 #include "easygpio.h"
 
@@ -69,6 +70,11 @@ int32_t client_watchdog_cnt;
 uint64_t Bytes_in, Bytes_out, Bytes_in_last, Bytes_out_last;
 uint32_t Packets_in, Packets_out, Packets_in_last, Packets_out_last;
 uint64_t t_old;
+
+#ifdef DAILY_LIMIT
+uint64_t Bytes_per_day;
+uint8_t last_date;
+#endif
 
 #ifdef TOKENBUCKET
 uint64_t t_old_tb;
@@ -462,6 +468,14 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     }
 #endif
 
+#ifdef DAILY_LIMIT
+    if (config.daily_limit != 0 && Bytes_per_day/1024 >= config.daily_limit) {
+	pbuf_free(p);
+	return ERR_OK;
+    }
+
+    Bytes_per_day += p->tot_len;
+#endif
     Bytes_in += p->tot_len;
     Packets_in++;
 
@@ -523,6 +537,14 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     }
 #endif
 
+#ifdef DAILY_LIMIT
+    if (config.daily_limit != 0 && Bytes_per_day/1024 >= config.daily_limit) {
+	pbuf_free(p);
+	return ERR_OK;
+    }
+
+    Bytes_per_day += p->tot_len;
+#endif
     Bytes_out += p->tot_len;
     Packets_out++;
 
@@ -808,6 +830,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
         to_console(response);
 #endif
+#ifdef DAILY_LIMIT
+        os_sprintf_flash(response, "set [daily_limit|timezone] <val>\r\n");
+        to_console(response);
+#endif
 #ifdef ALLOW_PING
         os_sprintf_flash(response, "ping <ip_addr>\r\n");
         to_console(response);
@@ -983,19 +1009,31 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            uint32_t time = (uint32_t)(get_long_systime()/1000000);
 	   int16_t i;
 	   enum phy_mode phy;
-	   //struct dhcps_pool *p;
 
-           os_sprintf(response, "System uptime: %d:%02d:%02d\r\nPower supply: %d.%03d V\r\n", 
-	      time/3600, (time%3600)/60, time%60, Vdd/1000, Vdd%1000);
+           os_sprintf(response, "System uptime: %d:%02d:%02d\r\n", time/3600, (time%3600)/60, time%60);
 	   to_console(response);
-#ifdef USER_GPIO_OUT
-	   os_sprintf(response, "GPIO output status: %d\r\n", config.gpio_out_status);
-           to_console(response);
+#ifdef DAILY_LIMIT
+	   uint32_t current_stamp = sntp_get_current_timestamp();
+	   os_sprintf(response, "Local time: %s\r", current_stamp?sntp_get_real_time(current_stamp):"no NTP sync\n");
+	   to_console(response);
 #endif
 	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
 			(uint32_t)(Bytes_in/1024), Packets_in, 
 			(uint32_t)(Bytes_out/1024), Packets_out);
            to_console(response);
+#ifdef DAILY_LIMIT
+	   if (config.daily_limit != 0) {
+	       os_sprintf(response, "%d KiB of %d per day used\r\n", 
+			(uint32_t)(Bytes_per_day/1024), config.daily_limit);
+               to_console(response);
+	   }
+#endif
+           os_sprintf(response, "Power supply: %d.%03d V\r\n", Vdd/1000, Vdd%1000);
+	   to_console(response);
+#ifdef USER_GPIO_OUT
+	   os_sprintf(response, "GPIO output status: %d\r\n", config.gpio_out_status);
+           to_console(response);
+#endif
 #ifdef PHY_MODE
 	   phy = wifi_get_phy_mode();
 	   os_sprintf(response, "Phy mode: %c\r\n", phy == PHY_MODE_11B?'b':phy == PHY_MODE_11G?'g':'n');
@@ -1024,14 +1062,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 station = STAILQ_NEXT(station, next);
            }
            wifi_softap_free_station_info();
-/*
-           for (i = 0; p = dhcps_get_mapping(i); i++) {
-		os_sprintf(response, "Station: %02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR "\r\n", 
-		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
-		   IP2STR(&p->ip));
-		to_console(response);
-	   }
-*/
+
 	   if (config.ap_watchdog >= 0 || config.client_watchdog >= 0) {
 		os_sprintf(response, "AP watchdog: %d Client watchdog: %d\r\n", ap_watchdog_cnt, client_watchdog_cnt);
 		to_console(response);
@@ -1844,6 +1875,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
+#ifdef DAILY_LIMIT
+            if (strcmp(tokens[1],"daily_limit") == 0)
+            {
+                config.daily_limit = atoi(tokens[2]);
+                os_sprintf_flash(response, "Daily_limit set\r\n");
+                goto command_handled;
+            }
+            if (strcmp(tokens[1],"timezone") == 0)
+            {
+                config.ntp_timezone = atoi(tokens[2]);
+                os_sprintf_flash(response, "NTP timezone set\r\n");
+                goto command_handled;
+            }
+#endif
 #ifdef TOKENBUCKET
             if (strcmp(tokens[1],"downstream_kbps") == 0)
             {
@@ -2524,6 +2569,19 @@ uint32_t Bps;
 	do_ip_config = false;
     }
 
+#ifdef DAILY_LIMIT
+    if (connected && toggle) {
+	uint32_t current_stamp = sntp_get_current_timestamp();
+	if(current_stamp != 0) {
+	    char *s = sntp_get_real_time(current_stamp);
+	    if (last_date != atoi(&s[8])) {
+		Bytes_per_day = 0;
+		last_date = atoi(&s[8]);
+	    }
+	}
+    }
+#endif
+
     t_new = get_long_systime();
 
 #ifdef TOKENBUCKET
@@ -3066,6 +3124,11 @@ struct ip_info info;
     t_old = 0;
     os_memset(uplink_bssid, 0, sizeof(uplink_bssid));
 
+#ifdef DAILY_LIMIT
+    Bytes_per_day = 0;
+    last_date = 0;
+#endif
+
 #ifdef TOKENBUCKET
     t_old_tb = 0;
     token_bucket_ds = token_bucket_us = 0;
@@ -3260,6 +3323,13 @@ struct ip_info info;
     Vdd = 3300;
 
     system_update_cpu_freq(config.clock_speed);
+
+#ifdef DAILY_LIMIT
+    sntp_setservername(0, "1.pool.ntp.org");
+    sntp_setservername(1, "2.pool.ntp.org");
+    sntp_set_timezone(config.ntp_timezone);
+    sntp_init();
+#endif
 
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);

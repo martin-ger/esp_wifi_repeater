@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define ESP_REPEATER_VERSION "V1.7.7"
+#define ESP_REPEATER_VERSION "V1.7.8"
 
 #define LOCAL_ACCESS 0x01
 #define REMOTE_ACCESS 0x02
@@ -11,11 +11,6 @@
 
 #define WIFI_AP_SSID         "MyAP"
 #define WIFI_AP_PASSWORD     "none"
-
-//
-// Define this to support WPA2 PEAP authentication (experimental)
-//
-//#define WPA2_PEAP	     1
 
 #define MAX_CLIENTS	     8
 #define MAX_DHCP	     8
@@ -52,6 +47,11 @@
 // Requires a connection of GPIO16 and RST (probably not available on ESP01 modules)
 //
 #define ALLOW_SLEEP         1
+
+//
+// Define this to support a daily traffic limit
+//
+#define DAILY_LIMIT         1
 
 //
 // Define this to support the setting of the WiFi PHY mode
@@ -125,6 +125,9 @@
 // Define this if you want to set an output signal
 //#define USER_GPIO_OUT  12
 
+// Define this to support WPA2 PEAP authentication (experimental)
+//
+//#define WPA2_PEAP	     1
 
 // Internal
 typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT, SIG_LOOPBACK} USER_SIGNALS;

@@ -123,7 +123,9 @@ Most of the set-commands are effective only after save and reset.
 - acl [from_sta|to_sta] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
 - set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
-- set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit) 
+- set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit, default)
+- set daily_limit _limit_in_KB_: defined a max. amount of kilobytes that can be transfered by STAs per day (0 = no limit, default)
+- set timezone _hours_offset_: defines the local timezone (required to know, when a day is over at 00:00)
 - monitor [on|off|acl] _port_: starts and stops monitor server on a given port
 
 ### User Interface Config
