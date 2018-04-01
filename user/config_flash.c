@@ -12,13 +12,28 @@
 void ICACHE_FLASH_ATTR config_load_default(sysconfig_p config)
 {
 uint8_t mac[6];
-
-    wifi_get_macaddr(STATION_IF, mac);
+uint8_t rom[4];
 
     os_memset(config, 0, sizeof(sysconfig_t));
     os_printf("Loading default configuration\r\n");
     config->magic_number                = MAGIC_NUMBER;
     config->length                      = sizeof(sysconfig_t);
+
+    *(uint32*)rom = *(uint32*)(0x3ff0005c);
+    mac[0] = rom[2];
+    mac[1] = rom[1];
+    mac[2] = rom[0];
+    *(uint32*)rom = *(uint32*)(0x3ff00054);
+    mac[3] = rom[1];
+    mac[4] = rom[0];
+    *(uint32*)rom = *(uint32*)(0x3ff00050);
+    mac[5] = rom[3];
+    //os_printf("%02x:%02x:%02x:%02x\r\n", rom[0], rom[1], rom[2], rom[3]);
+    //os_printf("%02x:%02x:%02x:%02x:%02x:%02x\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    os_memcpy(config->STA_MAC_address, mac, 6);
+    mac[0] |= 0x02;
+    os_memcpy(config->AP_MAC_address, mac, 6);	
+
     os_sprintf(config->ssid,"%s",       WIFI_SSID);
     os_sprintf(config->password,"%s",   WIFI_PASSWORD);
     config->auto_connect                = 0;
@@ -94,9 +109,6 @@ uint8_t mac[6];
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
     config->mqtt_topic_mask		= 0xffff;
 #endif
-
-    wifi_get_macaddr(SOFTAP_IF, config->AP_MAC_address);	
-    wifi_get_macaddr(STATION_IF, config->STA_MAC_address);	
 
     config->no_routes			= 0;
 

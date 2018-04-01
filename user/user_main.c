@@ -944,9 +944,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	to_console(response);
 
 	uint8_t ap_mac[20], sta_mac[20];
+	char *rand = "";
 	mac_2_buff(ap_mac, config.AP_MAC_address);
-	mac_2_buff(sta_mac, config.STA_MAC_address);
-	os_sprintf(response, "STA MAC: %s\r\nAP MAC:  %s\r\n", sta_mac, ap_mac);
+	if (strncmp(config.STA_MAC_address,"random",6) == 0) {
+	    uint8_t mac_buf[6];
+	    wifi_get_macaddr(STATION_IF, mac_buf);
+	    mac_2_buff(sta_mac, mac_buf);
+	    rand = " (random)";
+	} else {
+	    mac_2_buff(sta_mac, config.STA_MAC_address);
+	}
+	os_sprintf(response, "STA MAC: %s%s\r\nAP MAC:  %s\r\n", sta_mac, rand, ap_mac);
 	to_console(response);
 	os_sprintf(response, "STA hostname: %s\r\n", config.sta_hostname);
 	to_console(response);
@@ -2081,6 +2089,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1],"sta_mac") == 0)
             {
+		if (strcmp(tokens[2],"random") == 0) {
+		  os_memcpy(config.STA_MAC_address, tokens[2], 6);
+                  os_sprintf_flash(response, "STA MAC randomized\r\n");
+                  goto command_handled;
+		}
                 if (!parse_mac(config.STA_MAC_address, tokens[2]))
 		  os_sprintf(response, INVALID_ARG);
 		else
@@ -2624,7 +2637,11 @@ uint32_t Bps;
 		my_ap_ip.addr |= 0x01000000;
 
 		mac_2_buff(ap_mac, config.AP_MAC_address);
-		mac_2_buff(sta_mac, config.STA_MAC_address);
+
+		uint8_t mac_buf[6];
+		wifi_get_macaddr(STATION_IF, mac_buf);
+		mac_2_buff(sta_mac, mac_buf);
+
 		mac_2_buff(bssid_mac, uplink_bssid);
 		
 		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"mesh_level\":\"%u\",\"no_stas\":\"%d\"},\"stas\":[",
@@ -3056,9 +3073,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       config.AP_MAC_address[0] = 0x24;
       config.AP_MAC_address[1] = 0x24;
       config.AP_MAC_address[2] = mesh_level+1;
-      config.AP_MAC_address[3] = os_random() & 0xff;
-      config.AP_MAC_address[4] = os_random() & 0xff;
-      config.AP_MAC_address[5] = os_random() & 0xff;
+      os_get_random(&config.AP_MAC_address[3], 3);
 
       wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
       user_set_softap_wifi_config();
@@ -3223,7 +3238,14 @@ struct ip_info info;
     } else {
 	wifi_set_opmode(STATION_MODE);
     }
-    wifi_set_macaddr(STATION_IF, config.STA_MAC_address);
+    if (strncmp(config.STA_MAC_address, "random") == 0) {
+	uint8_t random_mac[6];
+	os_get_random(random_mac, 6);
+	random_mac[0] &= 0xfe;
+	wifi_set_macaddr(STATION_IF, random_mac);
+    } else {
+	wifi_set_macaddr(STATION_IF, config.STA_MAC_address);
+    }
 
 #ifdef PHY_MODE
     wifi_set_phy_mode(config.phy_mode);

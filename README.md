@@ -91,6 +91,7 @@ Most of the set-commands are effective only after save and reset.
 - set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
 - set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
 - set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
+- set sta_mac random: set a new random STA mac after each reboot
 - set sta_hostname _name_: sets the name of the STA (visible to the uplink AP)
 - set max_clients [1-8]: sets the number of STAs that can connct to the SoftAP (limit of the ESP's SoftAP implementation is 8, default)
 - scan: does a scan for APs
