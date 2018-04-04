@@ -91,7 +91,7 @@ Most of the set-commands are effective only after save and reset.
 - set phy_mode [1|2|3]: sets the PHY_MODE of the WiFi (1=b, 2=g, 3=n(default))
 - set bssid _xx:xx:xx:xx:xx:xx_: sets the specific BSSID of the uplink IP to connect to (default 00:00:00:00:00:00 which means any)
 - set [ap_mac|sta_mac] _xx:xx:xx:xx:xx:xx_: sets the MAC address of the STA and SOFTAP to a user defined value (bit 0 of the first byte of the MAC address can not be 1)
-- set sta_mac random: set a new random STA mac after each reboot
+- set sta_mac random: set a new random STA MAC after each reboot
 - set sta_hostname _name_: sets the name of the STA (visible to the uplink AP)
 - set max_clients [1-8]: sets the number of STAs that can connct to the SoftAP (limit of the ESP's SoftAP implementation is 8, default)
 - scan: does a scan for APs
@@ -153,7 +153,7 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
 # HW Factory Reset
-If you pull low GPIO 12 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
+If you pull low GPIO 4 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
 
 For many moduls, incl.ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
 
@@ -290,10 +290,11 @@ The MQTT parameters can be displayed with the "show mqtt" command.
 The router can publish the following status topics periodically (every mqtt_interval):
 - _prefix_path_/Uptime: System uptime since last reset in s (mask: 0x0020)
 - _prefix_path_/Vdd: Voltage of the power supply in mV (mask: 0x0040)
-- _prefix_path_/Bpsin: Bytes/s from stations into the AP (mask: 0x0800)
-- _prefix_path_/Bpsout: Bytes/s from the AP to stations (mask: 0x0800)
+- _prefix_path_/Bpsin: KBytes/s from stations into the AP (mask: 0x0800)
+- _prefix_path_/Bpsout: KBytes/s from the AP to stations (mask: 0x0800)
+- _prefix_path_/Bpd: KBytes per day from and to stations (mask: 0x0400)
 - _prefix_path_/Ppsin: Packets/s from stations into the AP (mask: 0x0200)
-- _prefix_path_/Ppsout: Packets/s from the AP to stations  (mask: 0x0400)
+- _prefix_path_/Ppsout: Packets/s from the AP to stations  (mask: 0x0200)
 - _prefix_path_/Bin: Total bytes from stations into the AP (mask: 0x0100)
 - _prefix_path_/Bout: Total bytes from the AP to stations  (mask: 0x0100)
 - _prefix_path_/NoStations: Number of stations currently connected to the AP  (mask: 0x2000)
