@@ -15,7 +15,9 @@
 #ifdef ALLOW_PING
 #include "lwip/app/ping.h"
 #endif
-
+#ifdef HAVE_ENC28J60
+#include "netif/espenc.h"
+#endif
 #include "user_interface.h"
 #include "string.h"
 #include "driver/uart.h"
@@ -125,10 +127,9 @@ void ICACHE_FLASH_ATTR mac_2_buff(char *buf, uint8_t mac[6]) {
 #define MQTT_TOPIC_VDD		0x0040
 #define MQTT_TOPIC_ACLDENY	0x0080
 #define MQTT_TOPIC_BYTES	0x0100
-#define MQTT_TOPIC_PIN		0x0200
-#define MQTT_TOPIC_POUT		0x0400
-#define MQTT_TOPIC_BPSIN	0x0800
-#define MQTT_TOPIC_BPSOUT	0x0800
+#define MQTT_TOPIC_PACKETS	0x0200
+#define MQTT_TOPIC_BPD		0x0400
+#define MQTT_TOPIC_BPS		0x0800
 #define MQTT_TOPIC_TOPOLOGY	0x1000
 #define MQTT_TOPIC_NOSTATIONS	0x2000
 #define MQTT_TOPIC_GPIOIN	0x4000
@@ -2619,14 +2620,18 @@ uint32_t Bps;
 	mqtt_publish_int(MQTT_TOPIC_VDD, "Vdd", "%d", Vdd);
 	mqtt_publish_int(MQTT_TOPIC_BYTES, "Bin", "%d", (uint32_t)(Bytes_in/1024));
 	mqtt_publish_int(MQTT_TOPIC_BYTES, "Bout", "%d", (uint32_t)(Bytes_out/1024));
-	mqtt_publish_int(MQTT_TOPIC_PIN, "Ppsin", "%d", (Packets_in-Packets_in_last)/t_diff);
-	mqtt_publish_int(MQTT_TOPIC_POUT, "Ppsout", "%d", (Packets_out-Packets_out_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_PACKETS, "Ppsin", "%d", (Packets_in-Packets_in_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_PACKETS, "Ppsout", "%d", (Packets_out-Packets_out_last)/t_diff);
 	mqtt_publish_int(MQTT_TOPIC_NOSTATIONS, "NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
-	mqtt_publish_int(MQTT_TOPIC_BPSIN, "Bpsin", "%d", (uint32_t)(Bytes_in-Bytes_in_last)/t_diff);
-	mqtt_publish_int(MQTT_TOPIC_BPSOUT, "Bpsout", "%d", (uint32_t)(Bytes_out-Bytes_out_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_BPS, "Bpsin", "%d", (uint32_t)(Bytes_in-Bytes_in_last)/t_diff);
+	mqtt_publish_int(MQTT_TOPIC_BPS, "Bpsout", "%d", (uint32_t)(Bytes_out-Bytes_out_last)/t_diff);
+#ifdef DAILY_LIMIT
+	mqtt_publish_int(MQTT_TOPIC_BPD, "Bpd", "%d", (uint32_t)(Bytes_per_day/1024));
+#endif
 #ifdef USER_GPIO_OUT
 	mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
 #endif
+
 
 	if (config.mqtt_topic_mask & MQTT_TOPIC_TOPOLOGY) {
 	    uint8_t *buffer = (uint8_t *)os_malloc(1024);
@@ -3262,6 +3267,9 @@ struct ip_info info;
 
 #ifdef HAVE_LOOPBACK
     loopback_netif_init((netif_status_callback_fn)schedule_netif_poll);
+#endif
+#ifdef HAVE_ENC28J60
+    espenc_init();
 #endif
 
 #ifdef REMOTE_CONFIG

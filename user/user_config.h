@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define ESP_REPEATER_VERSION "V1.7.9"
+#define ESP_REPEATER_VERSION "V1.8.0"
 
 #define LOCAL_ACCESS 0x01
 #define REMOTE_ACCESS 0x02
@@ -30,7 +30,7 @@
 // Defines the default GPIO pin for HW factory reset (when this GPIO is pulled low for more than 3 secs)
 // Any value > 16 disables this feature
 //
-#define FACTORY_RESET_PIN 12
+#define FACTORY_RESET_PIN 4
 
 //
 // Define this to support the "scan" command for AP search
@@ -57,6 +57,11 @@
 // Define this to support the setting of the WiFi PHY mode
 //
 #define PHY_MODE	    1
+
+//
+// Define this to support an ENC28J60 Ethernet interface
+//
+//#define HAVE_ENC28J60	    1
 
 //
 // Define this to support a loopback device (127.0.0.1)
