@@ -12,27 +12,44 @@
 void ICACHE_FLASH_ATTR config_load_default(sysconfig_p config)
 {
 uint8_t mac[6];
-uint8_t rom[4];
+uint32_t reg0, reg1, reg3;
 
     os_memset(config, 0, sizeof(sysconfig_t));
     os_printf("Loading default configuration\r\n");
     config->magic_number                = MAGIC_NUMBER;
     config->length                      = sizeof(sysconfig_t);
 
-    *(uint32*)rom = *(uint32*)(0x3ff0005c);
-    mac[0] = rom[2];
-    mac[1] = rom[1];
-    mac[2] = rom[0];
-    *(uint32*)rom = *(uint32*)(0x3ff00054);
-    mac[3] = rom[1];
-    mac[4] = rom[0];
-    *(uint32*)rom = *(uint32*)(0x3ff00050);
-    mac[5] = rom[3];
-    //os_printf("%02x:%02x:%02x:%02x\r\n", rom[0], rom[1], rom[2], rom[3]);
-    //os_printf("%02x:%02x:%02x:%02x:%02x:%02x\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    reg0 = *(uint32*)(0x3ff00050);
+    reg1 = *(uint32*)(0x3ff00054);
+    reg3 = *(uint32*)(0x3ff0005c);
+
+    if (reg3 != 0) {
+	mac[0] = (reg3 >> 16) & 0xff;
+	mac[1] = (reg3 >> 8) & 0xff;
+	mac[2] = reg3 & 0xff;
+    } else
+    if (((reg1 >> 16) & 0xff) == 0) {
+	mac[0] = 0x1a;
+	mac[1] = 0xfe;
+	mac[2] = 0x34;
+    } else 
+    if (((reg1 >> 16) & 0xff) == 1) {
+	mac[0] = 0xac;
+	mac[1] = 0xd0;
+	mac[2] = 0x74;
+    } else {
+	os_printf("MAC read error\r\n");
+    }
+    mac[3] = (reg1 >> 8) & 0xff;
+    mac[4] = reg1 & 0xff;
+    mac[5] = (reg0 >> 24) & 0xff;
+
+    os_printf("%02x:%02x:%02x\r\n", reg0, reg1, reg3);
+    os_printf("%02x:%02x:%02x:%02x:%02x:%02x\r\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
     os_memcpy(config->STA_MAC_address, mac, 6);
     mac[0] |= 0x02;
-    os_memcpy(config->AP_MAC_address, mac, 6);	
+    os_memcpy(config->AP_MAC_address, mac, 6);
 
     os_sprintf(config->ssid,"%s",       WIFI_SSID);
     os_sprintf(config->password,"%s",   WIFI_PASSWORD);
@@ -108,6 +125,15 @@ uint8_t rom[4];
     config->gpio_out_status		= 0;
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
     config->mqtt_topic_mask		= 0xffff;
+#endif
+
+#ifdef HAVE_ENC28J60
+    mac[0] ^= 0x04;
+    os_memcpy(config->ETH_MAC_address, mac, 6);
+    config->eth_addr.addr		= 0;  // use DHCP   
+    config->eth_netmask.addr		= 0;  // use DHCP   
+    config->eth_gw.addr			= 0;  // use DHCP
+    config->eth_enable			= 0;  // off
 #endif
 
     config->no_routes			= 0;

@@ -98,15 +98,17 @@ Most of the set-commands are effective only after save and reset.
 - connect: tries to connect to an AP with the currently configured _ssid_ and _password_
 - disconnect: disconnects from any uplink AP
 
+### Ethernet Config
+
 ### TCP/IP Config
 - ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
 - set dns dhcp: configures use of the dynamic DNS address from DHCP, default
-- set ip _ip-addr_: sets a static IP address for the ESP in the uplink network
-- set ip dhcp: configures dynamic IP address for the ESP in the uplink network, default
-- set netmask _netmask_: sets a static netmask for the uplink network
-- set gw _gw-addr_: sets a static gateway address in the uplink network
+- set ip _ip-addr_: sets a static IP address for the STA interface
+- set ip dhcp: configures dynamic IP address for the STA interface, default
+- set netmask _netmask_: sets a static netmask for the STA interface
+- set gw _gw-addr_: sets a static gateway address for the STA interface
 - show dhcp: prints the current status of the dhcp lease table
 
 ### Routing
@@ -155,7 +157,7 @@ With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "
 # HW Factory Reset
 If you pull low GPIO 4 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
 
-For many moduls, incl.ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
+For many moduls, incl. ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
@@ -240,6 +242,30 @@ For deeper analysis the monitoring service can be used (even denied packets are 
 - acl to_sta IP any any allow
 
 will allow all packets and also select all packets for monitoring that go from a station to the 192.168.0.0/16 (local)subnet and from the 192.168.0.0/16 to a station. Of course such a filter can be applied also after the capture to a full monitoring trace, but if you already know, what you are looking for, these online filters will help to reduce monitoring overhead drastically. It can also be used to debug all deny firewall rules by simply using "deny_monitor" instead of deny.
+
+# ENC28J60 Ethernet Support (experimental)
+If you enable the HAVE_ENC28J60 option in user_config.h and recompile the project, you get support for an ENC28J60 Ethernet NIC connected via SPI.
+
+The connection via SPI connection has to be:
+```
+ESP8266      ENC28J60
+
+GPIO12 <---> MISO
+GPIO13 <---> MOSI
+GPIO14 <---> SCLK
+GPIO15 <---> CS
+GPIO5  <---> INT
+Q3/V33 <---> 3.3V
+GND    <---> GND
+```
+In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/
+
+Now you can configure the new Ethernet interface: 
+- set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
+- set eth_ip _ip-addr_: sets a static IP address for the ETH interface
+- set eth_ip dhcp: configures dynamic IP address for the ETH interface, default
+- set eth_netmask _netmask_: sets a static netmask for the ETH interface
+- set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
 
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.

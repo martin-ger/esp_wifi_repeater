@@ -65,9 +65,9 @@ typedef struct
     ip_addr_t	network_addr;	// Address of the internal network
     ip_addr_t	dns_addr;	// Optional: address of the dns server
 
-    ip_addr_t	my_addr;	// Optional (if not DHCP): IP address of the uplink side
-    ip_addr_t	my_netmask;	// Optional (if not DHCP): IP netmask of the uplink side
-    ip_addr_t	my_gw;		// Optional (if not DHCP): Gateway of the uplink side
+    ip_addr_t	my_addr;	// Optional (if not DHCP): IP address of the STA interface
+    ip_addr_t	my_netmask;	// Optional (if not DHCP): IP netmask of the STA interface
+    ip_addr_t	my_gw;		// Optional (if not DHCP): Gateway of the STA interface
 #ifdef PHY_MODE
     uint16_t	phy_mode;	// WiFi PHY mode
 #endif
@@ -111,7 +111,13 @@ typedef struct
 
     uint8_t     AP_MAC_address[6];	// MAC address of the AP
     uint8_t     STA_MAC_address[6];	// MAC address of the STA
-
+#ifdef HAVE_ENC28J60
+    ip_addr_t	eth_addr;	// Optional (if not DHCP): IP address of the ENC28J60 ETH interface
+    ip_addr_t	eth_netmask;	// Optional (if not DHCP): IP netmask of the ENC28J60 ETH interface
+    ip_addr_t	eth_gw;		// Optional (if not DHCP): Gateway of the ENC28J60 ETH interface
+    uint8_t     ETH_MAC_address[6];	// MAC address of the ENC28J60 ETH interface
+    bool	eth_enable;	// Do we really have and use an ENC28J60 ETH interface
+#endif
     uint32_t	no_routes;	// Number of static routing entires
     struct route_entry rt_table[MAX_ROUTES];	// The routing entries
 

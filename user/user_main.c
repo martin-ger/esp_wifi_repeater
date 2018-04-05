@@ -100,6 +100,10 @@ uint8_t uplink_bssid[6];
 static netif_input_fn orig_input_ap, orig_input_sta;
 static netif_linkoutput_fn orig_output_ap, orig_output_sta;
 
+#ifdef HAVE_ENC28J60
+struct netif* eth_netif;
+#endif
+
 uint8_t remote_console_disconnect;
 struct espconn *currentconn;
 
@@ -809,6 +813,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "help") == 0)
     {
         os_sprintf(response, "show [config|stats|route|dhcp%s]\r\n",
+#ifdef ACLS
+		"|acl"
+#else
+		""
+#endif
 #ifdef MQTT_CLIENT
 		"|mqtt"
 #else
@@ -825,6 +834,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
         to_console(response);
+#ifdef HAVE_ENC28J60
+        os_sprintf_flash(response, "set [eth_enable|eth_ip|eth_netmask|eth_gw|eth_mac] <val>\r\n");
+        to_console(response);
+#endif
         os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #ifdef ACLS
@@ -907,6 +920,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         	to_console(response);	
 	}
 #endif
+	// if static IP, add it
+	os_sprintf(response, config.my_addr.addr?"STA: IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
+		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
+        to_console(response);
+	// if static DNS, add it
+	os_sprintf(response, config.dns_addr.addr?" DNS: %d.%d.%d.%d\r\n":"", IP2STR(&config.dns_addr));
+        to_console(response);
+
 	if (config.automesh_mode != AUTOMESH_OFF) {
 	        os_sprintf(response, "Automesh: on (%s) Level: %d Threshold: -%d\r\n",
 		config.automesh_mode==AUTOMESH_LEARNING?"learning":"operational", 
@@ -920,43 +941,48 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             to_console(response);
 	}
 #endif
-        os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24\r\n",
+        os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24%s\r\n",
                    config.ap_ssid,
 		   config.ssid_hidden?"[hidden]":"",
                    config.locked?"***":(char*)config.ap_password,
                    config.ap_open?" [open]":"",
                    config.ap_on?"":" [disabled]",
-		   IP2STR(&config.network_addr));
+		   IP2STR(&config.network_addr),
+		   config.nat_enable?" [NAT]":"");
         to_console(response);
 
-	// if static IP, add it
-	os_sprintf(response, config.my_addr.addr?"Static IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
-		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
-        to_console(response);
-	// if static DNS, add it
-	os_sprintf(response, config.dns_addr.addr?" DNS: %d.%d.%d.%d\r\n":"", IP2STR(&config.dns_addr));
-        to_console(response);
-
-	if (config.nat_enable) {
-		os_sprintf_flash(response, "NAT enabled\r\n");
+#ifdef HAVE_ENC28J60
+	if (config.eth_enable) {
+	    os_sprintf(response, config.eth_addr.addr?"ETH IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":
+		"ETH: DHCP\r\n", IP2STR(&config.eth_addr), IP2STR(&config.eth_netmask), IP2STR(&config.eth_gw));
 	} else {
-		os_sprintf_flash(response, "NAT disabled\r\n");
+	    os_sprintf_flash(response, "ETH: disabled\r\n");
 	}
-	to_console(response);
+        to_console(response);
+#endif
 
-	uint8_t ap_mac[20], sta_mac[20];
+	uint8_t mac_buf[20];
 	char *rand = "";
-	mac_2_buff(ap_mac, config.AP_MAC_address);
 	if (strncmp(config.STA_MAC_address,"random",6) == 0) {
-	    uint8_t mac_buf[6];
-	    wifi_get_macaddr(STATION_IF, mac_buf);
-	    mac_2_buff(sta_mac, mac_buf);
+	    uint8_t mac[6];
+	    wifi_get_macaddr(STATION_IF, mac);
+	    mac_2_buff(mac_buf, mac);
 	    rand = " (random)";
 	} else {
-	    mac_2_buff(sta_mac, config.STA_MAC_address);
+	    mac_2_buff(mac_buf, config.STA_MAC_address);
 	}
-	os_sprintf(response, "STA MAC: %s%s\r\nAP MAC:  %s\r\n", sta_mac, rand, ap_mac);
+	os_sprintf(response, "STA MAC: %s%s\r\n", mac_buf, rand);
 	to_console(response);
+	mac_2_buff(mac_buf, config.AP_MAC_address);
+	os_sprintf(response, "AP MAC:  %s\r\n", mac_buf);
+	to_console(response);
+#ifdef HAVE_ENC28J60
+	if (config.eth_enable) {
+	    mac_2_buff(mac_buf, config.ETH_MAC_address);
+	    os_sprintf(response, "ETH MAC: %s\r\n", mac_buf);
+	    to_console(response);
+	}
+#endif
 	os_sprintf(response, "STA hostname: %s\r\n", config.sta_hostname);
 	to_console(response);
 	if (config.max_clients != MAX_CLIENTS) {
@@ -1050,12 +1076,26 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 	   os_sprintf(response, "Free mem: %d\r\n", system_get_free_heap_size());
 	   to_console(response);
+
 	   if (connected) {
-		os_sprintf(response, "External IP-address: " IPSTR "\r\n", IP2STR(&my_ip));
+		uint8_t buf[20];
+		struct netif *sta_nf = (struct netif *)eagle_lwip_getif(0);
+		addr2str(buf, sta_nf->ip_addr.addr, sta_nf->netmask.addr);
+		os_sprintf(response, "STA IP: %s gw: %d.%d.%d.%d\r\n", buf, IP2STR(&sta_nf->gw));
 	   } else {
-		os_sprintf_flash(response, "Not connected to AP\r\n");
+		os_sprintf_flash(response, "STA not connected\r\n");
 	   }
 	   to_console(response);
+#ifdef HAVE_ENC28J60
+	   if (eth_netif) {
+		uint8_t buf[20];
+		addr2str(buf, eth_netif->ip_addr.addr, eth_netif->netmask.addr);
+		os_sprintf(response, "ETH IP: %s gw: %d.%d.%d.%d\r\n", buf, IP2STR(&eth_netif->gw));
+	   } else {
+		os_sprintf_flash(response, "ETH not initialized\r\n");
+	   }
+	   to_console(response);
+#endif
 	   if (config.ap_on)
 		os_sprintf(response, "%d Station%s connected to SoftAP\r\n", wifi_softap_get_station_num(),
 		  wifi_softap_get_station_num()==1?"":"s");
@@ -2110,7 +2150,56 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                   os_sprintf_flash(response, "bssid set\r\n");
                 goto command_handled;
             }
+#ifdef HAVE_ENC28J60
+            if (strcmp(tokens[1],"eth_enable") == 0)
+            {
+                config.eth_enable = atoi(tokens[2]);
+                if (config.eth_enable){
+                    os_sprintf_flash(response, "eth enabled\r\n");
+		} else {
+                    os_sprintf_flash(response, "eth disabled\r\n");
+		}
+                goto command_handled;
+            }
 
+            if (strcmp(tokens[1],"eth_ip") == 0)
+            {
+		if (os_strcmp(tokens[2], "dhcp") == 0) {
+		    config.eth_addr.addr = 0;
+		    os_sprintf_flash(response, "ETH IP from DHCP\r\n");
+		} else {
+		    config.eth_addr.addr = ipaddr_addr(tokens[2]);
+		    os_sprintf(response, "ETH IP address set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.eth_addr));
+		}
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"eth_netmask") == 0)
+            {
+                config.eth_netmask.addr = ipaddr_addr(tokens[2]);
+                os_sprintf(response, "ETH IP netmask set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.eth_netmask));
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"eth_gw") == 0)
+            {
+                config.eth_gw.addr = ipaddr_addr(tokens[2]);
+                os_sprintf(response, "ETH Gateway set to %d.%d.%d.%d\r\n", 
+			IP2STR(&config.eth_gw));
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"eth_mac") == 0)
+            {
+                if (!parse_mac(config.ETH_MAC_address, tokens[2]))
+		  os_sprintf(response, INVALID_ARG);
+		else
+                  os_sprintf_flash(response, "ETH MAC set\r\n");
+                goto command_handled;
+            }
+#endif
 #ifdef MQTT_CLIENT
 	    if (strcmp(tokens[1], "mqtt_host") == 0)
 	    {
@@ -3269,7 +3358,11 @@ struct ip_info info;
     loopback_netif_init((netif_status_callback_fn)schedule_netif_poll);
 #endif
 #ifdef HAVE_ENC28J60
-    espenc_init();
+    eth_netif = NULL;
+    if (config.eth_enable) {
+	eth_netif = espenc_init(config.ETH_MAC_address, &config.eth_addr, &config.eth_netmask, 
+			    &config.eth_gw, (config.eth_addr.addr == 0));
+    }
 #endif
 
 #ifdef REMOTE_CONFIG
