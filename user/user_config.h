@@ -61,7 +61,7 @@
 //
 // Define this to support an ENC28J60 Ethernet interface
 //
-//#define HAVE_ENC28J60	    1
+#define HAVE_ENC28J60	    1
 
 //
 // Define this to support a loopback device (127.0.0.1)
@@ -135,6 +135,6 @@
 //#define WPA2_PEAP	     1
 
 // Internal
-typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT, SIG_LOOPBACK} USER_SIGNALS;
+typedef enum {SIG_DO_NOTHING=0, SIG_START_SERVER=1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT, SIG_LOOPBACK, SIG_ENC} USER_SIGNALS;
 
 #endif

@@ -1081,7 +1081,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		uint8_t buf[20];
 		struct netif *sta_nf = (struct netif *)eagle_lwip_getif(0);
 		addr2str(buf, sta_nf->ip_addr.addr, sta_nf->netmask.addr);
-		os_sprintf(response, "STA IP: %s gw: %d.%d.%d.%d\r\n", buf, IP2STR(&sta_nf->gw));
+		os_sprintf(response, "STA IP: %s GW: %d.%d.%d.%d\r\n", buf, IP2STR(&sta_nf->gw));
 	   } else {
 		os_sprintf_flash(response, "STA not connected\r\n");
 	   }
@@ -1090,7 +1090,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   if (eth_netif) {
 		uint8_t buf[20];
 		addr2str(buf, eth_netif->ip_addr.addr, eth_netif->netmask.addr);
-		os_sprintf(response, "ETH IP: %s gw: %d.%d.%d.%d\r\n", buf, IP2STR(&eth_netif->gw));
+		os_sprintf(response, "ETH IP: %s GW: %d.%d.%d.%d\r\n", buf, IP2STR(&eth_netif->gw));
 	   } else {
 		os_sprintf_flash(response, "ETH not initialized\r\n");
 	   }
@@ -2771,6 +2771,10 @@ uint32_t Bps;
     }
 #endif
 
+#ifdef HAVE_ENC28J60
+	enc28j60_poll();
+#endif
+
     os_timer_arm(&ptimer, toggle?900:100, 0); 
 }
 
@@ -2807,6 +2811,13 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 	{
 	    struct netif *netif = (struct netif *) events->par;
 	    netif_poll(netif);
+	}
+        break;
+#endif
+#ifdef HAVE_ENC28J60
+    case SIG_ENC:
+	{
+	    enc28j60_poll();
 	}
         break;
 #endif
@@ -3221,6 +3232,13 @@ void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
 }
 #endif
 
+#ifdef HAVE_ENC28J60
+void *schedule_enc_poll(struct netif *netif) {
+    system_os_post(0, SIG_ENC, (ETSParam) netif);
+    return NULL;
+}
+#endif
+
 void ICACHE_FLASH_ATTR user_init()
 {
 struct ip_info info;
@@ -3361,7 +3379,7 @@ struct ip_info info;
     eth_netif = NULL;
     if (config.eth_enable) {
 	eth_netif = espenc_init(config.ETH_MAC_address, &config.eth_addr, &config.eth_netmask, 
-			    &config.eth_gw, (config.eth_addr.addr == 0));
+			    &config.eth_gw, (config.eth_addr.addr == 0), (netif_status_callback_fn)schedule_enc_poll);
     }
 #endif
 
