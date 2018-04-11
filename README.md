@@ -243,30 +243,6 @@ For deeper analysis the monitoring service can be used (even denied packets are 
 
 will allow all packets and also select all packets for monitoring that go from a station to the 192.168.0.0/16 (local)subnet and from the 192.168.0.0/16 to a station. Of course such a filter can be applied also after the capture to a full monitoring trace, but if you already know, what you are looking for, these online filters will help to reduce monitoring overhead drastically. It can also be used to debug all deny firewall rules by simply using "deny_monitor" instead of deny.
 
-# ENC28J60 Ethernet Support (experimental)
-If you enable the HAVE_ENC28J60 option in user_config.h and recompile the project, you get support for an ENC28J60 Ethernet NIC connected via SPI.
-
-The connection via SPI connection has to be:
-```
-ESP8266      ENC28J60
-
-GPIO12 <---> MISO
-GPIO13 <---> MOSI
-GPIO14 <---> SCLK
-GPIO15 <---> CS
-GPIO5  <---> INT
-Q3/V33 <---> 3.3V
-GND    <---> GND
-```
-In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/
-
-Now you can configure the new Ethernet interface: 
-- set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
-- set eth_ip _ip-addr_: sets a static IP address for the ETH interface
-- set eth_ip dhcp: configures dynamic IP address for the ETH interface, default
-- set eth_netmask _netmask_: sets a static netmask for the ETH interface
-- set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
-
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
 
@@ -347,6 +323,30 @@ If _vmin_ (in mV, default 0) is set to a value > 0 and the supply voltage drops 
 You can send the ESP to sleep manually once by using the "sleep" command.
 
 Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediately shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000.
+
+# ENC28J60 Ethernet Support (experimental)
+If you enable the HAVE_ENC28J60 option in user_config.h and recompile the project, you get support for an ENC28J60 Ethernet NIC connected via SPI.
+
+The connection via SPI connection has to be:
+```
+NodeMCU/Wemos  ESP8266      ENC28J60
+
+        D6     GPIO12 <---> MISO
+        D7     GPIO13 <---> MOSI
+        D5     GPIO14 <---> SCLK
+        D8     GPIO15 <---> CS
+        D1     GPIO5  <---> INT
+               Q3/V33 <---> 3.3V
+               GND    <---> GND
+```
+In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/
+
+Now you can configure the new Ethernet interface: 
+- set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
+- set eth_ip _ip-addr_: sets a static IP address for the ETH interface
+- set eth_ip dhcp: configures dynamic IP address for the ETH interface, default
+- set eth_netmask _netmask_: sets a static netmask for the ETH interface
+- set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
 
 # Building and Flashing
 To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk). Make sure, you can compile and download the included "blinky" example.
