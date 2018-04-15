@@ -3242,6 +3242,7 @@ void *schedule_enc_poll(struct netif *netif) {
 void ICACHE_FLASH_ATTR user_init()
 {
 struct ip_info info;
+struct espconn *pCon;
 
     connected = false;
     do_ip_config = false;
@@ -3384,9 +3385,9 @@ struct ip_info info;
 #endif
 
 #ifdef REMOTE_CONFIG
+    pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
     if (config.config_port != 0) {
 	os_printf("Starting Console TCP Server on port %d\r\n", config.config_port);
-	struct espconn *pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
 
 	/* Equivalent to bind */
 	pCon->type  = ESPCONN_TCP;
@@ -3403,9 +3404,10 @@ struct ip_info info;
 #endif
 
 #ifdef WEB_CONFIG
+    pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
     if (config.web_port != 0) {
         os_printf("Starting Web Config Server on port %d\r\n", config.web_port);
-        struct espconn *pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
+
 
         /* Equivalent to bind */
         pCon->type  = ESPCONN_TCP;
