@@ -16,7 +16,7 @@
 #include "lwip/app/ping.h"
 #endif
 #ifdef HAVE_ENC28J60
-#include "netif/espenc.h"
+#include "lwip/netif/espenc.h"
 #endif
 #include "user_interface.h"
 #include "string.h"
