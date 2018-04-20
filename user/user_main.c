@@ -841,7 +841,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #ifdef ACLS
-        os_sprintf_flash(response, "acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
+        os_sprintf_flash(response, "show acl|acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
         to_console(response);
 #endif
 #ifdef DAILY_LIMIT
