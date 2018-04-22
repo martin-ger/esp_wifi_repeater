@@ -279,7 +279,7 @@ static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
     static uint8_t tbuf[1400];
 
     struct espconn *pespconn = (struct espconn *)arg;
-    //os_printf("tcp_client_sent_cb(): Data sent to monitor\n");
+    //os_printf("tcp_monitor_sent_cb(): Data sent to monitor\n");
 
     monitoring_send_ongoing = 0;
     if (!monitoring_on) return;
@@ -291,7 +291,7 @@ static void ICACHE_FLASH_ATTR tcp_monitor_sent_cb(void *arg)
 
 	 ringbuf_memcpy_from(tbuf, pcap_buffer, len);
 	 //os_printf("tcp_monitor_sent_cb(): %d Bytes sent to monitor\n", len);
-	 if (espconn_sent(pespconn, tbuf, len) != 0) {
+	 if (espconn_send(pespconn, tbuf, len) != 0) {
 		os_printf("TCP send error\r\n");
 		return;
 	 }
@@ -333,7 +333,7 @@ static void ICACHE_FLASH_ATTR tcp_monitor_connected_cb(void *arg)
     pcf_hdr.snaplen 		= 1600;
     pcf_hdr.linktype		= LINKTYPE_ETHERNET;
 
-    espconn_sent(pespconn, (uint8_t *)&pcf_hdr, sizeof(pcf_hdr));
+    espconn_send(pespconn, (uint8_t *)&pcf_hdr, sizeof(pcf_hdr));
     monitoring_send_ongoing = 1;
 
     monitoring_on = 1;
@@ -655,28 +655,31 @@ bool    in_token = false;
    return token_count;
 }
 
-
+char *console_output = NULL;
 void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
 {
-    char payload[MAX_CON_SEND_SIZE+4];
     uint16_t len = ringbuf_bytes_used(console_tx_buffer);
+    console_output = (char*) os_malloc(len+4);
 
-    ringbuf_memcpy_from(payload, console_tx_buffer, len);
+    ringbuf_memcpy_from(console_output, console_tx_buffer, len);
 #ifdef MQTT_CLIENT
-    payload[len] = 0;
+    console_output[len] = 0;
     if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
-	mqtt_publish_str(MQTT_TOPIC_RESPONSE, "response", payload);
+	mqtt_publish_str(MQTT_TOPIC_RESPONSE, "response", console_output);
     }
 #endif
     if (do_cmd) {
-	os_memcpy(&payload[len], "CMD>", 4);
+	os_memcpy(&console_output[len], "CMD>", 4);
 	len += 4;
     }
 
-    if (pespconn != NULL)
-	espconn_sent(pespconn, payload, len);
-    else
-	UART_Send(0, &payload, len);
+    if (pespconn != NULL) {
+	espconn_send(pespconn, console_output, len);
+    } else {
+	UART_Send(0, console_output, len);
+	os_free(console_output);
+	console_output = NULL;
+    }
 }
 
 
@@ -2326,6 +2329,19 @@ bool ICACHE_FLASH_ATTR check_connection_access(struct espconn *pesp_conn, uint8_
 }
 
 #ifdef REMOTE_CONFIG
+static void ICACHE_FLASH_ATTR tcp_client_sent_cb(void *arg)
+{
+    uint16_t len;
+    static uint8_t tbuf[1400];
+
+    struct espconn *pespconn = (struct espconn *)arg;
+    //os_printf("tcp_client_sent_cb(): Data sent to console\n");
+    if (console_output != NULL) {
+	os_free(console_output);
+	console_output = NULL;
+    }
+}
+
 static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
                                                  char *data,
                                                  unsigned short length)
@@ -2351,7 +2367,7 @@ static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
 
 static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
 {
-    os_printf("tcp_client_discon_cb(): client disconnected\n");
+    //os_printf("tcp_client_discon_cb(): client disconnected\n");
 #ifdef ACLS
     acl_debug = 0;
     deny_cb_conn = 0;
@@ -2363,10 +2379,9 @@ static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
 /* Called when a client connects to the console server */
 static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 {
-    char payload[128];
     struct espconn *pespconn = (struct espconn *)arg;
 
-    os_printf("tcp_client_connected_cb(): Client connected\r\n");
+    //os_printf("tcp_client_connected_cb(): Client connected\r\n");
 
     if (!check_connection_access(pespconn, config.config_access)) {
 	os_printf("Client disconnected - no config access on this network\r\n");
@@ -2374,7 +2389,8 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 	return;
     }
 
-    //espconn_regist_sentcb(pespconn,     tcp_client_sent_cb);
+    console_output = NULL;
+    espconn_regist_sentcb(pespconn,     tcp_client_sent_cb);
     espconn_regist_disconcb(pespconn,   tcp_client_discon_cb);
     espconn_regist_recvcb(pespconn,     tcp_client_recv_cb);
     espconn_regist_time(pespconn,  300, 1);  // Specific to console only
@@ -2382,8 +2398,7 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
     
-    os_sprintf(payload, "CMD>");
-    espconn_sent(pespconn, payload, os_strlen(payload));
+    espconn_send(pespconn, "CMD>", 4);
 #ifdef ACLS
     deny_cb_conn = pespconn;
 #endif
@@ -2409,8 +2424,6 @@ static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char* val)
 
     ringbuf_memcpy_into(console_rx_buffer, cmd_line, os_strlen(cmd_line));
     console_handle_command(pespconn);
-//    ringbuf_memcpy_into(console_rx_buffer, "save", os_strlen("save"));
-//    console_handle_command(pespconn);
 }
 
 char *strstr(char *string, char *needle);
@@ -2575,7 +2588,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 		   IP2STR(&config.network_addr));
 	os_free(config_page);
 
-	espconn_sent(pespconn, page_buf, os_strlen(page_buf));
+	espconn_send(pespconn, page_buf, os_strlen(page_buf));
     }
     else {
     	static const uint8_t lock_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = LOCK_PAGE;
@@ -2585,7 +2598,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 	    return;
 	os_memcpy(lock_page, lock_page_str, slen);
 
-	espconn_sent(pespconn, lock_page, sizeof(lock_page_str));
+	espconn_send(pespconn, lock_page, sizeof(lock_page_str));
 	
 	os_free(lock_page);
 	page_buf = NULL;
