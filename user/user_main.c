@@ -1085,10 +1085,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		struct netif *sta_nf = (struct netif *)eagle_lwip_getif(0);
 		addr2str(buf, sta_nf->ip_addr.addr, sta_nf->netmask.addr);
 		os_sprintf(response, "STA IP: %s GW: %d.%d.%d.%d\r\n", buf, IP2STR(&sta_nf->gw));
+		to_console(response);
+		os_sprintf(response, "STA RSSI: %d\r\n", wifi_station_get_rssi());
+		to_console(response);
 	   } else {
 		os_sprintf_flash(response, "STA not connected\r\n");
+		to_console(response);
 	   }
-	   to_console(response);
 #ifdef HAVE_ENC28J60
 	   if (eth_netif) {
 		uint8_t buf[20];
