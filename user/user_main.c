@@ -2768,7 +2768,7 @@ uint32_t Bps;
 			os_sprintf(&buffer[os_strlen(buffer)], ",");
 		    do_colon = true;
 		    mac_2_buff(sta_mac, station->bssid);
-		    os_sprintf(&buffer[os_strlen(buffer)], "{\"mac:\":\"%s\",\"ip\":\""  IPSTR "\"}", sta_mac, IP2STR(&station->ip));
+		    os_sprintf(&buffer[os_strlen(buffer)], "{\"mac\":\"%s\",\"ip\":\""  IPSTR "\"}", sta_mac, IP2STR(&station->ip));
 		    station = STAILQ_NEXT(station, next);
 		}
 		wifi_softap_free_station_info();

@@ -195,8 +195,8 @@ If you want to get more insight into the topology of an automesh network, you mi
 	"no_stas":"2"
 },
 "stas":[
-	{"mac:":"5c:cf:45:11:7f:13","ip":"10.24.1.2"},
-	{"mac:":"00:14:22:76:99:c5","ip":"10.24.1.3"}
+	{"mac":"5c:cf:45:11:7f:13","ip":"10.24.1.2"},
+	{"mac":"00:14:22:76:99:c5","ip":"10.24.1.3"}
 ]
 }
 ```
