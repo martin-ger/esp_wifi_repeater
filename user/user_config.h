@@ -60,8 +60,9 @@
 
 //
 // Define this to support an ENC28J60 Ethernet interface
+// Experimantal feature - not yet stable
 //
-#define HAVE_ENC28J60	    1
+//#define HAVE_ENC28J60	    1
 
 //
 // Define this to support a loopback device (127.0.0.1)
