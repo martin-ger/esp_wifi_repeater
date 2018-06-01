@@ -2907,7 +2907,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
 	os_memset(uplink_bssid, 0, sizeof(uplink_bssid));
 	if (config.automesh_mode == AUTOMESH_OPERATIONAL) {
-	  if (evt->event_info.disconnected.reason != 201) {
+	  if (evt->event_info.disconnected.reason == 201) {
 	    wifi_set_opmode(STATION_MODE);
 	  }
 
