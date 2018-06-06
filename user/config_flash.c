@@ -218,3 +218,59 @@ int i;
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, (uint32_t *)z, len);
 }
 
+const uint8_t esp_init_data_default[] = {
+    "\x05\x08\x04\x02\x05\x05\x05\x02\x05\x00\x04\x05\x05\x04\x05\x05"
+    "\x04\xFE\xFD\xFF\xF0\xF0\xF0\xE0\xE0\xE0\xE1\x0A\xFF\xFF\xF8\x00"
+    "\xF8\xF8\x4E\x4A\x46\x40\x3C\x38\x00\x00\x01\x01\x02\x03\x04\x05"
+    "\x01\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    "\xE1\x0A\x00\x00\x00\x00\x00\x00\x00\x00\x01\x93\x43\x00\x00\x00"
+    "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+    "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\x00\x00\x00\x00"
+    "\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"};
+
+void user_rf_pre_init() {
+  enum flash_size_map size_map = system_get_flash_size_map();
+   uint32 rf_cal_sec = 0, addr, rfCalData, i;
+  os_printf("\nUser preinit: ");
+   switch (size_map) {
+      case FLASH_SIZE_4M_MAP_256_256:
+         rf_cal_sec = 128 - 5;     
+         break;
+
+      case FLASH_SIZE_8M_MAP_512_512:
+         rf_cal_sec = 256 - 5;
+         break;
+
+      case FLASH_SIZE_16M_MAP_512_512:
+      case FLASH_SIZE_16M_MAP_1024_1024:
+         rf_cal_sec = 512 - 5;
+         break;
+
+      case FLASH_SIZE_32M_MAP_512_512:
+      case FLASH_SIZE_32M_MAP_1024_1024:
+         rf_cal_sec = 1024 - 5;
+         break;
+
+      default:
+         rf_cal_sec = 0;
+         break;
+   }
+  addr = ((rf_cal_sec) * SPI_FLASH_SEC_SIZE)+SPI_FLASH_SEC_SIZE;
+ 
+  for (i=0; i<sizeof(esp_init_data_default)/4; i++) {
+    addr+=(i*4);
+    spi_flash_read(addr, &rfCalData, 4);
+    if (rfCalData != esp_init_data_default[i]) {     
+      spi_flash_erase_sector(rf_cal_sec);
+      spi_flash_erase_sector(rf_cal_sec+1);
+      spi_flash_erase_sector(rf_cal_sec+2);
+      addr = ((rf_cal_sec) * SPI_FLASH_SEC_SIZE)+SPI_FLASH_SEC_SIZE;
+      os_printf("Storing rfcal init data @ address=0x%08X\n", addr);
+      spi_flash_write(addr, (uint32 *)esp_init_data_default, sizeof(esp_init_data_default));
+     
+      break;
+    } else {
+      os_printf("RF data[%u] is ok\n", i);
+    }
+  }
+}
