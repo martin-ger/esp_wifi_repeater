@@ -229,9 +229,11 @@ const uint8_t esp_init_data_default[] = {
     "\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"};
 
 void user_rf_pre_init() {
+  uint8_t esp_init_data_current[sizeof(esp_init_data_default)];
+
   enum flash_size_map size_map = system_get_flash_size_map();
-   uint32 rf_cal_sec = 0, addr, rfCalData, i;
-  os_printf("\nUser preinit: ");
+  uint32 rf_cal_sec = 0, addr, i;
+  //os_printf("\nUser preinit: ");
    switch (size_map) {
       case FLASH_SIZE_4M_MAP_256_256:
          rf_cal_sec = 128 - 5;     
@@ -255,12 +257,13 @@ void user_rf_pre_init() {
          rf_cal_sec = 0;
          break;
    }
+
   addr = ((rf_cal_sec) * SPI_FLASH_SEC_SIZE)+SPI_FLASH_SEC_SIZE;
- 
-  for (i=0; i<sizeof(esp_init_data_default)/4; i++) {
-    addr+=(i*4);
-    spi_flash_read(addr, &rfCalData, 4);
-    if (rfCalData != esp_init_data_default[i]) {     
+  spi_flash_read(addr, (uint32_t *)esp_init_data_current, sizeof(esp_init_data_current));
+
+  for (i=0; i<sizeof(esp_init_data_default); i++) {
+    
+    if (esp_init_data_current[i] != esp_init_data_default[i]) {     
       spi_flash_erase_sector(rf_cal_sec);
       spi_flash_erase_sector(rf_cal_sec+1);
       spi_flash_erase_sector(rf_cal_sec+2);
@@ -269,8 +272,9 @@ void user_rf_pre_init() {
       spi_flash_write(addr, (uint32 *)esp_init_data_default, sizeof(esp_init_data_default));
      
       break;
-    } else {
-      os_printf("RF data[%u] is ok\n", i);
     }
+/* else {
+      os_printf("RF data[%u] is ok\n", i);
+    }*/
   }
 }
