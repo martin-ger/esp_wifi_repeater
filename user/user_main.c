@@ -966,7 +966,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
 	uint8_t mac_buf[20];
 	char *rand = "";
-	if (strncmp(config.STA_MAC_address,"random",6) == 0) {
+	if (strcmp(config.STA_MAC_address, "random") == 0) {
 	    uint8_t mac[6];
 	    wifi_get_macaddr(STATION_IF, mac);
 	    mac_2_buff(mac_buf, mac);
@@ -2136,7 +2136,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1],"sta_mac") == 0)
             {
-		if (strcmp(tokens[2],"random") == 0) {
+		if (strcmp(tokens[2], "random") == 0) {
 		  os_memcpy(config.STA_MAC_address, tokens[2], 6);
                   os_sprintf_flash(response, "STA MAC randomized\r\n");
                   goto command_handled;
@@ -3367,7 +3367,7 @@ struct espconn *pCon;
     } else {
 	wifi_set_opmode(STATION_MODE);
     }
-    if (strncmp(config.STA_MAC_address, "random") == 0) {
+    if (strcmp(config.STA_MAC_address, "random") == 0) {
 	uint8_t random_mac[6];
 	os_get_random(random_mac, 6);
 	random_mac[0] &= 0xfe;
