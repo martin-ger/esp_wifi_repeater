@@ -364,6 +364,5 @@ If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
 - The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
-- If the supply voltage in the "show stats" command shows a wrong value (63996), the ADC isn't configured correctly. Re-initialize the ESP with the "esp_init_data_default_v08_vdd33.bin" as described in the section above.
 - All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
