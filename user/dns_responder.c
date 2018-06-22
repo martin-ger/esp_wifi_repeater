@@ -7,10 +7,10 @@
 #include "user_interface.h"
 
 #include "espconn.h"
-//#include "user_json.h"
-//#include "user_devicefind.h"
 
-#define BUF_SIZE 1500
+#include "dns_responder.h"
+
+//#define DNS_DEBUG 1
 
 /*
 * This software is licensed under the CC0.
@@ -19,10 +19,15 @@
 * It does not prevent invalid packets from crashing
 * the server.
 *
-* To test start the program and issue a DNS request:
-*  dig @127.0.0.1 -p 9000 foo.bar.com 
+* Originating from:
+* https://github.com/mwarning/SimpleDNS 
+*
 */
 
+
+LOCAL struct espconn dns_espconn;
+struct Message msg;
+LOCAL uint8_t dns_mode;
 
 /*
 * Masks and constants.
@@ -179,6 +184,7 @@ struct Message {
   struct ResourceRecord* additionals;
 };
 
+/*
 int ICACHE_FLASH_ATTR get_A_Record(uint8_t addr[4], const char domain_name[])
 {
   if (strcmp("foo.bar.com", domain_name) == 0)
@@ -222,12 +228,13 @@ int ICACHE_FLASH_ATTR get_AAAA_Record(uint8_t addr[16], const char domain_name[]
     return -1;
   }
 }
-
+*/
 
 /*
 * Debugging functions.
 */
 
+#ifdef DNS_DEBUG
 void ICACHE_FLASH_ATTR print_hex(uint8_t* buf, size_t len)
 {
   int i;
@@ -340,7 +347,7 @@ void ICACHE_FLASH_ATTR print_query(struct Message* msg)
 
   os_printf("}\n");
 }
-
+#endif
 
 /*
 * Basic memory operations.
@@ -704,9 +711,6 @@ void ICACHE_FLASH_ATTR free_questions(struct Question* qq)
   }
 }
 
-/*---------------------------------------------------------------------------*/
-LOCAL struct espconn dns_espconn;
-struct Message msg;
 
 LOCAL void ICACHE_FLASH_ATTR
 user_udp_recv(void *arg, char *pusrdata, unsigned short length)
@@ -717,28 +721,33 @@ user_udp_recv(void *arg, char *pusrdata, unsigned short length)
     struct ip_info ipconfig;
     struct espconn *pespconn = (struct espconn *)arg;
  
-    if (wifi_get_opmode() != STATION_MODE) 
-   {
+    if (wifi_get_opmode() != STATION_MODE) {
         wifi_get_ip_info(SOFTAP_IF, &ipconfig);
         wifi_get_macaddr(SOFTAP_IF, hwaddr);
  
-        if (!ip_addr_netcmp((struct ip_addr *)pespconn->proto.udp->remote_ip, &ipconfig.ip, &ipconfig.netmask)) 
-      {
-         //udp packet is received from ESP8266 station
-            wifi_get_ip_info(STATION_IF, &ipconfig);
-            wifi_get_macaddr(STATION_IF, hwaddr);
-        }
-      else
-      {
-         //udp packet is received from ESP8266 softAP
-        }
-       
-    } 
-   else
-   {
-      //udp packet is received from ESP8266 station
-        wifi_get_ip_info(STATION_IF, &ipconfig);
-        wifi_get_macaddr(STATION_IF, hwaddr);
+      if (!ip_addr_netcmp((struct ip_addr *)pespconn->proto.udp->remote_ip, &ipconfig.ip, &ipconfig.netmask)) {
+        //udp packet is received from ESP8266 station
+
+	if (!(dns_mode & DNS_MODE_STA))
+	    return;
+	
+	    //   wifi_get_ip_info(STATION_IF, &ipconfig);
+	    //   wifi_get_macaddr(STATION_IF, hwaddr);
+	} else {
+	    //udp packet is received from ESP8266 softAP
+
+	    if (!(dns_mode & DNS_MODE_AP))
+		return;
+	} 
+     } else {
+
+	//udp packet is received from ESP8266 station
+
+	if (!(dns_mode & DNS_MODE_STA))
+	    return;
+
+        //wifi_get_ip_info(STATION_IF, &ipconfig);
+        //wifi_get_macaddr(STATION_IF, hwaddr);
     }
  
     if (pusrdata == NULL) 
@@ -753,14 +762,17 @@ user_udp_recv(void *arg, char *pusrdata, unsigned short length)
     if (decode_msg(&msg, pusrdata, length) != 0) {
         return;
     }
-
+#ifdef DNS_DEBUG
     /* Print query */
     print_query(&msg);
+#endif
 
     resolver_process(&msg);
 
+#ifdef DNS_DEBUG
     /* Print response */
     print_query(&msg);
+#endif
 
     uint8_t *p = buffer;
     if (encode_msg(&msg, &p) != 0) {
@@ -771,11 +783,12 @@ user_udp_recv(void *arg, char *pusrdata, unsigned short length)
 }
  
 void ICACHE_FLASH_ATTR
-dns_resp_init(void)
+dns_resp_init(uint8_t mode)
 {
+    dns_mode = mode;
     dns_espconn.type = ESPCONN_UDP;
     dns_espconn.proto.udp = (esp_udp *)os_zalloc(sizeof(esp_udp));
-    dns_espconn.proto.udp->local_port = 52;  // DNS udp port
+    dns_espconn.proto.udp->local_port = 53;  // DNS udp port
     espconn_regist_recvcb(&dns_espconn, user_udp_recv); // register a udp packet receiving callback
     espconn_create(&dns_espconn);   // create udp
 }

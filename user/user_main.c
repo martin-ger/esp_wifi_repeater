@@ -3259,6 +3259,29 @@ void *schedule_enc_poll(struct netif *netif) {
 }
 #endif
 
+#ifdef DNS_RESP
+int ICACHE_FLASH_ATTR get_A_Record(uint8_t addr[4], const char domain_name[])
+{
+  if (strcmp("foo.bar.com", domain_name) == 0)
+  {
+    addr[0] = 192;
+    addr[1] = 168;
+    addr[2] = 1;
+    addr[3] = 1;
+    return 0;
+  }
+  else
+  {
+    return -1;
+  }
+}
+
+int ICACHE_FLASH_ATTR get_AAAA_Record(uint8_t addr[16], const char domain_name[])
+{
+    return -1;
+}
+#endif
+
 void ICACHE_FLASH_ATTR user_init()
 {
 struct ip_info info;
@@ -3444,7 +3467,7 @@ struct espconn *pCon;
 #endif
 
 #ifdef DNS_RESP
-    dns_resp_init();
+    dns_resp_init(DNS_MODE_AP);
 #endif
 
 #ifdef REMOTE_MONITORING
