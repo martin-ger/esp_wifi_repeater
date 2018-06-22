@@ -60,7 +60,7 @@
 
 //
 // Define this to support an ENC28J60 Ethernet interface
-// Experimantal feature - not yet stable
+// Experimental feature - not yet stable
 //
 //#define HAVE_ENC28J60	    1
 
@@ -81,6 +81,12 @@
 //
 #define WEB_CONFIG      1
 #define WEB_CONFIG_PORT 80
+
+//
+// Define this if you want to have access the DNS responder.
+// Experimental feature - not yet tested
+//
+//#define DNS_RESP  1
 
 //
 // Define this if you want to have ACLs for the SoftAP.

@@ -30,6 +30,10 @@
 
 #include "easygpio.h"
 
+#ifdef DNS_RESP
+#include "dns_responder.h"
+#endif
+
 #ifdef WEB_CONFIG
 #include "web.h"
 #endif
@@ -3437,6 +3441,10 @@ struct espconn *pCon;
         /* Put the connection in accept mode */
         espconn_accept(pCon);
     }
+#endif
+
+#ifdef DNS_RESP
+    dns_resp_init();
 #endif
 
 #ifdef REMOTE_MONITORING
