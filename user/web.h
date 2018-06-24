@@ -1,6 +1,7 @@
 #define CONFIG_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
 <html>\
 <head></head>\
+<meta name='viewport' content='width=device-width, initial-scale=1'>\
 <body>\
 <h1>ESP WiFi NAT Router Config</h1>\
 <div id='config'>\
@@ -99,6 +100,7 @@ setTimeout(\"location.href = '/'\",10000);\
 #define LOCK_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
 <html>\
 <head></head>\
+<meta name='viewport' content='width=device-width, initial-scale=1'>\
 <body>\
 <h1>ESP WiFi NAT Router Config</h1>\
 <div id='config'>\
