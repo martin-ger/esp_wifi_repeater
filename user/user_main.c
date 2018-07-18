@@ -1570,9 +1570,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
 	}
         os_printf("Restarting ... \r\n");
-	system_restart(); // if it works this will not return
-
-	os_sprintf_flash(response, "Reset failed\r\n");
+	system_restart();
+	while (true);
+	
         goto command_handled;
     }
 
@@ -2632,6 +2632,7 @@ uint32_t Bps;
 	    if (ap_watchdog_cnt == 0) {
 		os_printf("AP watchdog reset\r\n");
 		system_restart();
+		while (true);
 	    }
 	    ap_watchdog_cnt--;
 	}
@@ -2640,6 +2641,7 @@ uint32_t Bps;
 	    if (client_watchdog_cnt == 0) {
 		os_printf("Client watchdog reset\r\n");
 		system_restart();
+		while (true);
 	    }
 	    client_watchdog_cnt--;
 	}
@@ -2663,6 +2665,7 @@ uint32_t Bps;
 		config_save(&config);
 		blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
 		system_restart();
+		while (true);
 	    }
 	} else {
 	    count_hw_reset = 0;
@@ -2889,6 +2892,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	    config.automesh_mode = AUTOMESH_LEARNING;
 	    config_save(&config);
 	    system_restart();
+	    while (true);
 	    return;
 	}
 
@@ -2934,6 +2938,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
 	  config_save(&config);
 	  system_restart();
+	  while (true);
 	  return;
 	}
 
@@ -3212,6 +3217,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       //wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
 
       system_restart();
+      while (true);
       return;
     }
 
@@ -3386,6 +3392,15 @@ struct espconn *pCon;
 	// We have a static DNS server
 	dns_ip.addr = config.dns_addr.addr;
 
+    // Now config the STA-Mode
+    user_set_station_config();
+#ifdef WPA2_PEAP
+    if (config.use_PEAP) {
+	user_set_wpa2_config();
+	wifi_station_connect();
+    }
+#endif
+
     if (config.ap_on) {
 	wifi_set_opmode(STATIONAP_MODE);
 	wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
@@ -3499,15 +3514,6 @@ struct espconn *pCon;
     remote_console_disconnect = 0;
 	
     system_init_done_cb(to_scan);	
-
-    // Now start the STA-Mode
-    user_set_station_config();
-#ifdef WPA2_PEAP
-    if (config.use_PEAP) {
-	user_set_wpa2_config();
-	wifi_station_connect();
-    }
-#endif
 
     // Init power - set it to 3300mV
     Vdd = 3300;
