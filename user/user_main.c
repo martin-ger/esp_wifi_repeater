@@ -268,6 +268,14 @@ void ICACHE_FLASH_ATTR user_do_ping(uint32_t ipaddr)
 }
 #endif
 
+#ifdef ALLOW_SLEEP
+static os_timer_t sleep_delay_timer;
+
+void ICACHE_FLASH_ATTR sleep_delay_timer_func(void *sleeptime){
+    system_deep_sleep((uint32_t)sleeptime * 1000000);
+}
+#endif
+
 #ifdef REMOTE_MONITORING
 static uint8_t monitoring_on;
 static uint16_t monitor_port;
@@ -1588,7 +1596,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	uint32_t sleeptime = 10; // seconds
 	if (nTokens == 2) sleeptime = atoi(tokens[1]);
 
-	system_deep_sleep(sleeptime * 1000000);
+	// Start the timer
+    	os_timer_setfn(&sleep_delay_timer, sleep_delay_timer_func, (void *)(sleeptime * 1000000));
+    	os_timer_arm(&sleep_delay_timer, 2000, 0); 
 
 	os_sprintf(response, "Going to deep sleep for %ds\r\n", sleeptime);
         goto command_handled;
