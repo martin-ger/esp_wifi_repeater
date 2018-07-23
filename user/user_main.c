@@ -2426,8 +2426,6 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 
 
 #ifdef WEB_CONFIG
-static char *page_buf = NULL;
-
 static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char* val)
 {
     struct espconn *pespconn = (struct espconn *)arg;
@@ -2496,6 +2494,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
                 }
                 else if (strcmp(key, "lock") == 0)
                 {
+		    os_memcpy(config.lock_password, config.ap_password, sizeof(config.lock_password));
                     config.locked = 1;
                 }
                 else if (strcmp(key, "ap_ssid") == 0)
@@ -2553,10 +2552,6 @@ static void ICACHE_FLASH_ATTR web_config_client_discon_cb(void *arg)
 {
     os_printf("web_config_client_discon_cb(): client disconnected\n");
     struct espconn *pespconn = (struct espconn *)arg;
-
-    if (page_buf != NULL)
-	os_free(page_buf);
-    page_buf = NULL;
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
@@ -2596,8 +2591,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 	    return;
 	os_memcpy(config_page, config_page_str, slen);
 
-	if (page_buf == NULL)
-	    page_buf = (char *)os_malloc(slen+200);
+	uint8_t *page_buf = (char *)os_malloc(slen+200);
 	if (page_buf == NULL)
 	    return;
 	os_sprintf(page_buf, config_page, config.ssid, config.password,
@@ -2608,6 +2602,8 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 	os_free(config_page);
 
 	espconn_send(pespconn, page_buf, os_strlen(page_buf));
+
+	os_free(page_buf);
     }
     else {
     	static const uint8_t lock_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = LOCK_PAGE;
@@ -2620,7 +2616,6 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 	espconn_send(pespconn, lock_page, sizeof(lock_page_str));
 	
 	os_free(lock_page);
-	page_buf = NULL;
     }
 }
 #endif /* WEB_CONFIG */
