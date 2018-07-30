@@ -2494,7 +2494,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
                 }
                 else if (strcmp(key, "lock") == 0)
                 {
-		    os_memcpy(config.lock_password, config.ap_password, sizeof(config.lock_password));
+		    os_memcpy(config.lock_password, config.password, sizeof(config.lock_password));
                     config.locked = 1;
                 }
                 else if (strcmp(key, "ap_ssid") == 0)
