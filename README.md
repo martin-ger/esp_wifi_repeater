@@ -307,6 +307,9 @@ In addition the repeater can publish on an event basis:
 - _prefix_path_/ScanResult: Separate topic for the results of a "scan" command (one message per found AP) (mask: 0x0004)
 - _prefix_path_/ACLDeny: A packet has been denied by an ACL rule and has been dropped (mask: 0x0080)
 
+As LWT and status report the repeater publishes:
+- _prefix_path_/status: A retained topic either "online" (as soon as the repeater connects) or "offline" (after connection loss as LWT)
+
 The router can be configured using the following topics:
 - _command_topic_: The router subscribes on this topic and interprets all messages as command lines
 - _prefix_path_/response: The router publishes on this topic the command line output (mask: 0x0001)

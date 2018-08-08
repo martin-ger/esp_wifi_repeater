@@ -2986,7 +2986,17 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	}
 
 #ifdef MQTT_CLIENT
-	if (mqtt_enabled) MQTT_Connect(&mqttClient);
+	if (mqtt_enabled) {
+	    uint8_t buf[256];
+
+	    // status as LWT
+	    os_sprintf(buf, "%s/status", config.mqtt_prefix);
+	    MQTT_InitLWT(&mqttClient, buf, "offline", 0, 1);
+
+	    MQTT_Connect(&mqttClient);
+
+	    MQTT_Publish(&mqttClient, buf, "online", sizeof("online"), 0, 1);
+	}
 #endif /* MQTT_CLIENT */
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
