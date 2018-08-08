@@ -167,14 +167,17 @@ uint8_t buf[32];
 
 static void ICACHE_FLASH_ATTR mqttConnectedCb(uint32_t *args)
 {
-uint8_t ip_str[16];
+uint8_t buf[256];
 
   MQTT_Client* client = (MQTT_Client*)args;
   os_printf("MQTT: Connected\r\n");
   mqtt_connected = true;
 
-  os_sprintf(ip_str, IPSTR, IP2STR(&my_ip));
-  mqtt_publish_str(MQTT_TOPIC_IP, "IP", ip_str);
+  os_sprintf(buf, "%s/status", config.mqtt_prefix);
+  MQTT_Publish(client, buf, "online", os_strlen("online"), 0, 1);
+
+  os_sprintf(buf, IPSTR, IP2STR(&my_ip));
+  mqtt_publish_str(MQTT_TOPIC_IP, "IP", buf);
 
   if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
     MQTT_Subscribe(client, config.mqtt_command_topic, 0);
@@ -2986,17 +2989,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	}
 
 #ifdef MQTT_CLIENT
-	if (mqtt_enabled) {
-	    uint8_t buf[256];
-
-	    // status as LWT
-	    os_sprintf(buf, "%s/status", config.mqtt_prefix);
-	    MQTT_InitLWT(&mqttClient, buf, "offline", 0, 1);
-
-	    MQTT_Connect(&mqttClient);
-
-	    MQTT_Publish(&mqttClient, buf, "online", sizeof("online"), 0, 1);
-	}
+	if (mqtt_enabled) MQTT_Connect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
         // Post a Server Start message as the IP has been acquired to Task with priority 0
@@ -3520,7 +3513,9 @@ struct espconn *pCon;
 	} else {
 	  MQTT_InitClient(&mqttClient, config.mqtt_id, config.mqtt_user, config.mqtt_password, 120, 1);
 	}
-//	MQTT_InitLWT(&mqttClient, "/lwt", "offline", 0, 0);
+	uint8_t buf[256];
+	os_sprintf(buf, "%s/status", config.mqtt_prefix);
+	MQTT_InitLWT(&mqttClient, buf, "offline", 0, 1);
 	MQTT_OnConnected(&mqttClient, mqttConnectedCb);
 	MQTT_OnDisconnected(&mqttClient, mqttDisconnectedCb);
 	MQTT_OnPublished(&mqttClient, mqttPublishedCb);
