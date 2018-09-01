@@ -349,6 +349,7 @@ Now you can configure the new Ethernet interface:
 - set eth_netmask _netmask_: sets a static netmask for the ETH interface
 - set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
 
+
 # Building and Flashing
 To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk). Make sure, you can compile and download the included "blinky" example.
 
@@ -363,6 +364,46 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
 
 If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
+
+# OTA (Over the air) update support
+
+Based on using the rboot lib: https://github.com/raburton/rboot
+
+User flash location `FLASH_BLOCK_NO` was updated as `0x0c` -> `0x1aee` conflicted with the rboot memory locations.
+
+Memory mapping updates:
+
+Example flashing update based on new bin files: `$ esptool.py write_flash 0x00000 rboot.bin 0x02000 app-0x02000.bin 0x82000 app-0x82000.bin`
+`rboot.bin` is from raburton/rboot "Building" and "Installation" instructions.
+
+Note: "Linking user code" from rboot documentation:
+`rom0.ld`
+```diff
+$ diff -u ../esp-open-sdk/sdk/ld/eagle.app.v6.ld rom0.ld
+--- ../esp-open-sdk/sdk/ld/eagle.app.v6.ld      2018-08-19 10:32:30.932083233 -0700
++++ rom0.ld     2018-08-21 20:39:36.838230232 -0700
+@@ -5,7 +5,7 @@
+   dport0_0_seg :                        org = 0x3FF00000, len = 0x10
+   dram0_0_seg :                         org = 0x3FFE8000, len = 0x14000
+   iram1_0_seg :                         org = 0x40100000, len = 0x8000
+-  irom0_0_seg :                         org = 0x40210000, len = 0x5C000
++  irom0_0_seg :                         org = 0x40202010, len = 0x5C000
+ }
+
+ PHDRS
+@@ -227,4 +227,4 @@
+ }
+
+ /* get ROM code address */
+-INCLUDE "../ld/eagle.rom.addr.v6.ld"
++INCLUDE "eagle.rom.addr.v6.ld"
+```
+
+`rom1.ld`
+```diff
+-  irom0_0_seg :                         org = 0x40210000, len = 0x5C000
++  irom0_0_seg :                         org = 0x40282010, len = 0x5C000
+```
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.

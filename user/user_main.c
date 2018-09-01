@@ -12,6 +12,9 @@
 #include "lwip/app/dhcpserver.h"
 #include "lwip/app/espconn.h"
 #include "lwip/app/espconn_tcp.h"
+
+#include "rboot-api.h"
+
 #ifdef ALLOW_PING
 #include "lwip/app/ping.h"
 #endif
@@ -3538,6 +3541,11 @@ struct espconn *pCon;
     sntp_set_timezone(config.ntp_timezone);
     sntp_init();
 #endif
+
+    // Flip boot to rom0
+    //rboot_set_current_rom(0);
+    // Flip boot to rom1
+    rboot_set_current_rom(0);
 
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);
