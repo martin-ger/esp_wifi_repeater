@@ -94,6 +94,11 @@
 #define ACLS      1
 
 //
+// Define this if you want to have OTA (Over the air) updates
+//
+#define OTAUPDATE      1
+
+//
 // Define this if you want to have QoS for the SoftAP.
 //
 #define TOKENBUCKET      1

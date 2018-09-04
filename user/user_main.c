@@ -13,7 +13,10 @@
 #include "lwip/app/espconn.h"
 #include "lwip/app/espconn_tcp.h"
 
+#ifdef OTAUPDATE
 #include "rboot-api.h"
+#include "rboot-ota.h"
+#endif
 
 #ifdef ALLOW_PING
 #include "lwip/app/ping.h"
@@ -783,6 +786,48 @@ char response[128];
 }
 #endif /* ACLS */
 
+#ifdef OTAUPDATE
+void ICACHE_FLASH_ATTR Switch() {
+	char msg[50];
+	uint8 before, after;
+	before = rboot_get_current_rom();
+	if (before == 0) after = 1; else after = 0;
+	os_sprintf(msg, "Swapping from rom %d to rom %d.\r\n", before, after);
+	to_console(msg);
+	rboot_set_current_rom(after);
+	to_console("Restarting...\r\n\r\n");
+	system_restart();
+}
+
+static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(bool result, uint8 rom_slot) {
+	if(result == true) {
+		// success
+		if (rom_slot == FLASH_BY_ADDR) {
+			to_console("Write successful.\r\n");
+		} else {
+			// set to boot new rom and then reboot
+			char msg[40];
+			os_sprintf(msg, "Firmware updated, rebooting to rom %d...\r\n", rom_slot);
+			to_console(msg);
+			rboot_set_current_rom(rom_slot);
+			system_restart();
+		}
+	} else {
+		// fail
+		to_console("Firmware update failed!\r\n");
+	}
+}
+
+static void ICACHE_FLASH_ATTR OtaUpdate() {
+	// start the upgrade process
+	if (rboot_ota_start((ota_callback)OtaUpdate_CallBack)) {
+		to_console("Updating...\r\n");
+	} else {
+		to_console("Updating failed!\r\n\r\n");
+	}
+}
+#endif
+
 // Use this from ROM instead
 int ets_str2macaddr(uint8 *mac, char *str_mac);
 #define parse_mac ets_str2macaddr
@@ -842,6 +887,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 #ifdef MQTT_CLIENT
 		"|mqtt"
+#else
+		""
+#endif
+#ifdef OTAUPDATE
+		"|ota"
 #else
 		""
 #endif
@@ -908,6 +958,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 #ifdef MQTT_CLIENT
         os_sprintf_flash(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
+        to_console(response);
+#endif
+#ifdef OTAUPDATE
+        os_sprintf_flash(response, "ota [switch|update]\r\n");
         to_console(response);
 #endif
         goto command_handled_2;
@@ -1243,6 +1297,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   goto command_handled_2;
       }
 #endif
+#ifdef OTAUPDATE
+      if (nTokens == 2 && strcmp(tokens[1], "ota") == 0) {
+           to_console(OTA_HOST);
+	   os_sprintf_flash(response, "Currently running rom %d.\r\n", rboot_get_current_rom());
+	   to_console(response);
+	   goto command_handled_2;
+      }
+#endif
     }
 #ifdef ACLS
     if (strcmp(tokens[0], "acl") == 0)
@@ -1571,6 +1633,27 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         currentconn = pespconn;
         user_do_ping(ipaddr_addr(tokens[1]));
         goto command_handled;
+    }
+#endif
+#ifdef OTAUPDATE
+    if (strcmp(tokens[0], "ota") == 0)
+    {
+	if (nTokens != 2) {
+	    os_sprintf(response, INVALID_NUMARGS);
+	    goto command_handled;
+	}
+        if (strcmp(tokens[1],"switch") == 0)
+        {
+	    Switch();
+            os_sprintf_flash(response, "ROM switched\r\n");
+            goto command_handled;
+        }
+        if (strcmp(tokens[1],"update") == 0)
+        {
+	    OtaUpdate();
+            os_sprintf_flash(response, "Update initiated\r\n");
+            goto command_handled;
+        }
     }
 #endif
     if (strcmp(tokens[0], "reset") == 0) {
@@ -3541,11 +3624,6 @@ struct espconn *pCon;
     sntp_set_timezone(config.ntp_timezone);
     sntp_init();
 #endif
-
-    // Flip boot to rom0
-    //rboot_set_current_rom(0);
-    // Flip boot to rom1
-    rboot_set_current_rom(0);
 
     // Start the timer
     os_timer_setfn(&ptimer, timer_func, 0);

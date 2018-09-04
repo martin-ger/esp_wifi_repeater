@@ -369,7 +369,7 @@ If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "
 
 Based on using the rboot lib: https://github.com/raburton/rboot
 
-User flash location `FLASH_BLOCK_NO` was updated as `0x0c` -> `0x1aee` conflicted with the rboot memory locations.
+User flash location `FLASH_BLOCK_NO` was updated as `0x0c` -> `0xff` conflicted with the rboot memory locations.
 
 Memory mapping updates:
 
@@ -404,6 +404,17 @@ $ diff -u ../esp-open-sdk/sdk/ld/eagle.app.v6.ld rom0.ld
 -  irom0_0_seg :                         org = 0x40210000, len = 0x5C000
 +  irom0_0_seg :                         org = 0x40282010, len = 0x5C000
 ```
+
+## OTA API
+Based on https://github.com/raburton/rboot-sample
+
+NOTE: `user/rboot-ota.h`
+* `OTA_HOST` (HOST OR IP)
+* `OTA_PORT`
+* `OTA_ROM0`
+* `OTA_ROM1`
+
+
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
