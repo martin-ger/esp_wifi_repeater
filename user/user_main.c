@@ -1299,7 +1299,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 #ifdef OTAUPDATE
       if (nTokens == 2 && strcmp(tokens[1], "ota") == 0) {
+           to_console("Firmware update: ");
            to_console(OTA_HOST);
+           //to_console(OTA_PORT);
+           to_console("/");
+           to_console(OTA_ROM0);
+           to_console(" OR ");
+           to_console(OTA_ROM1);
+           to_console("\r\n");
 	   os_sprintf_flash(response, "Currently running rom %d.\r\n", rboot_get_current_rom());
 	   to_console(response);
 	   goto command_handled_2;

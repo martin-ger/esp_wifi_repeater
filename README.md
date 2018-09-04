@@ -369,7 +369,7 @@ If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "
 
 Based on using the rboot lib: https://github.com/raburton/rboot
 
-User flash location `FLASH_BLOCK_NO` was updated as `0x0c` -> `0xff` conflicted with the rboot memory locations.
+User flash location `FLASH_BLOCK_NO` was updated as `0xc` -> `0x4e` conflicted with the rboot memory locations. Also this is a viable space between the ROM locations written that config can be shared.
 
 Memory mapping updates:
 
