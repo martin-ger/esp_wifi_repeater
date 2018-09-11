@@ -334,9 +334,10 @@ During the build process (and in the firmware directory) there are two copies of
 If you have at least 1MB of flash you can update that binary with another version OTA (Over the air). For an OTA update you can interactively load a new binary from the CLI and switch over to it. The other binary is loaded to the currently non active memory location (either 0x02000 (rom0) or 0x82000 (rom1)) and started on success. You can also interactively switch between two installed binaries. The current config will be used for both binaries (as long as its format hasn't changed).
 
 Now you can control the OTA features with the following commands: 
+- show ota: show the currently active binary and the URL ot the next update
 - set ota_host _hostname_: hostname or IP address of the OTA server (default: "none")
 - set ota_port _portno_: port number of the OTA server (default: 80)
-- ota update: tries to download a new binary (0x02000.bin or 0x82000.bin) via HTTP from ota_host:ota_port and start it
+- ota update: tries to download a new binary (0x02000.bin or 0x82000.bin) via HTTP from ota_host:ota_port and starts it
 - ota switch: switches to the other binary (if installed)
 
 Known Issue: currently the download has some quirks and doesn't work for all HTTP-servers.
