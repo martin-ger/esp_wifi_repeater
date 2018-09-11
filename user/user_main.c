@@ -797,6 +797,7 @@ void ICACHE_FLASH_ATTR Switch() {
 	rboot_set_current_rom(after);
 	to_console("Restarting...\r\n\r\n");
 	system_restart();
+	while (true);
 }
 
 static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(bool result, uint8 rom_slot) {
@@ -811,6 +812,7 @@ static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(bool result, uint8 rom_slot) {
 			to_console(msg);
 			rboot_set_current_rom(rom_slot);
 			system_restart();
+			while (true);
 		}
 	} else {
 		// fail
@@ -1299,15 +1301,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 #ifdef OTAUPDATE
       if (nTokens == 2 && strcmp(tokens[1], "ota") == 0) {
-           to_console("Firmware update: ");
-           to_console(OTA_HOST);
-           //to_console(OTA_PORT);
-           to_console("/");
-           to_console(OTA_ROM0);
-           to_console(" OR ");
-           to_console(OTA_ROM1);
-           to_console("\r\n");
-	   os_sprintf_flash(response, "Currently running rom %d.\r\n", rboot_get_current_rom());
+	   os_sprintf(response, "Firmware update: %s:%d/%s\r\n", config.ota_host, config.ota_port,
+			rboot_get_current_rom()?OTA_ROM0:OTA_ROM1);
+	   to_console(response);
+	   os_sprintf_flash(response, "Currently running rom %d\r\n", rboot_get_current_rom());
 	   to_console(response);
 	   goto command_handled_2;
       }
@@ -1645,6 +1642,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #ifdef OTAUPDATE
     if (strcmp(tokens[0], "ota") == 0)
     {
+	if (config.locked) {
+	    os_sprintf(response, INVALID_LOCKED);
+	    goto command_handled;
+	}
 	if (nTokens != 2) {
 	    os_sprintf(response, INVALID_NUMARGS);
 	    goto command_handled;
@@ -2008,6 +2009,21 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
 		acl_debug = atoi(tokens[2]);
                 os_sprintf_flash(response, "ACL debug set\r\n");
+                goto command_handled;
+            }
+#endif
+#ifdef OTAUPDATE
+	    if (strcmp(tokens[1], "ota_host") == 0)
+	    {
+		os_strncpy(config.ota_host, tokens[2], 64);
+		config.mqtt_host[63] = 0;
+		os_sprintf_flash(response, "OTA host set\r\n");
+        	goto command_handled;
+	    }
+            if (strcmp(tokens[1],"ota_port") == 0)
+            {
+                config.ota_port = atoi(tokens[2]);
+                os_sprintf_flash(response, "OTA port set\r\n");
                 goto command_handled;
             }
 #endif

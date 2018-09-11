@@ -143,6 +143,10 @@ uint32_t reg0, reg1, reg3;
 #ifdef ACLS
     acl_init();	// initializes the ACLs, written in config during save
 #endif
+#ifdef OTAUPDATE
+    os_sprintf(config->ota_host,"%s", "none");
+    config->ota_port			= 80;
+#endif
 }
 
 int ICACHE_FLASH_ATTR config_load(sysconfig_p config)

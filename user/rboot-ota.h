@@ -16,10 +16,10 @@ extern "C" {
 #endif
 
 // ota server details
-#define OTA_HOST "192.168.1.53"
-#define OTA_PORT 8000
-#define OTA_ROM0 "rom0.bin"
-#define OTA_ROM1 "rom1.bin"
+//#define OTA_HOST "192.168.178.25"
+//#define OTA_PORT 8080
+#define OTA_ROM0 "0x02000.bin"
+#define OTA_ROM1 "0x82000.bin"
 // OTA_FILE is not required, but is part of the example
 // code for writing arbitrary files to flash
 #define OTA_FILE "file.bin"

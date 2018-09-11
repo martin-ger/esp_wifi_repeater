@@ -53,8 +53,8 @@ LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static -L.
 
 # linker script used for the above linkier step
 #LD_SCRIPT	= eagle.app.v6.ld
-LD_SCRIPT	= -Trom0.ld
-#LD_SCRIPT	= -Trom1.ld
+LD_SCRIPT1	= -Trom0.ld
+LD_SCRIPT2	= -Trom1.ld
 
 # various paths from the SDK used in this project
 SDK_LIBDIR	= lib
@@ -63,8 +63,8 @@ SDK_INCDIR	= include include/json
 
 # we create two different files for uploading into the flash
 # these are the names and options to generate them
-FW_FILE_1_ADDR	= 0x00000
-FW_FILE_2_ADDR	= 0x10000
+FW_FILE_1_ADDR	= 0x02000
+FW_FILE_2_ADDR	= 0x82000
 
 # select which tools to use as compiler, librarian and linker
 CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
@@ -96,6 +96,7 @@ MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
 
 FW_FILE_1	:= $(addprefix $(FW_BASE)/,$(FW_FILE_1_ADDR).bin)
 FW_FILE_2	:= $(addprefix $(FW_BASE)/,$(FW_FILE_2_ADDR).bin)
+RBOOT_FILE	:= $(addprefix $(FW_BASE)/,0x00000.bin)
 
 V ?= $(VERBOSE)
 ifeq ("$(V)","1")
@@ -116,15 +117,21 @@ endef
 
 .PHONY: all checkdirs flash clean
 
-all: checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
+#all: checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
+all: checkdirs $(TARGET_OUT)
 
-$(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
-	$(vecho) "FW $(FW_BASE)/"
-	$(Q) $(ESPTOOL) elf2image --version=2 $(TARGET_OUT)
+#$(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
+#	$(vecho) "FW" $@
+#	$(Q) $(ESPTOOL) elf2image --version=2 $(TARGET_OUT) -o $@
 
 $(TARGET_OUT): $(APP_AR)
 	$(vecho) "LD $@"
-	$(Q) $(LD) -L$(SDK_LIBDIR) $(LD_SCRIPT) $(LDFLAGS) -Wl,--start-group $(LIBS) $(APP_AR) -Wl,--end-group -o $@
+	$(Q) $(LD) -L$(SDK_LIBDIR) $(LD_SCRIPT1) $(LDFLAGS) -Wl,--start-group $(LIBS) $(APP_AR) -Wl,--end-group -o $@
+	$(Q) $(ESPTOOL) elf2image --version=2 $(TARGET_OUT) -o $(FW_FILE_1)	
+	$(Q) $(LD) -L$(SDK_LIBDIR) $(LD_SCRIPT2) $(LDFLAGS) -Wl,--start-group $(LIBS) $(APP_AR) -Wl,--end-group -o $@
+	$(Q) $(ESPTOOL) elf2image --version=2 $(TARGET_OUT) -o $(FW_FILE_2)
+	cp rboot.bin $(RBOOT_FILE)
+	sha1sum $(FW_FILE_1) $(FW_FILE_2) $(RBOOT_FILE) > $(FW_BASE)/sha1sums
 
 $(APP_AR): $(OBJ)
 	$(vecho) "AR $@"
@@ -139,7 +146,10 @@ $(FW_BASE):
 	$(Q) mkdir -p $@
 
 flash: $(FW_FILE_1) $(FW_FILE_2)
-	sudo $(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+	sudo $(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_1_ADDR) $(FW_FILE_1)
+
+flash1: $(FW_FILE_2)
+	sudo $(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_2_ADDR) $(FW_FILE_2)
 
 clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)

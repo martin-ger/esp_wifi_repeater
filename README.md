@@ -325,6 +325,22 @@ You can send the ESP to sleep manually once by using the "sleep" command.
 
 Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediately shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000.
 
+# OTA (Over the air) update support (experimental)
+
+Based on using the rboot lib: https://github.com/raburton/rboot and thanks to the contribution of christianchristensen.
+
+During the build process (and in the firmware directory) there are two copies of the esp_wifi_repeater 0x02000.bin and 0x82000.bin. For an initial installation it is fine just to flash 0x00000.bin (the rboot boot loader) and 0x02000.bin (one copy of the program). The esp_wifi_repeater will work.
+
+If you have at least 1MB of flash you can update that binary with another version OTA (Over the air). For an OTA update you can interactively load a new binary from the CLI and switch over to it. The other binary is loaded to the currently non active memory location (either 0x02000 (rom0) or 0x82000 (rom1)) and started on success. You can also interactively switch between two installed binaries. The current config will be used for both binaries (as long as its format hasn't changed).
+
+Now you can control the OTA features with the following commands: 
+- set ota_host _hostname_: hostname or IP address of the OTA server (default: "none")
+- set ota_port _portno_: port number of the OTA server (default: 80)
+- ota update: tries to download a new binary (0x02000.bin or 0x82000.bin) via HTTP from ota_host:ota_port and start it
+- ota switch: switches to the other binary (if installed)
+
+Known Issue: currently the download has some quirks and doesn't work for all HTTP-servers.
+
 # ENC28J60 Ethernet Support (experimental)
 If you enable the HAVE_ENC28J60 option in user_config.h and recompile the project, you get support for an ENC28J60 Ethernet NIC connected via SPI.
 
@@ -355,71 +371,18 @@ To build this binary you download and install the esp-open-sdk (https://github.c
 
 Then download this source tree in a separate directory and adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h. Changes of the default configuration can be made in user/config_flash.c. Build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
 
-The source tree includes a binary version of the liblwip_open plus the required additional includes from my fork of esp-open-lwip. *No additional install action is required for that.* Only if you don't want to use the precompiled library, checkout the sources from https://github.com/martin-ger/esp-open-lwip . Use it to replace the directory "esp-open-lwip" in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk directory. This will compile a liblwip_open.a that contains the NAT-features. Replace liblwip_open_napt.a with that binary.
+The source tree includes a binary version of the liblwip_open plus the required additional includes from my fork of esp-open-lwip and a binary of the rboot tool. *No additional install action is required for that.* Only if you don't want to use the precompiled library, checkout the sources from https://github.com/martin-ger/esp-open-lwip . Use it to replace the directory "esp-open-lwip" in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk directory. This will compile a liblwip_open.a that contains the NAT-features. Replace liblwip_open_napt.a with that binary. Also you might build the "rboot.bin" binary from https://github.com/raburton/rboot and replace it in the root directory of the project.
 
-If you want to use the complete precompiled firmware binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 4MB -ff 80m -fm dio 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin" (use -fs 1MB for an ESP-01). For the esp8285 you must use -fs 1MB and -fm dout.
+If you want to use the complete precompiled firmware binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 4MB -ff 80m -fm dio 0x00000 firmware/0x00000.bin 0x02000 firmware/0x02000.bin" (use -fs 1MB for an ESP-01). For the esp8285 you must use -fs 1MB and -fm dout.
 
-On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x10000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
+On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x02000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
 
 If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
-
-# OTA (Over the air) update support
-
-Based on using the rboot lib: https://github.com/raburton/rboot
-
-User flash location `FLASH_BLOCK_NO` was updated as `0xc` -> `0x4e` conflicted with the rboot memory locations. Also this is a viable space between the ROM locations written that config can be shared.
-
-Memory mapping updates:
-
-Example flashing update based on new bin files: `$ esptool.py write_flash 0x00000 rboot.bin 0x02000 app-0x02000.bin 0x82000 app-0x82000.bin`
-`rboot.bin` is from raburton/rboot "Building" and "Installation" instructions.
-
-Note: "Linking user code" from rboot documentation:
-`rom0.ld`
-```diff
-$ diff -u ../esp-open-sdk/sdk/ld/eagle.app.v6.ld rom0.ld
---- ../esp-open-sdk/sdk/ld/eagle.app.v6.ld      2018-08-19 10:32:30.932083233 -0700
-+++ rom0.ld     2018-08-21 20:39:36.838230232 -0700
-@@ -5,7 +5,7 @@
-   dport0_0_seg :                        org = 0x3FF00000, len = 0x10
-   dram0_0_seg :                         org = 0x3FFE8000, len = 0x14000
-   iram1_0_seg :                         org = 0x40100000, len = 0x8000
--  irom0_0_seg :                         org = 0x40210000, len = 0x5C000
-+  irom0_0_seg :                         org = 0x40202010, len = 0x5C000
- }
-
- PHDRS
-@@ -227,4 +227,4 @@
- }
-
- /* get ROM code address */
--INCLUDE "../ld/eagle.rom.addr.v6.ld"
-+INCLUDE "eagle.rom.addr.v6.ld"
-```
-
-`rom1.ld`
-```diff
--  irom0_0_seg :                         org = 0x40210000, len = 0x5C000
-+  irom0_0_seg :                         org = 0x40282010, len = 0x5C000
-```
-
-## OTA API
-Based on https://github.com/raburton/rboot-sample
-
-NOTE: `user/rboot-ota.h`
-* `OTA_HOST` (HOST OR IP)
-* `OTA_PORT`
-* `OTA_ROM0`
-* `OTA_ROM1`
-
-
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
 - The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
 - All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
-# Feedback
-If you have any projects or applications that use this software, I would be glad to receive any feedback - what it should do, if it performs well, or even if it cannot meet your expectations. Leave an issue here or send me an email.

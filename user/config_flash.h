@@ -16,7 +16,7 @@
 
 #define FLASH_BLOCK_NO 0x4e
 
-#define MAGIC_NUMBER    0x152435fc
+#define MAGIC_NUMBER    0x13f435fc
 
 typedef enum {AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL} automeshmode;
 
@@ -126,6 +126,10 @@ typedef struct
 #ifdef ACLS
     acl_entry	acl[MAX_NO_ACLS][MAX_ACL_ENTRIES];	// ACL entries
     uint8_t	acl_freep[MAX_NO_ACLS];			// ACL free pointers
+#endif
+#ifdef OTAUPDATE
+    uint8_t	ota_host[64];
+    uint16_t	ota_port;
 #endif
 } sysconfig_t, *sysconfig_p;
 
