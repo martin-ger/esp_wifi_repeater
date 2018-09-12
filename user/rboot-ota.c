@@ -29,6 +29,8 @@ typedef struct {
 	ota_callback callback;  // user callback when completed
 	uint32 total_len;
 	uint32 content_len;
+	bool ok;
+	uint8_t col_cnt;
 	struct espconn *conn;
 	ip_addr_t ip;
 	rboot_write_status write_status;
@@ -86,12 +88,28 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 	// disarm the timer
 	os_timer_disarm(&ota_timer);
 
-	// first reply?
+	if (!upgrade->ok && length < 12) {
+		os_printf("HTTP error - response too short\r\n");
+		rboot_ota_deinit();
+		return;
+	}
+
+	// Still in header?
 	if (upgrade->content_len == 0) {
-		// valid http response?
+		// http response 200 ok?
+		if (!upgrade->ok) {
+			os_printf("HTTP %c%c%c\r\n", pusrdata[9], pusrdata[10], pusrdata[11]);
+			if (os_strncmp(pusrdata + 9, "200", 3) == 0) {
+				upgrade->ok = true;
+			} else {
+				// fail, not a 200 response
+				rboot_ota_deinit();
+				return;
+			}
+		}
+
 		if ((ptrLen = (char*)os_strstr(pusrdata, "Content-Length: "))
-			&& (ptrData = (char*)os_strstr(ptrLen, "\r\n\r\n"))
-			&& (os_strncmp(pusrdata + 9, "200", 3) == 0)) {
+			&& (ptrData = (char*)os_strstr(ptrLen, "\r\n\r\n"))) {
 
 			// end of header/start of data
 			ptrData += 4;
@@ -110,13 +128,18 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 			ptr = (char *)os_strstr(ptrLen, "\r\n");
 			*ptr = '\0'; // destructive
 			upgrade->content_len = atoi(ptrLen);
+			os_printf("Binary length: %d\r\n", upgrade->content_len);
 		} else {
-			// fail, not a valid http header/non-200 response/etc.
-			rboot_ota_deinit();
 			return;
 		}
 	} else {
-		// not the first chunk, process it
+		// not the first chunk, process it 
+		os_printf(".");
+		if (upgrade->col_cnt++ > 40) {
+			upgrade->col_cnt = 0;
+			os_printf(" %d KB\r\n", upgrade->total_len/1024);
+		}
+		
 		upgrade->total_len += length;
 		if (!rboot_write_flash(&upgrade->write_status, (uint8*)pusrdata, length)) {
 			// write error
@@ -128,6 +151,7 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 	// check if we are finished
 	if (upgrade->total_len == upgrade->content_len) {
 		system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
+		os_printf("\r\nUpdate completed\r\n", upgrade->total_len/1024);
 		// clean up and call user callback
 		rboot_ota_deinit();
 	} else if (upgrade->conn->state != ESPCONN_READ) {
@@ -183,7 +207,7 @@ static void ICACHE_FLASH_ATTR upgrade_connect_cb(void *arg) {
 	// http request string
 	request = (uint8 *)os_malloc(512);
 	if (!request) {
-		to_console("No ram!\r\n");
+		os_printf("No ram!\r\n");
 		rboot_ota_deinit();
 		return;
 	}
@@ -201,7 +225,7 @@ static void ICACHE_FLASH_ATTR upgrade_connect_cb(void *arg) {
 
 // connection attempt timed out
 static void ICACHE_FLASH_ATTR connect_timeout_cb() {
-	to_console("Connect timeout.\r\n");
+	os_printf("Connect timeout.\r\n");
 	// not connected so don't call disconnect on the connection
 	// but call our own disconnect callback to do the cleanup
 	upgrade_disconcb(upgrade->conn);
@@ -236,9 +260,9 @@ static const char* ICACHE_FLASH_ATTR esp_errstr(sint8 err) {
 
 // call back for lost connection
 static void ICACHE_FLASH_ATTR upgrade_recon_cb(void *arg, sint8 errType) {
-	to_console("Connection error: ");
-	to_console(esp_errstr(errType));
-	to_console("\r\n");
+	os_printf("Connection error: %s\r\n", esp_errstr(errType));
+	//os_printf(esp_errstr(errType));
+	//os_printf("\r\n");
 	// not connected so don't call disconnect on the connection
 	// but call our own disconnect callback to do the cleanup
 	upgrade_disconcb(upgrade->conn);
@@ -248,9 +272,9 @@ static void ICACHE_FLASH_ATTR upgrade_recon_cb(void *arg, sint8 errType) {
 static void ICACHE_FLASH_ATTR upgrade_resolved(const char *name, ip_addr_t *ip, void *arg) {
 
 	if (ip == 0) {
-		to_console("DNS lookup failed for: ");
-		to_console(config.ota_host);
-		to_console("\r\n");
+		os_printf("DNS lookup failed for: %s\r\n", config.ota_host);
+		//os_printf(config.ota_host);
+		//os_printf("\r\n");
 		// not connected so don't call disconnect on the connection
 		// but call our own disconnect callback to do the cleanup
 		upgrade_disconcb(upgrade->conn);
@@ -291,7 +315,7 @@ bool ICACHE_FLASH_ATTR rboot_ota_start(ota_callback callback) {
 	// create upgrade status structure
 	upgrade = (upgrade_status*)os_zalloc(sizeof(upgrade_status));
 	if (!upgrade) {
-		to_console("No ram!\r\n");
+		os_printf("No ram!\r\n");
 		return false;
 	}
 
@@ -315,13 +339,13 @@ bool ICACHE_FLASH_ATTR rboot_ota_start(ota_callback callback) {
 	// create connection
 	upgrade->conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
 	if (!upgrade->conn) {
-		to_console("No ram!\r\n");
+		os_printf("No ram!\r\n");
 		os_free(upgrade);
 		return false;
 	}
 	upgrade->conn->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
 	if (!upgrade->conn->proto.tcp) {
-		to_console("No ram!\r\n");
+		os_printf("No ram!\r\n");
 		os_free(upgrade->conn);
 		os_free(upgrade);
 		return false;
@@ -338,7 +362,7 @@ bool ICACHE_FLASH_ATTR rboot_ota_start(ota_callback callback) {
 	} else if (result == ESPCONN_INPROGRESS) {
 		// lookup taking place, will call upgrade_resolved on completion
 	} else {
-		to_console("DNS error!\r\n");
+		os_printf("DNS error!\r\n");
 		os_free(upgrade->conn->proto.tcp);
 		os_free(upgrade->conn);
 		os_free(upgrade);

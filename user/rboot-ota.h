@@ -27,7 +27,7 @@ extern "C" {
 // general http header
 #define HTTP_HEADER "Connection: keep-alive\r\n\
 Cache-Control: no-cache\r\n\
-User-Agent: rBoot-Sample/1.0\r\n\
+User-Agent: rboot-ota/1.0\r\n\
 Accept: */*\r\n\r\n"
 /* this comment to keep notepad++ happy */
 
