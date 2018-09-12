@@ -13,8 +13,10 @@
 #include <osapi.h>
 
 #include "rboot-ota.h"
+
 #include "config_flash.h"
 extern sysconfig_t config;
+extern struct espconn *currentconn;
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +32,6 @@ typedef struct {
 	uint32 total_len;
 	uint32 content_len;
 	bool ok;
-	uint8_t col_cnt;
 	struct espconn *conn;
 	ip_addr_t ip;
 	rboot_write_status write_status;
@@ -84,12 +85,15 @@ void ICACHE_FLASH_ATTR rboot_ota_deinit() {
 static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned short length) {
 
 	char *ptrData, *ptrLen, *ptr;
+	char response[128];
 
 	// disarm the timer
 	os_timer_disarm(&ota_timer);
 
 	if (!upgrade->ok && length < 12) {
-		os_printf("HTTP error - response too short\r\n");
+		to_console("HTTP error - response too short\r\n");
+		system_os_post(0, SIG_CONSOLE_TX_RAW, (ETSParam) currentconn);
+
 		rboot_ota_deinit();
 		return;
 	}
@@ -98,7 +102,10 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 	if (upgrade->content_len == 0) {
 		// http response 200 ok?
 		if (!upgrade->ok) {
-			os_printf("HTTP %c%c%c\r\n", pusrdata[9], pusrdata[10], pusrdata[11]);
+			os_sprintf(response, "HTTP %c%c%c\r\n", pusrdata[9], pusrdata[10], pusrdata[11]);
+			to_console(response);
+  			system_os_post(0, SIG_CONSOLE_TX_RAW, (ETSParam) currentconn);
+
 			if (os_strncmp(pusrdata + 9, "200", 3) == 0) {
 				upgrade->ok = true;
 			} else {
@@ -128,17 +135,18 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 			ptr = (char *)os_strstr(ptrLen, "\r\n");
 			*ptr = '\0'; // destructive
 			upgrade->content_len = atoi(ptrLen);
-			os_printf("Binary length: %d\r\n", upgrade->content_len);
+
+			os_sprintf(response, "Binary length: %d\r\n", upgrade->content_len);
+			to_console(response);
+  			system_os_post(0, SIG_CONSOLE_TX_RAW, (ETSParam) currentconn);
 		} else {
 			return;
 		}
 	} else {
 		// not the first chunk, process it 
-		os_printf(".");
-		if (upgrade->col_cnt++ > 40) {
-			upgrade->col_cnt = 0;
-			os_printf(" %d KB\r\n", upgrade->total_len/1024);
-		}
+		os_sprintf(response, " %d KB \r", upgrade->total_len/1024);
+		to_console(response);
+		system_os_post(0, SIG_CONSOLE_TX_RAW, (ETSParam) currentconn);
 		
 		upgrade->total_len += length;
 		if (!rboot_write_flash(&upgrade->write_status, (uint8*)pusrdata, length)) {
@@ -151,7 +159,6 @@ static void ICACHE_FLASH_ATTR upgrade_recvcb(void *arg, char *pusrdata, unsigned
 	// check if we are finished
 	if (upgrade->total_len == upgrade->content_len) {
 		system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
-		os_printf("\r\nUpdate completed\r\n", upgrade->total_len/1024);
 		// clean up and call user callback
 		rboot_ota_deinit();
 	} else if (upgrade->conn->state != ESPCONN_READ) {

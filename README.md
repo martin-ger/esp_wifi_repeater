@@ -353,7 +353,7 @@ The build process creates two copies of the esp_wifi_repeater binary in the firm
 If you have at least 1MB of flash you can do an OTA (Over the air) update with another version. I.e. you can interactively load a new binary from the CLI and switch over to it. The other binary is loaded to the currently non active memory location (either 0x02000 (rom0) or 0x82000 (rom1)) and started on success. You can also interactively switch between two installed binaries. The current config will be used for both binaries (as long as its format hasn't changed).
 
 You can control the OTA features with the following commands: 
-- show ota: shows the currently active binary and the URL ot the next update
+- show ota: shows the currently active binary and the URL of the next update
 - set ota_host _hostname_: sets hostname or IP address of the OTA server (default: "none")
 - set ota_port _portno_: sets port number of the OTA server (default: 80)
 - ota update: tries to download a new binary (0x02000.bin or 0x82000.bin) via HTTP from ota_host:ota_port and starts it

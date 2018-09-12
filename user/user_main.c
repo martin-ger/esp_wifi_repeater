@@ -1301,10 +1301,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
 #ifdef OTAUPDATE
       if (nTokens == 2 && strcmp(tokens[1], "ota") == 0) {
+	   os_sprintf_flash(response, "Currently running rom %d\r\n", rboot_get_current_rom());
+	   to_console(response);
 	   os_sprintf(response, "Firmware update: %s:%d/%s\r\n", config.ota_host, config.ota_port,
 			rboot_get_current_rom()?OTA_ROM0:OTA_ROM1);
-	   to_console(response);
-	   os_sprintf_flash(response, "Currently running rom %d\r\n", rboot_get_current_rom());
 	   to_console(response);
 	   goto command_handled_2;
       }
@@ -1658,6 +1658,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         }
         if (strcmp(tokens[1],"update") == 0)
         {
+	    currentconn = pespconn;
 	    OtaUpdate();
             os_sprintf_flash(response, "Update initiated\r\n");
             goto command_handled;
@@ -3438,7 +3439,7 @@ struct espconn *pCon;
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater %s starting\r\n", ESP_REPEATER_VERSION);
+    os_printf("\r\n\r\nWiFi Repeater %s starting\r\n\nrunning rom %d\r", ESP_REPEATER_VERSION, rboot_get_current_rom());
 
     // Load config
     if (config_load(&config)== 0) {
