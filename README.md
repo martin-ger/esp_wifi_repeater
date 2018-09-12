@@ -3,6 +3,8 @@ A full functional WiFi repeater (correctly: a WiFi NAT router)
 
 This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
 
+*NEW feature: OTA update support* - see https://github.com/martin-ger/esp_wifi_repeater#ota-over-the-air-update-support .
+
 Typical usage scenarios include:
 - Simple range extender for an existing WiFi network
 - Battery powered outdoor (mesh) networks
@@ -332,6 +334,8 @@ Then download this source tree in a separate directory and adjust the BUILD_AREA
 
 The source tree includes a binary version of the liblwip_open plus the required additional includes from my fork of esp-open-lwip and a binary of the rboot tool. *No additional install action is required for that.* Only if you don't want to use the precompiled library, checkout the sources from https://github.com/martin-ger/esp-open-lwip . Use it to replace the directory "esp-open-lwip" in the esp-open-sdk tree. "make clean" in the esp_open_lwip dir and once again a "make" in the upper esp_open_sdk directory. This will compile a liblwip_open.a that contains the NAT-features. Replace liblwip_open_napt.a with that binary. Also you might build the "rboot.bin" binary from https://github.com/raburton/rboot and replace it in the root directory of the project.
 
+*Update*: if you read somewhere in the web install instructions using "0x10000.bin" - due to OTA this has been changed to "0x02000.bin" now!
+
 If you want to use the complete precompiled firmware binaries you can flash them with "esptool.py --port /dev/ttyUSB0 write_flash -fs 4MB -ff 80m -fm dio 0x00000 firmware/0x00000.bin 0x02000 firmware/0x02000.bin" (use -fs 1MB for an ESP-01). For the esp8285 you must use -fs 1MB and -fm dout.
 
 On Windows you can flash it using the "ESP8266 Download Tool" available at https://espressif.com/en/support/download/other-tools. Download the two files 0x00000.bin and 0x02000.bin from the firmware directory. For a generic ESP12, a NodeMCU or a Wemos D1 use the following settings (for an ESP-01 change FLASH SIZE to "8Mbit"):
@@ -349,9 +353,9 @@ The build process creates two copies of the esp_wifi_repeater binary in the firm
 If you have at least 1MB of flash you can do an OTA (Over the air) update with another version. I.e. you can interactively load a new binary from the CLI and switch over to it. The other binary is loaded to the currently non active memory location (either 0x02000 (rom0) or 0x82000 (rom1)) and started on success. You can also interactively switch between two installed binaries. The current config will be used for both binaries (as long as its format hasn't changed).
 
 You can control the OTA features with the following commands: 
-- show ota: show the currently active binary and the URL ot the next update
-- set ota_host _hostname_: hostname or IP address of the OTA server (default: "none")
-- set ota_port _portno_: port number of the OTA server (default: 80)
+- show ota: shows the currently active binary and the URL ot the next update
+- set ota_host _hostname_: sets hostname or IP address of the OTA server (default: "none")
+- set ota_port _portno_: sets port number of the OTA server (default: 80)
 - ota update: tries to download a new binary (0x02000.bin or 0x82000.bin) via HTTP from ota_host:ota_port and starts it
 - ota switch: switches to the other binary (if installed)
 
