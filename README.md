@@ -340,15 +340,15 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
 
-# OTA (Over the air) update support (experimental)
+# OTA (Over the air) update support
 
 Based on using the rboot lib: https://github.com/raburton/rboot and thanks to the contribution of christianchristensen.
 
-During the build process (and in the firmware directory) there are two copies of the esp_wifi_repeater 0x02000.bin and 0x82000.bin. For an initial installation it is fine just to flash 0x00000.bin (the rboot boot loader) and 0x02000.bin (one copy of the program). The esp_wifi_repeater will work.
+The build process creates two copies of the esp_wifi_repeater binary in the firmware directory: 0x02000.bin and 0x82000.bin. For an initial installation it is fine just to flash 0x00000.bin (the rboot boot loader) and 0x02000.bin (one copy of the program). The esp_wifi_repeater will work.
 
-If you have at least 1MB of flash you can update that binary with another version OTA (Over the air). For an OTA update you can interactively load a new binary from the CLI and switch over to it. The other binary is loaded to the currently non active memory location (either 0x02000 (rom0) or 0x82000 (rom1)) and started on success. You can also interactively switch between two installed binaries. The current config will be used for both binaries (as long as its format hasn't changed).
+If you have at least 1MB of flash you can do an OTA (Over the air) update with another version. I.e. you can interactively load a new binary from the CLI and switch over to it. The other binary is loaded to the currently non active memory location (either 0x02000 (rom0) or 0x82000 (rom1)) and started on success. You can also interactively switch between two installed binaries. The current config will be used for both binaries (as long as its format hasn't changed).
 
-Now you can control the OTA features with the following commands: 
+You can control the OTA features with the following commands: 
 - show ota: show the currently active binary and the URL ot the next update
 - set ota_host _hostname_: hostname or IP address of the OTA server (default: "none")
 - set ota_port _portno_: port number of the OTA server (default: 80)
@@ -360,7 +360,7 @@ To test the OTA feature, configure your ESP (as STA or AP) to be connected to th
 cd firmware
 python -m SimpleHTTPServer 8080
 ```
-Set the parameter _hostname_ to the hostname or IP of your computer, set _portno_ to 8080, and "save". The type on the CLI:
+Set the parameter _hostname_ to the hostname or IP of your computer, set _portno_ to 8080, and "save". Then type on the CLI:
 ```
 ota upgrade
 ```
