@@ -36,10 +36,6 @@
 
 #include "easygpio.h"
 
-#ifdef DNS_RESP
-#include "dns_responder.h"
-#endif
-
 #ifdef WEB_CONFIG
 #include "web.h"
 #endif
@@ -189,7 +185,7 @@ uint8_t buf[256];
     MQTT_Subscribe(client, config.mqtt_command_topic, 0);
   }
 #ifdef USER_GPIO_OUT
-  if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
+  if (os_strcmp(config.mqtt_gpio_out_topic, "none") != 0) {
     MQTT_Subscribe(client, config.mqtt_gpio_out_topic, 0);
   }
 #endif
@@ -3268,7 +3264,7 @@ LOCAL void  gpio_intr_handler(void *dummy)
         GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status & BIT(USER_GPIO_IN));
 
 	// Start the timer
-    	os_timer_setfn(&inttimer, int_timer_func, easygpio_inputGet(USER_GPIO_IN));
+    	os_timer_setfn(&inttimer, int_timer_func, (void *)(uint32_t)easygpio_inputGet(USER_GPIO_IN));
     	os_timer_arm(&inttimer, 50, 0); 
 
         // Reactivate interrupts foR GPIO
@@ -3382,29 +3378,6 @@ void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
 void *schedule_enc_poll(struct netif *netif) {
     system_os_post(0, SIG_ENC, (ETSParam) netif);
     return NULL;
-}
-#endif
-
-#ifdef DNS_RESP
-int ICACHE_FLASH_ATTR get_A_Record(uint8_t addr[4], const char domain_name[])
-{
-  if (strcmp("foo.bar.com", domain_name) == 0)
-  {
-    addr[0] = 192;
-    addr[1] = 168;
-    addr[2] = 1;
-    addr[3] = 1;
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int ICACHE_FLASH_ATTR get_AAAA_Record(uint8_t addr[16], const char domain_name[])
-{
-    return -1;
 }
 #endif
 
@@ -3599,10 +3572,6 @@ struct espconn *pCon;
         /* Put the connection in accept mode */
         espconn_accept(pCon);
     }
-#endif
-
-#ifdef DNS_RESP
-    dns_resp_init(DNS_MODE_AP);
 #endif
 
 #ifdef REMOTE_MONITORING

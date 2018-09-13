@@ -83,12 +83,6 @@
 #define WEB_CONFIG_PORT 80
 
 //
-// Define this if you want to have access the DNS responder.
-// Experimental feature - not yet tested
-//
-//#define DNS_RESP  1
-
-//
 // Define this if you want to have ACLs for the SoftAP.
 //
 #define ACLS      1
