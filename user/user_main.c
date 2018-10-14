@@ -13,16 +13,19 @@
 #include "lwip/app/espconn.h"
 #include "lwip/app/espconn_tcp.h"
 
-#ifdef OTAUPDATE
+#if OTAUPDATE
 #include "rboot-api.h"
 #include "rboot-ota.h"
 #endif
 
-#ifdef ALLOW_PING
+#if ALLOW_PING
 #include "lwip/app/ping.h"
 #endif
-#ifdef HAVE_ENC28J60
-#include "lwip/netif/espenc.h"
+#if HAVE_ENC28J60
+#include "netif/espenc.h"
+#if DCHPSERVER_ENC28J60
+#include "lwip/app/encdhcpserver.h"
+#endif
 #endif
 #include "user_interface.h"
 #include "string.h"
@@ -36,19 +39,19 @@
 
 #include "easygpio.h"
 
-#ifdef WEB_CONFIG
+#if WEB_CONFIG
 #include "web.h"
 #endif
 
-#ifdef ACLS
+#if ACLS
 #include "acl.h"
 #endif
 
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
 #include "pcap.h"
 #endif
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 #include "mqtt.h"
 #endif
 
@@ -79,12 +82,12 @@ uint64_t Bytes_in, Bytes_out, Bytes_in_last, Bytes_out_last;
 uint32_t Packets_in, Packets_out, Packets_in_last, Packets_out_last;
 uint64_t t_old;
 
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
 uint64_t Bytes_per_day;
 uint8_t last_date;
 #endif
 
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
 uint64_t t_old_tb;
 uint32_t token_bucket_ds, token_bucket_us;
 #endif
@@ -106,7 +109,7 @@ uint8_t uplink_bssid[6];
 static netif_input_fn orig_input_ap, orig_input_sta;
 static netif_linkoutput_fn orig_output_ap, orig_output_sta;
 
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
 struct netif* eth_netif;
 #endif
 
@@ -122,11 +125,11 @@ void ICACHE_FLASH_ATTR to_console(char *str) {
 }
 
 void ICACHE_FLASH_ATTR mac_2_buff(char *buf, uint8_t mac[6]) {
-    os_sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x", 
+    os_sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x",
 		    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 
 #define MQTT_TOPIC_RESPONSE	0x0001
 #define MQTT_TOPIC_IP		0x0002
@@ -229,7 +232,7 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
 }
 #endif /* MQTT_CLIENT */
 
-#ifdef ALLOW_PING
+#if ALLOW_PING
 struct ping_option ping_opt;
 uint8_t ping_success_count;
 
@@ -273,7 +276,7 @@ void ICACHE_FLASH_ATTR user_do_ping(uint32_t ipaddr)
 }
 #endif
 
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
 static os_timer_t sleep_delay_timer;
 uint32_t sleeptime;
 
@@ -282,7 +285,7 @@ void ICACHE_FLASH_ATTR sleep_delay_timer_func(void *arg){
 }
 #endif
 
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
 static uint8_t monitoring_on;
 static uint16_t monitor_port;
 static ringbuf_t pcap_buffer;
@@ -444,17 +447,17 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 
     client_watchdog_cnt = config.client_watchdog;
 
-#ifdef ACLS
+#if ACLS
     // Check ACLs - store result
     uint8_t acl_check = ACL_ALLOW;
     if (!acl_is_empty(0))
        acl_check = acl_check_packet(0, p);
 #endif
 
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
     if (monitoring_on && !acl_monitoring) {
        if (put_packet_to_ringbuf(p) != 0) {
-#ifdef DROP_PACKET_IF_NOT_RECORDED
+#if DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
 	       return ERR_OK;
 #endif
@@ -462,7 +465,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
        if (!monitoring_send_ongoing)
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
-#ifdef ACLS
+#if ACLS
     // Check if packet should be monitored by ACL
     if (monitoring_on && acl_monitoring && (acl_check&ACL_MONITOR)) {
        put_packet_to_ringbuf(p);
@@ -472,7 +475,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
 #endif
 #endif /* REMOTE_MONITORING */
 
-#ifdef ACLS
+#if ACLS
     // If not allowed, drop packet
     if (!(acl_check&ACL_ALLOW)) {
 	pbuf_free(p);
@@ -480,7 +483,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     };
 #endif
 
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
     if (config.kbps_us != 0) {
         if (p->tot_len <= token_bucket_us) {
 	    token_bucket_us -= p->tot_len;
@@ -491,7 +494,7 @@ err_t ICACHE_FLASH_ATTR my_input_ap (struct pbuf *p, struct netif *inp) {
     }
 #endif
 
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
     if (config.daily_limit != 0 && Bytes_per_day/1024 >= config.daily_limit) {
 	pbuf_free(p);
 	return ERR_OK;
@@ -512,17 +515,17 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     if (config.status_led <= 16)
 	easygpio_outputSet (config.status_led, 0);
 
-#ifdef ACLS
+#if ACLS
     // Check ACLs - store result
     uint8_t acl_check = ACL_ALLOW;
     if (!acl_is_empty(1))
        acl_check = acl_check_packet(1, p);
 #endif
 
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
     if (monitoring_on && !acl_monitoring) {
        if (put_packet_to_ringbuf(p) != 0) {
-#ifdef DROP_PACKET_IF_NOT_RECORDED
+#if DROP_PACKET_IF_NOT_RECORDED
                pbuf_free(p);
 	       return ERR_OK;
 #endif
@@ -531,7 +534,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 	       tcp_monitor_sent_cb(cur_mon_conn);
     }
 
-#ifdef ACLS
+#if ACLS
     // Check if packet should be monitored by ACL
     if (monitoring_on && acl_monitoring && (acl_check&ACL_MONITOR)) {
        put_packet_to_ringbuf(p);
@@ -541,7 +544,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 #endif
 #endif /* REMOTE_MONITORING */
 
-#ifdef ACLS
+#if ACLS
     // If not allowed, drop packet
     if (!(acl_check&ACL_ALLOW)) {
 	pbuf_free(p);
@@ -549,7 +552,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     };
 #endif
 
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
     if (config.kbps_ds != 0) {
         if (p->tot_len <= token_bucket_ds) {
 	    token_bucket_ds -= p->tot_len;
@@ -560,7 +563,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
     }
 #endif
 
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
     if (config.daily_limit != 0 && Bytes_per_day/1024 >= config.daily_limit) {
 	pbuf_free(p);
 	return ERR_OK;
@@ -577,7 +580,7 @@ err_t ICACHE_FLASH_ATTR my_output_ap (struct netif *outp, struct pbuf *p) {
 err_t ICACHE_FLASH_ATTR my_input_sta (struct pbuf *p, struct netif *inp) {
 
     ap_watchdog_cnt = config.ap_watchdog;
-#ifdef ACLS
+#if ACLS
     if (!acl_is_empty(2) && !(acl_check_packet(2, p) & ACL_ALLOW)) {
 	pbuf_free(p);
 	return ERR_OK;
@@ -587,7 +590,7 @@ err_t ICACHE_FLASH_ATTR my_input_sta (struct pbuf *p, struct netif *inp) {
 }
 
 err_t ICACHE_FLASH_ATTR my_output_sta (struct netif *outp, struct pbuf *p) {
-#ifdef ACLS
+#if ACLS
     if (!acl_is_empty(3) && !(acl_check_packet(3, p) & ACL_ALLOW)) {
 	pbuf_free(p);
 	return ERR_OK;
@@ -597,9 +600,9 @@ err_t ICACHE_FLASH_ATTR my_output_sta (struct netif *outp, struct pbuf *p) {
 }
 
 static void ICACHE_FLASH_ATTR patch_netif(ip_addr_t netif_ip, netif_input_fn ifn, netif_input_fn *orig_ifn, netif_linkoutput_fn ofn, netif_linkoutput_fn *orig_ofn, bool nat)
-{	
+{
 struct netif *nif;
-	
+
 	for (nif = netif_list; nif != NULL && nif->ip_addr.addr != netif_ip.addr; nif = nif->next);
 	if (nif == NULL) return;
 
@@ -667,7 +670,7 @@ bool    in_token = false;
 		if (token_count == max_tokens)
 		   return token_count;
 		in_token = true;
-	   }  
+	   }
 	}
    }
    return token_count;
@@ -680,7 +683,7 @@ void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
     console_output = (char*) os_malloc(len+4);
 
     ringbuf_memcpy_from(console_output, console_tx_buffer, len);
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
     console_output[len] = 0;
     if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
 	mqtt_publish_str(MQTT_TOPIC_RESPONSE, "response", console_output);
@@ -701,7 +704,7 @@ void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
 }
 
 
-#ifdef ALLOW_SCANNING
+#if ALLOW_SCANNING
 void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 {
   char response[128];
@@ -717,7 +720,7 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
                  bss_link->authmode, bss_link->ssid, bss_link->rssi,
                  MAC2STR(bss_link->bssid),bss_link->channel);
       to_console(response);
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
       mqtt_publish_str(MQTT_TOPIC_SCANRESULT, "ScanResult", response);
 #endif
       bss_link = bss_link->next.stqe_next;
@@ -732,7 +735,7 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 }
 #endif
 
-#ifdef ACLS
+#if ACLS
 void ICACHE_FLASH_ATTR parse_IP_addr(uint8_t *str, uint32_t *addr, uint32_t *mask)
 {
 int i;
@@ -761,17 +764,17 @@ uint8_t acl_deny_cb(uint8_t proto, uint32_t saddr, uint16_t s_port, uint32_t dad
 {
 char response[128];
 
-    if (!acl_debug 
-#ifdef MQTT_CLIENT
+    if (!acl_debug
+#if MQTT_CLIENT
 	&& !mqtt_enabled
 #endif
 	) return allow;
 
-    os_sprintf(response, "\rdeny: %s Src: %d.%d.%d.%d:%d Dst: %d.%d.%d.%d:%d\r\n", 
+    os_sprintf(response, "\rdeny: %s Src: %d.%d.%d.%d:%d Dst: %d.%d.%d.%d:%d\r\n",
 	proto==IP_PROTO_TCP?"TCP":proto==IP_PROTO_UDP?"UDP":"IP4",
 	IP2STR((ip_addr_t *)&saddr), s_port, IP2STR((ip_addr_t *)&daddr), d_port);
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
     mqtt_publish_str(MQTT_TOPIC_ACLDENY, "ACLDeny", response);
 #endif
     if (acl_debug) {
@@ -782,7 +785,7 @@ char response[128];
 }
 #endif /* ACLS */
 
-#ifdef OTAUPDATE
+#if OTAUPDATE
 void ICACHE_FLASH_ATTR Switch() {
 	char msg[50];
 	uint8 before, after;
@@ -878,17 +881,17 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "help") == 0)
     {
         os_sprintf(response, "show [config|stats|route|dhcp%s]\r\n",
-#ifdef ACLS
+#if ACLS
 		"|acl"
 #else
 		""
 #endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 		"|mqtt"
 #else
 		""
 #endif
-#ifdef OTAUPDATE
+#if OTAUPDATE
 		"|ota"
 #else
 		""
@@ -898,41 +901,45 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf_flash(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|nat] <val>\r\n");
         to_console(response);
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
         os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
         to_console(response);
 #endif
         os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
         to_console(response);
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
+#if DCHPSERVER_ENC28J60
+        os_sprintf_flash(response, "set [eth_dhcpd] <val>\r\n");
+        to_console(response);
+#endif
         os_sprintf_flash(response, "set [eth_enable|eth_ip|eth_netmask|eth_gw|eth_mac] <val>\r\n");
         to_console(response);
 #endif
         os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
-#ifdef ACLS
+#if ACLS
         os_sprintf_flash(response, "show acl|acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
         to_console(response);
 #endif
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
         os_sprintf_flash(response, "set [daily_limit|timezone] <val>\r\n");
         to_console(response);
 #endif
-#ifdef ALLOW_PING
+#if ALLOW_PING
         os_sprintf_flash(response, "ping <ip_addr>\r\n");
         to_console(response);
 #endif
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
         os_sprintf_flash(response, "monitor [on|off] <portnumber>\r\n");
         to_console(response);
 #endif
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
         os_sprintf_flash(response, "set [upstream_kbps|downstream_kbps] <val>\r\n");
         to_console(response);
 #endif
         os_sprintf_flash(response, "set [automesh|am_threshold");
         to_console(response);
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
         os_sprintf_flash(response, "|am_scan_time|am_sleep_time");
         to_console(response);
 #endif
@@ -942,23 +949,23 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
         os_sprintf_flash(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
         to_console(response);
-#ifdef ALLOW_SCANNING
+#if ALLOW_SCANNING
         os_sprintf_flash(response, "scan\r\n");
         to_console(response);
 #endif
-#ifdef PHY_MODE
+#if PHY_MODE
         os_sprintf_flash(response, "set phy_mode [1|2|3]\r\n");
         to_console(response);
 #endif
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
         os_sprintf_flash(response, "sleep <secs>\r\nset [vmin|vmin_sleep] <val>\r\n");
         to_console(response);
 #endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
         os_sprintf_flash(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
         to_console(response);
 #endif
-#ifdef OTAUPDATE
+#if OTAUPDATE
         os_sprintf_flash(response, "ota [switch|update]\r\n");
         to_console(response);
 #endif
@@ -981,21 +988,21 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                    config.auto_connect?"":" [AutoConnect:0]");
         to_console(response);
 	if (*(int*)config.bssid != 0) {
-		os_sprintf(response, "BSSID: %02x:%02x:%02x:%02x:%02x:%02x\r\n", 
+		os_sprintf(response, "BSSID: %02x:%02x:%02x:%02x:%02x:%02x\r\n",
 		    config.bssid[0], config.bssid[1], config.bssid[2],
 		    config.bssid[3], config.bssid[4], config.bssid[5]);
 		to_console(response);
 	}
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
 	if (config.use_PEAP) {
 	        os_sprintf(response, "PEAP: Identity:%s Username:%s Password: %s\r\n",
 			   config.PEAP_identity, config.PEAP_username,
 			   config.locked?"***":(char*)config.PEAP_password);
-        	to_console(response);	
+        	to_console(response);
 	}
 #endif
 	// if static IP, add it
-	os_sprintf(response, config.my_addr.addr?"STA: IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"", 
+	os_sprintf(response, config.my_addr.addr?"STA: IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":"",
 		IP2STR(&config.my_addr), IP2STR(&config.my_netmask), IP2STR(&config.my_gw));
         to_console(response);
 	// if static DNS, add it
@@ -1004,12 +1011,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
 	if (config.automesh_mode != AUTOMESH_OFF) {
 	        os_sprintf(response, "Automesh: on (%s) Level: %d Threshold: -%d\r\n",
-		config.automesh_mode==AUTOMESH_LEARNING?"learning":"operational", 
+		config.automesh_mode==AUTOMESH_LEARNING?"learning":"operational",
 		config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:-1,
 		config.automesh_threshold);
-        	to_console(response);	
+        	to_console(response);
 	}
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
 	if (config.am_scan_time != 0 && config.automesh_mode != AUTOMESH_OFF) {
             os_sprintf(response, "Automesh: Scan time: %d Sleep time: %d s\r\n", config.am_scan_time, config.am_sleep_time);
             to_console(response);
@@ -1025,7 +1032,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		   config.nat_enable?" [NAT]":"");
         to_console(response);
 
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
 	if (config.eth_enable) {
 	    os_sprintf(response, config.eth_addr.addr?"ETH IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n":
 		"ETH: DHCP\r\n", IP2STR(&config.eth_addr), IP2STR(&config.eth_netmask), IP2STR(&config.eth_gw));
@@ -1050,7 +1057,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	mac_2_buff(mac_buf, config.AP_MAC_address);
 	os_sprintf(response, "AP MAC:  %s\r\n", mac_buf);
 	to_console(response);
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
 	if (config.eth_enable) {
 	    mac_2_buff(mac_buf, config.ETH_MAC_address);
 	    os_sprintf(response, "ETH MAC: %s\r\n", mac_buf);
@@ -1064,7 +1071,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    to_console(response);
 	}
 
-#ifdef REMOTE_CONFIG
+#if REMOTE_CONFIG
 	if (config.config_port == 0 || config.config_access == 0) {
 		os_sprintf_flash(response, "No network console access\r\n");
 	} else {
@@ -1075,7 +1082,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         os_sprintf(response, "Clock speed: %d\r\n", config.clock_speed);
         to_console(response);
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
 	if (config.kbps_ds != 0) {
             os_sprintf(response, "Downstream limit: %d kbps\r\n", config.kbps_ds);
             to_console(response);
@@ -1085,11 +1092,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             to_console(response);
 	}
 #endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
         os_sprintf(response, "MQTT: %s\r\n", mqtt_enabled?"enabled":"disabled");
-        to_console(response);      
+        to_console(response);
 #endif
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
 	if (config.Vmin != 0) {
             os_sprintf(response, "Vmin: %d mV Sleep time: %d s\r\n", config.Vmin, config.Vmin_sleep);
             to_console(response);
@@ -1099,13 +1106,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    p = &ip_portmap_table[i];
 	    if(p->valid) {
 		i_ip.addr = p->daddr;
-		os_sprintf(response, "Portmap: %s: " IPSTR ":%d -> "  IPSTR ":%d\r\n", 
+		os_sprintf(response, "Portmap: %s: " IPSTR ":%d -> "  IPSTR ":%d\r\n",
 		   p->proto==IP_PROTO_TCP?"TCP":p->proto==IP_PROTO_UDP?"UDP":"???",
 		   IP2STR(&my_ip), ntohs(p->mport), IP2STR(&i_ip), ntohs(p->dport));
 		to_console(response);
 	    }
 	}
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
 	if (!config.locked&&monitor_port != 0) {
            	os_sprintf(response, "Monitor (mode %s) started on port %d\r\n", acl_monitoring?"acl":"all", monitor_port);
 		to_console(response);
@@ -1121,18 +1128,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
            os_sprintf(response, "System uptime: %d:%02d:%02d\r\n", time/3600, (time%3600)/60, time%60);
 	   to_console(response);
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
 	   uint32_t current_stamp = sntp_get_current_timestamp();
 	   os_sprintf(response, "Local time: %s\r", current_stamp?sntp_get_real_time(current_stamp):"no NTP sync\n");
 	   to_console(response);
 #endif
-	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n", 
-			(uint32_t)(Bytes_in/1024), Packets_in, 
+	   os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n",
+			(uint32_t)(Bytes_in/1024), Packets_in,
 			(uint32_t)(Bytes_out/1024), Packets_out);
            to_console(response);
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
 	   if (config.daily_limit != 0) {
-	       os_sprintf(response, "%d KiB of %d per day used\r\n", 
+	       os_sprintf(response, "%d KiB of %d per day used\r\n",
 			(uint32_t)(Bytes_per_day/1024), config.daily_limit);
                to_console(response);
 	   }
@@ -1143,7 +1150,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   os_sprintf(response, "GPIO output status: %d\r\n", config.gpio_out_status);
            to_console(response);
 #endif
-#ifdef PHY_MODE
+#if PHY_MODE
 	   phy = wifi_get_phy_mode();
 	   os_sprintf(response, "Phy mode: %c\r\n", phy == PHY_MODE_11B?'b':phy == PHY_MODE_11G?'g':'n');
            to_console(response);
@@ -1163,7 +1170,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf_flash(response, "STA not connected\r\n");
 		to_console(response);
 	   }
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
 	   if (eth_netif) {
 		uint8_t buf[20];
 		addr2str(buf, eth_netif->ip_addr.addr, eth_netif->netmask.addr);
@@ -1254,14 +1261,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   os_sprintf_flash(response, "DHCP table:\r\n");
 	   to_console(response);
            for (i = 0; (p = dhcps_get_mapping(i)); i++) {
-		os_sprintf(response, "%02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR " - %d\r\n", 
-		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], 
+		os_sprintf(response, "%02x:%02x:%02x:%02x:%02x:%02x - "  IPSTR " - %d\r\n",
+		   p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5],
 		   IP2STR(&p->ip), p->lease_timer);
 		to_console(response);
 	   }
 	   goto command_handled_2;
       }
-#ifdef ACLS
+#if ACLS
       if (nTokens == 2 && strcmp(tokens[1], "acl") == 0) {
 	   char *txt[] = {"From STA:\r\n", "To STA:\r\n", "From AP:\r\n", "To AP:\r\n"};
 	   for (i = 0; i<MAX_NO_ACLS; i++) {
@@ -1271,13 +1278,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		   to_console(response);
 	       }
 	   }
-	   os_sprintf(response, "Packets denied: %d Packets allowed: %d\r\n", 
+	   os_sprintf(response, "Packets denied: %d Packets allowed: %d\r\n",
 			acl_deny_count, acl_allow_count);
 	   to_console(response);
 	   goto command_handled_2;
       }
 #endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
       if (nTokens == 2 && strcmp(tokens[1], "mqtt") == 0) {
 	   if (os_strcmp(config.mqtt_host, "none") == 0) {
 	     os_sprintf_flash(response, "MQTT not enabled (no mqtt_host)\r\n");
@@ -1295,7 +1302,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   goto command_handled_2;
       }
 #endif
-#ifdef OTAUPDATE
+#if OTAUPDATE
       if (nTokens == 2 && strcmp(tokens[1], "ota") == 0) {
 	   os_sprintf_flash(response, "Currently running rom %d\r\n", rboot_get_current_rom());
 	   to_console(response);
@@ -1306,7 +1313,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
       }
 #endif
     }
-#ifdef ACLS
+#if ACLS
     if (strcmp(tokens[0], "acl") == 0)
     {
     uint8_t acl_no;
@@ -1351,7 +1358,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    goto command_handled;
 	}
 
-	last_arg = 7;	
+	last_arg = 7;
 	if (strcmp(tokens[2],"IP") == 0) {
 	    proto = 0;
 	    last_arg = 5;
@@ -1382,7 +1389,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
 	if (strcmp(tokens[last_arg],"allow") == 0) allow = ACL_ALLOW;
 	else if (strcmp(tokens[last_arg],"deny") == 0) allow = ACL_DENY;
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
 	else if (strcmp(tokens[last_arg],"allow_monitor") == 0) allow = ACL_ALLOW|ACL_MONITOR;
 	else if (strcmp(tokens[last_arg],"deny_monitor") == 0) allow = ACL_DENY|ACL_MONITOR;
 #endif
@@ -1598,10 +1605,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    config.dhcps_p[i].ip = station->ip;
 	    os_memcpy(config.dhcps_p[i].mac, station->bssid, sizeof(station->bssid));
             station = STAILQ_NEXT(station, next);
-	    if (++i >= MAX_DHCP) 
+	    if (++i >= MAX_DHCP)
 		break;
         }
-        
+
 /*	for (i = 0; i<MAX_DHCP && (p = dhcps_get_mapping(i)); i++) {
 	  os_memcpy(&config.dhcps_p[i], p, sizeof(struct dhcps_pool));
 	}
@@ -1614,7 +1621,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
       }
     }
-#ifdef ALLOW_SCANNING
+#if ALLOW_SCANNING
     if (strcmp(tokens[0], "scan") == 0)
     {
         currentconn = pespconn;
@@ -1623,7 +1630,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 #endif
-#ifdef ALLOW_PING
+#if ALLOW_PING
     if (strcmp(tokens[0], "ping") == 0)
     {
 	if (nTokens != 2) {
@@ -1635,7 +1642,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
     }
 #endif
-#ifdef OTAUPDATE
+#if OTAUPDATE
     if (strcmp(tokens[0], "ota") == 0)
     {
 	if (config.locked) {
@@ -1675,7 +1682,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_printf("Restarting ... \r\n");
 	system_restart();
 	while (true);
-	
+
         goto command_handled;
     }
 
@@ -1685,7 +1692,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	os_sprintf_flash(response, "Quitting console\r\n");
         goto command_handled;
     }
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
     if (strcmp(tokens[0], "sleep") == 0)
     {
 	sleeptime = 10; // seconds
@@ -1695,8 +1702,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
 	// Start the timer
     	os_timer_setfn(&sleep_delay_timer, sleep_delay_timer_func, 0);
-    	os_timer_arm(&sleep_delay_timer, 2000, 0); 
-	
+    	os_timer_arm(&sleep_delay_timer, 2000, 0);
+
         goto command_handled;
     }
 #endif
@@ -1737,7 +1744,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	goto command_handled;
     }
 
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
     if (strcmp(tokens[0],"monitor") == 0) {
         if (nTokens < 2) {
             os_sprintf(response, INVALID_NUMARGS);
@@ -1748,7 +1755,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             goto command_handled;
         }
 	if (strcmp(tokens[1],"on") == 0
-#ifdef ACLS
+#if ACLS
 	    || strcmp(tokens[1],"acl") == 0
 #endif
 					) {
@@ -1760,14 +1767,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf_flash(response, "Monitor already started\r\n");
 		goto command_handled;
 	    }
-	    
+
             monitor_port = atoi(tokens[2]);
 	    if (monitor_port != 0) {
-#ifdef ACLS
+#if ACLS
 		acl_monitoring = (strcmp(tokens[1],"acl") == 0);
 #endif
 		start_monitor(monitor_port);
-		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);       
+		os_sprintf(response, "Started monitor on port %d\r\n", monitor_port);
                 goto command_handled;
             } else {
 		os_sprintf_flash(response, "Invalid monitor port\r\n");
@@ -1960,7 +1967,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 os_sprintf(response, "Automesh threshold set to -%d\r\n", config.automesh_threshold);
                 goto command_handled;
             }
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
             if (strcmp(tokens[1],"use_peap") == 0)
             {
                 config.use_PEAP = atoi(tokens[2]);
@@ -2001,7 +2008,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
-#ifdef ACLS
+#if ACLS
             if (strcmp(tokens[1],"acl_debug") == 0)
             {
 		acl_debug = atoi(tokens[2]);
@@ -2009,11 +2016,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
-#ifdef OTAUPDATE
+#if OTAUPDATE
 	    if (strcmp(tokens[1], "ota_host") == 0)
 	    {
 		os_strncpy(config.ota_host, tokens[2], 64);
+#if MQTT_CLIENT
 		config.mqtt_host[63] = 0;
+#endif
 		os_sprintf_flash(response, "OTA host set\r\n");
         	goto command_handled;
 	    }
@@ -2024,11 +2033,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
-#ifdef REMOTE_CONFIG
+#if REMOTE_CONFIG
             if (strcmp(tokens[1],"config_port") == 0)
             {
                 config.config_port = atoi(tokens[2]);
-		if (config.config_port == 0) 
+		if (config.config_port == 0)
 		  os_sprintf_flash(response, "WARNING: if you save this, remote console access will be disabled!\r\n");
 		else
 		  os_sprintf(response, "Config port set to %d\r\n", config.config_port);
@@ -2044,18 +2053,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		goto command_handled;
 	    }
 #endif
-#ifdef WEB_CONFIG
+#if WEB_CONFIG
             if (strcmp(tokens[1],"web_port") == 0)
             {
                 config.web_port = atoi(tokens[2]);
-		if (config.web_port == 0) 
+		if (config.web_port == 0)
 		  os_sprintf_flash(response, "WARNING: if you save this, web config will be disabled!\r\n");
 		else
 		  os_sprintf(response, "Web port set to %d\r\n", config.web_port);
                 goto command_handled;
             }
 #endif
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
             if (strcmp(tokens[1],"daily_limit") == 0)
             {
                 config.daily_limit = atoi(tokens[2]);
@@ -2069,7 +2078,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
             if (strcmp(tokens[1],"downstream_kbps") == 0)
             {
                 config.kbps_ds = atoi(tokens[2]);
@@ -2083,7 +2092,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
             if (strcmp(tokens[1],"vmin") == 0)
             {
                 config.Vmin = atoi(tokens[2]);
@@ -2141,7 +2150,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    {
 		uint16_t speed = atoi(tokens[2]);
 		bool succ = system_update_cpu_freq(speed);
-		if (succ) 
+		if (succ)
 		    config.clock_speed = speed;
 		os_sprintf(response, "Clock speed update %s\r\n",
 		  succ?"successful":"failed");
@@ -2183,12 +2192,12 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf(response, "\r\nHW factory reset set to GPIO %d\r\n", config.hw_reset);
         	goto command_handled;
 	    }
-#ifdef PHY_MODE
+#if PHY_MODE
 	    if (strcmp(tokens[1], "phy_mode") == 0)
 	    {
 		uint16_t mode = atoi(tokens[2]);
 		bool succ = wifi_set_phy_mode(mode);
-		if (succ) 
+		if (succ)
 		    config.phy_mode = mode;
 		os_sprintf(response, "Phy mode setting %s\r\n",
 		  succ?"successful":"failed");
@@ -2199,7 +2208,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.network_addr.addr = ipaddr_addr(tokens[2]);
 		ip4_addr4(&config.network_addr) = 0;
-                os_sprintf(response, "Network set to %d.%d.%d.%d/24\r\n", 
+                os_sprintf(response, "Network set to %d.%d.%d.%d/24\r\n",
 			IP2STR(&config.network_addr));
                 goto command_handled;
             }
@@ -2211,7 +2220,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf_flash(response, "DNS from DHCP\r\n");
 		} else {
 		    config.dns_addr.addr = ipaddr_addr(tokens[2]);
-		    os_sprintf(response, "DNS set to %d.%d.%d.%d\r\n", 
+		    os_sprintf(response, "DNS set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.dns_addr));
 		    if (config.dns_addr.addr) {
 			dns_ip.addr = config.dns_addr.addr;
@@ -2228,7 +2237,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf_flash(response, "IP from DHCP\r\n");
 		} else {
 		    config.my_addr.addr = ipaddr_addr(tokens[2]);
-		    os_sprintf(response, "IP address set to %d.%d.%d.%d\r\n", 
+		    os_sprintf(response, "IP address set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.my_addr));
 		}
                 goto command_handled;
@@ -2237,7 +2246,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"netmask") == 0)
             {
                 config.my_netmask.addr = ipaddr_addr(tokens[2]);
-                os_sprintf(response, "IP netmask set to %d.%d.%d.%d\r\n", 
+                os_sprintf(response, "IP netmask set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.my_netmask));
                 goto command_handled;
             }
@@ -2245,7 +2254,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"gw") == 0)
             {
                 config.my_gw.addr = ipaddr_addr(tokens[2]);
-                os_sprintf(response, "Gateway set to %d.%d.%d.%d\r\n", 
+                os_sprintf(response, "Gateway set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.my_gw));
                 goto command_handled;
             }
@@ -2281,7 +2290,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                   os_sprintf_flash(response, "bssid set\r\n");
                 goto command_handled;
             }
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
+#if DCHPSERVER_ENC28J60
+            if(strcmp(tokens[1],"eth_dhcpd") == 0) {
+                    config.enc_DHCPserver = atoi(tokens[2]);
+                if (config.enc_DHCPserver) {
+                    os_sprintf_flash(response, "eth_dhcpd enabled\r\n");
+		} else {
+                    os_sprintf_flash(response, "eth_dhcpd disabled\r\n");
+		}
+                    goto command_handled;
+            }
+#endif
             if (strcmp(tokens[1],"eth_enable") == 0)
             {
                 config.eth_enable = atoi(tokens[2]);
@@ -2300,7 +2320,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		    os_sprintf_flash(response, "ETH IP from DHCP\r\n");
 		} else {
 		    config.eth_addr.addr = ipaddr_addr(tokens[2]);
-		    os_sprintf(response, "ETH IP address set to %d.%d.%d.%d\r\n", 
+		    os_sprintf(response, "ETH IP address set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.eth_addr));
 		}
                 goto command_handled;
@@ -2309,7 +2329,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"eth_netmask") == 0)
             {
                 config.eth_netmask.addr = ipaddr_addr(tokens[2]);
-                os_sprintf(response, "ETH IP netmask set to %d.%d.%d.%d\r\n", 
+                os_sprintf(response, "ETH IP netmask set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.eth_netmask));
                 goto command_handled;
             }
@@ -2317,7 +2337,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (strcmp(tokens[1],"eth_gw") == 0)
             {
                 config.eth_gw.addr = ipaddr_addr(tokens[2]);
-                os_sprintf(response, "ETH Gateway set to %d.%d.%d.%d\r\n", 
+                os_sprintf(response, "ETH Gateway set to %d.%d.%d.%d\r\n",
 			IP2STR(&config.eth_gw));
                 goto command_handled;
             }
@@ -2331,7 +2351,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 	    if (strcmp(tokens[1], "mqtt_host") == 0)
 	    {
 		os_strncpy(config.mqtt_host, tokens[2], 32);
@@ -2456,7 +2476,7 @@ bool ICACHE_FLASH_ATTR check_connection_access(struct espconn *pesp_conn, uint8_
     return false;
 }
 
-#ifdef REMOTE_CONFIG
+#if REMOTE_CONFIG
 static void ICACHE_FLASH_ATTR tcp_client_sent_cb(void *arg)
 {
     uint16_t len;
@@ -2496,7 +2516,7 @@ static void ICACHE_FLASH_ATTR tcp_client_recv_cb(void *arg,
 static void ICACHE_FLASH_ATTR tcp_client_discon_cb(void *arg)
 {
     //os_printf("tcp_client_discon_cb(): client disconnected\n");
-#ifdef ACLS
+#if ACLS
     acl_debug = 0;
     deny_cb_conn = 0;
 #endif
@@ -2525,16 +2545,16 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
-    
+
     espconn_send(pespconn, "CMD>", 4);
-#ifdef ACLS
+#if ACLS
     deny_cb_conn = pespconn;
 #endif
 }
 #endif /* REMOTE_CONFIG */
 
 
-#ifdef WEB_CONFIG
+#if WEB_CONFIG
 static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char* val)
 {
     struct espconn *pespconn = (struct espconn *)arg;
@@ -2723,7 +2743,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 	os_memcpy(lock_page, lock_page_str, slen);
 
 	espconn_send(pespconn, lock_page, sizeof(lock_page_str));
-	
+
 	os_free(lock_page);
     }
 }
@@ -2736,7 +2756,7 @@ void ICACHE_FLASH_ATTR timer_func(void *arg){
 uint32_t Vcurr;
 uint64_t t_new;
 uint32_t t_diff;
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
 uint32_t Bps;
 #endif
 
@@ -2797,7 +2817,7 @@ uint32_t Bps;
 
 	Vcurr = (system_get_vdd33()*1000)/1024;
 	Vdd = (Vdd * 3 + Vcurr)/4;
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
 	if (config.Vmin != 0 && Vdd<config.Vmin) {
             os_printf("Vdd (%d mV) < Vmin (%d mV) -> going to deep sleep\r\n", Vdd, config.Vmin);
             system_deep_sleep(config.Vmin_sleep * 1000000);
@@ -2805,13 +2825,13 @@ uint32_t Bps;
 #endif
     }
 
-    // Do we still have to configure the AP netif? 
+    // Do we still have to configure the AP netif?
     if (do_ip_config) {
 	user_set_softap_ip_config();
 	do_ip_config = false;
     }
 
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
     if (connected && toggle) {
 	uint32_t current_stamp = sntp_get_current_timestamp();
 	if(current_stamp != 0) {
@@ -2826,7 +2846,7 @@ uint32_t Bps;
 
     t_new = get_long_systime();
 
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
     t_diff = (uint32_t)((t_new-t_old_tb)/1000);
     if (config.kbps_ds != 0) {
 	Bps = config.kbps_ds*1024/8;
@@ -2841,7 +2861,7 @@ uint32_t Bps;
     t_old_tb = t_new;
 #endif
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
     t_diff = (uint32_t)((t_new-t_old)/1000000);
     if (mqtt_enabled && config.mqtt_interval != 0 && (t_diff > config.mqtt_interval)) {
 	mqtt_publish_int(MQTT_TOPIC_UPTIME, "Uptime", "%d", (uint32_t)(t_new/1000000));
@@ -2853,7 +2873,7 @@ uint32_t Bps;
 	mqtt_publish_int(MQTT_TOPIC_NOSTATIONS, "NoStations", "%d", config.ap_on?wifi_softap_get_station_num():0);
 	mqtt_publish_int(MQTT_TOPIC_BPS, "Bpsin", "%d", (uint32_t)(Bytes_in-Bytes_in_last)/t_diff);
 	mqtt_publish_int(MQTT_TOPIC_BPS, "Bpsout", "%d", (uint32_t)(Bytes_out-Bytes_out_last)/t_diff);
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
 	mqtt_publish_int(MQTT_TOPIC_BPD, "Bpd", "%d", (uint32_t)(Bytes_per_day/1024));
 #endif
 #ifdef USER_GPIO_OUT
@@ -2876,10 +2896,10 @@ uint32_t Bps;
 		mac_2_buff(sta_mac, mac_buf);
 
 		mac_2_buff(bssid_mac, uplink_bssid);
-		
+
 		os_sprintf(buffer, "{\"nodeinfo\":{\"id\":\"%s\",\"ap_mac\":\"%s\",\"sta_mac\":\"%s\",\"uplink_bssid\":\"%s\",\"ap_ip\":\"" IPSTR "\",\"sta_ip\":\"" IPSTR "\",\"rssi\":\"%d\",\"mesh_level\":\"%u\",\"no_stas\":\"%d\"},\"stas\":[",
-			config.sta_hostname, ap_mac, sta_mac, bssid_mac, 
-			IP2STR(&my_ap_ip), IP2STR(&my_ip), 
+			config.sta_hostname, ap_mac, sta_mac, bssid_mac,
+			IP2STR(&my_ap_ip), IP2STR(&my_ip),
 			wifi_station_get_rssi(),
 			config.automesh_mode==AUTOMESH_OPERATIONAL?config.AP_MAC_address[2]:0,
 			wifi_softap_get_station_num());
@@ -2910,11 +2930,7 @@ uint32_t Bps;
     }
 #endif
 
-#ifdef HAVE_ENC28J60
-	enc28j60_poll();
-#endif
-
-    os_timer_arm(&ptimer, toggle?900:100, 0); 
+    os_timer_arm(&ptimer, toggle?900:100, 0);
 }
 
 //Priority 0 Task
@@ -2945,7 +2961,7 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
             console_handle_command(pespconn);
         }
         break;
-#ifdef HAVE_LOOPBACK
+#if HAVE_LOOPBACK
     case SIG_LOOPBACK:
 	{
 	    struct netif *netif = (struct netif *) events->par;
@@ -2953,14 +2969,7 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 	}
         break;
 #endif
-#ifdef HAVE_ENC28J60
-    case SIG_ENC:
-	{
-	    enc28j60_poll();
-	}
-        break;
-#endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 #ifdef USER_GPIO_IN
     case SIG_GPIO_INT:
         {
@@ -3012,7 +3021,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	    return;
 	}
 
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
 	if (config.use_PEAP) {
 	    wifi_station_clear_enterprise_identity();
 	    wifi_station_clear_enterprise_username();
@@ -3025,7 +3034,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
         os_printf("disconnect from ssid %s, reason %d\r\n", evt->event_info.disconnected.ssid, evt->event_info.disconnected.reason);
 	connected = false;
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 	if (mqtt_enabled) MQTT_Disconnect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
@@ -3094,7 +3103,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	    os_printf("Automesh successfully configured and started\r\n");
 	}
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 	if (mqtt_enabled) MQTT_Connect(&mqttClient);
 #endif /* MQTT_CLIENT */
 
@@ -3105,7 +3114,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
     case EVENT_SOFTAPMODE_STACONNECTED:
 	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_connected.mac));
         os_printf("station: %s join, AID = %d\r\n", mac_str, evt->event_info.sta_connected.aid);
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 	mqtt_publish_str(MQTT_TOPIC_JOIN, "join", mac_str);
 #endif
 	ip_addr_t ap_ip = config.network_addr;
@@ -3116,7 +3125,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
     case EVENT_SOFTAPMODE_STADISCONNECTED:
 	os_sprintf(mac_str, MACSTR, MAC2STR(evt->event_info.sta_disconnected.mac));
         os_printf("station: %s leave, AID = %d\r\n", mac_str, evt->event_info.sta_disconnected.aid);
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 	mqtt_publish_str(MQTT_TOPIC_LEAVE, "leave", mac_str);
 #endif
         break;
@@ -3132,7 +3141,7 @@ void ICACHE_FLASH_ATTR user_set_softap_wifi_config(void)
 struct softap_config apConfig;
 
    wifi_softap_get_config(&apConfig); // Get config first.
-    
+
    os_memset(apConfig.ssid, 0, 32);
    os_sprintf(apConfig.ssid, "%s", config.ap_ssid);
    os_memset(apConfig.password, 0, 64);
@@ -3163,7 +3172,7 @@ int i;
    // Find the netif of the AP (that with num != 0)
    for (nif = netif_list; nif != NULL && nif->num == 0; nif = nif->next);
    if (nif == NULL) return;
-   // If is not 1, set it to 1. 
+   // If is not 1, set it to 1.
    // Kind of a hack, but the Espressif-internals expect it like this (hardcoded 1).
    nif->num = 1;
 
@@ -3195,7 +3204,7 @@ int i;
 }
 
 
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
 void ICACHE_FLASH_ATTR user_set_wpa2_config()
 {
    wifi_station_set_wpa2_enterprise_auth(1);
@@ -3215,7 +3224,7 @@ void ICACHE_FLASH_ATTR user_set_wpa2_config()
 void ICACHE_FLASH_ATTR user_set_station_config(void)
 {
     struct station_config stationConf;
-    char hostname[40];
+    //char hostname[40];
 
     /* Setup AP credentials */
     os_sprintf(stationConf.ssid, "%s", config.ssid);
@@ -3235,7 +3244,7 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
     wifi_station_set_auto_connect(config.auto_connect != 0);
 }
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 #ifdef USER_GPIO_IN
 static os_timer_t inttimer;
 
@@ -3265,7 +3274,7 @@ LOCAL void  gpio_intr_handler(void *dummy)
 
 	// Start the timer
     	os_timer_setfn(&inttimer, int_timer_func, (void *)(uint32_t)easygpio_inputGet(USER_GPIO_IN));
-    	os_timer_arm(&inttimer, 50, 0); 
+    	os_timer_arm(&inttimer, 50, 0);
 
         // Reactivate interrupts foR GPIO
         //gpio_pin_intr_state_set(GPIO_ID_PIN(USER_GPIO_IN), GPIO_PIN_INTR_ANYEDGE);
@@ -3309,7 +3318,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 	  rssi = bss_link->rssi;
 	  mesh_level = this_mesh_level;
 	  os_memcpy(config.bssid, bss_link->bssid, 6);
-	} 
+	}
       }
     }
 
@@ -3321,7 +3330,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       config.AP_MAC_address[2] = mesh_level+1;
       os_get_random(&config.AP_MAC_address[3], 3);
 
-      wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
+      wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);
       user_set_softap_wifi_config();
 
       IP4_ADDR(&config.network_addr, 10, 24, mesh_level+1, 1);
@@ -3330,7 +3339,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       config.automesh_tries = 0;
 
       config_save(&config);
-      //wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
+      //wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);
 
       system_restart();
       while (true);
@@ -3345,7 +3354,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 
   os_printf("No AP with ssid %s found\r\n", config.ssid);
 
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
   if (config.am_scan_time && config.am_sleep_time) {
     int32_t secs_left = config.am_scan_time - ((uint32_t)(get_long_systime()/1000000));
     os_printf("%d s scanning time left\r\n", secs_left);
@@ -3354,7 +3363,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       os_printf("Scan time exceeded - going to sleep\r\n");
       system_deep_sleep(config.am_sleep_time * 1000000);
       return;
-    }    
+    }
   }
 #endif
 
@@ -3367,16 +3376,9 @@ void ICACHE_FLASH_ATTR to_scan(void) {
     }
 }
 
-#ifdef HAVE_LOOPBACK
+#if HAVE_LOOPBACK
 void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
     system_os_post(0, SIG_LOOPBACK, (ETSParam) netif);
-    return NULL;
-}
-#endif
-
-#ifdef HAVE_ENC28J60
-void *schedule_enc_poll(struct netif *netif) {
-    system_os_post(0, SIG_ENC, (ETSParam) netif);
     return NULL;
 }
 #endif
@@ -3394,12 +3396,12 @@ struct espconn *pCon;
     t_old = 0;
     os_memset(uplink_bssid, 0, sizeof(uplink_bssid));
 
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
     Bytes_per_day = 0;
     last_date = 0;
 #endif
 
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
     t_old_tb = 0;
     token_bucket_ds = token_bucket_us = 0;
 #endif
@@ -3419,12 +3421,12 @@ struct espconn *pCon;
 	// valid config in FLASH, can read portmap table
 	blob_load(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     } else {
-	
+
 	// clear portmap table
 	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
 
-#ifdef ACLS
+#if ACLS
     acl_debug = 0;
     int i;
     for(i=0; i< MAX_NO_ACLS; i++) {
@@ -3450,7 +3452,7 @@ struct espconn *pCon;
 	easygpio_pinMode(config.hw_reset, EASYGPIO_PULLUP, EASYGPIO_INPUT);
     }
 #endif
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
 #ifdef USER_GPIO_IN
     easygpio_pinMode(USER_GPIO_IN, EASYGPIO_PULLUP, EASYGPIO_INPUT);
     easygpio_attachInterrupt(USER_GPIO_IN, EASYGPIO_PULLUP, gpio_intr_handler, NULL);
@@ -3487,7 +3489,7 @@ struct espconn *pCon;
 
     // Now config the STA-Mode
     user_set_station_config();
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
     if (config.use_PEAP) {
 	user_set_wpa2_config();
 	wifi_station_connect();
@@ -3496,7 +3498,7 @@ struct espconn *pCon;
 
     if (config.ap_on) {
 	wifi_set_opmode(STATIONAP_MODE);
-	wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);	
+	wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);
     	user_set_softap_wifi_config();
 	do_ip_config = true;
     } else {
@@ -3511,7 +3513,7 @@ struct espconn *pCon;
 	wifi_set_macaddr(STATION_IF, config.STA_MAC_address);
     }
 
-#ifdef PHY_MODE
+#if PHY_MODE
     wifi_set_phy_mode(config.phy_mode);
 #endif
 
@@ -3524,18 +3526,11 @@ struct espconn *pCon;
 	espconn_dns_setserver(0, &dns_ip);
     }
 
-#ifdef HAVE_LOOPBACK
+#if HAVE_LOOPBACK
     loopback_netif_init((netif_status_callback_fn)schedule_netif_poll);
 #endif
-#ifdef HAVE_ENC28J60
-    eth_netif = NULL;
-    if (config.eth_enable) {
-	eth_netif = espenc_init(config.ETH_MAC_address, &config.eth_addr, &config.eth_netmask, 
-			    &config.eth_gw, (config.eth_addr.addr == 0), (netif_status_callback_fn)schedule_enc_poll);
-    }
-#endif
 
-#ifdef REMOTE_CONFIG
+#if REMOTE_CONFIG
     pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
     if (config.config_port != 0) {
 	os_printf("Starting Console TCP Server on port %d\r\n", config.config_port);
@@ -3554,7 +3549,7 @@ struct espconn *pCon;
     }
 #endif
 
-#ifdef WEB_CONFIG
+#if WEB_CONFIG
     pCon = (struct espconn *)os_zalloc(sizeof(struct espconn));
     if (config.web_port != 0) {
         os_printf("Starting Web Config Server on port %d\r\n", config.web_port);
@@ -3574,13 +3569,13 @@ struct espconn *pCon;
     }
 #endif
 
-#ifdef REMOTE_MONITORING
+#if REMOTE_MONITORING
     monitoring_on = 0;
     monitor_port = 0;
     acl_monitoring = 0;
 #endif
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
     mqtt_connected = false;
     mqtt_enabled = (os_strcmp(config.mqtt_host, "none") != 0);
     if (mqtt_enabled) {
@@ -3603,15 +3598,29 @@ struct espconn *pCon;
 #endif /* MQTT_CLIENT */
 
     remote_console_disconnect = 0;
-	
-    system_init_done_cb(to_scan);	
+
+    system_init_done_cb(to_scan);
 
     // Init power - set it to 3300mV
     Vdd = 3300;
+#if HAVE_ENC28J60
+    eth_netif = NULL;
+    if (config.eth_enable) {
+        os_printf("Starting enc\r\n");
+	eth_netif = espenc_init(config.ETH_MAC_address, &config.eth_addr, &config.eth_netmask,
+			    &config.eth_gw, (config.eth_addr.addr == 0));
+    }
+#if DCHPSERVER_ENC28J60
+    if(config.enc_DHCPserver) {
+        os_printf("Starting enc DHCPd\r\n");
+            enc_dhcps_start(eth_netif);
+    }
+#endif
+#endif
 
     system_update_cpu_freq(config.clock_speed);
 
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
     sntp_setservername(0, "1.pool.ntp.org");
     sntp_setservername(1, "2.pool.ntp.org");
     sntp_set_timezone(config.ntp_timezone);
