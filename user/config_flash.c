@@ -135,13 +135,13 @@ uint32_t reg0, reg1, reg3;
     IP4_ADDR(&config->eth_addr, 192, 168, 5, 1);
     IP4_ADDR(&config->eth_netmask, 255, 255, 255, 0);
     config->eth_gw.addr			= 0;  // Just use ARP
-    config->eth_enable			= 1;  // 0 = off
-    config->enc_DHCPserver              = 1;
+    config->eth_enable			= 0;  // 0 = off
+    config->enc_DHCPserver              = 0;
 #else
     //config->eth_addr.addr		= 0;  // use DHCP
     //config->eth_netmask.addr		= 0;  // use DHCP
     config->eth_gw.addr			= 0;  // use DHCP
-    config->eth_enable			= 1;  // 0 = off
+    config->eth_enable			= 0;  // 0 = off
 #endif
 
 #endif

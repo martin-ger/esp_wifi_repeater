@@ -390,7 +390,7 @@ In addition you will need a transistor for decoupling GPIO15, otherwise your ESP
 Now you can configure the new Ethernet interface: 
 - set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
 - set eth_ip _ip-addr_: sets a static IP address for the ETH interface
-- set eth_ip dhcp: configures dynamic IP address for the ETH interface, default
+- set eth_ip dhcp [0|1]: configures dynamic IP address for the ETH interface, (default: 0 - disabled)
 - set eth_netmask _netmask_: sets a static netmask for the ETH interface
 - set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
 

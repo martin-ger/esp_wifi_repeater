@@ -14,7 +14,7 @@
 #include "user_config.h"
 #include "acl.h"
 
-#define FLASH_BLOCK_NO 0x4e
+#define FLASH_BLOCK_NO 0x5e
 
 #define MAGIC_NUMBER    0x13f435fc
 
