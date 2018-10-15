@@ -32,7 +32,7 @@ uint32_t reg0, reg1, reg3;
 	mac[0] = 0x18;
 	mac[1] = 0xfe;
 	mac[2] = 0x34;
-    } else 
+    } else
     if (((reg1 >> 16) & 0xff) == 1) {
 	mac[0] = 0xac;
 	mac[1] = 0xd0;
@@ -63,7 +63,7 @@ uint32_t reg0, reg1, reg3;
     config->ap_on			= 1;
     config->ssid_hidden			= 0;
     config->max_clients			= MAX_CLIENTS;
-#ifdef WPA2_PEAP
+#if WPA2_PEAP
     config->use_PEAP			= 0;
     config->PEAP_identity[0]		= '\0';
     config->PEAP_username[0]		= '\0';
@@ -85,36 +85,36 @@ uint32_t reg0, reg1, reg3;
     config->nat_enable			= 1;
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
     config->dns_addr.addr		= 0;  // use DHCP
-    config->my_addr.addr		= 0;  // use DHCP   
-    config->my_netmask.addr		= 0;  // use DHCP   
-    config->my_gw.addr			= 0;  // use DHCP   
-#ifdef PHY_MODE
+    config->my_addr.addr		= 0;  // use DHCP
+    config->my_netmask.addr		= 0;  // use DHCP
+    config->my_gw.addr			= 0;  // use DHCP
+#if PHY_MODE
     config->phy_mode			= 3;  // mode n
 #endif
     config->clock_speed			= 80;
-    config->status_led			= STATUS_LED_GIPO;
+    config->status_led			= STATUS_LED_GPIO;
     config->hw_reset			= FACTORY_RESET_PIN;
-#ifdef DAILY_LIMIT
+#if DAILY_LIMIT
     config->daily_limit			= 0;
     config->ntp_timezone		= 0;
 #endif
-#ifdef ALLOW_SLEEP
+#if ALLOW_SLEEP
     config->Vmin			= 0;
     config->Vmin_sleep			= 60;
 #endif
-#ifdef REMOTE_CONFIG
+#if REMOTE_CONFIG
     config->config_port			= CONSOLE_SERVER_PORT;
 #endif
-#ifdef WEB_CONFIG
+#if WEB_CONFIG
     config->web_port			= WEB_CONFIG_PORT;
 #endif
     config->config_access		= LOCAL_ACCESS | REMOTE_ACCESS;
-#ifdef TOKENBUCKET
+#if TOKENBUCKET
     config->kbps_ds			= 0;
     config->kbps_us			= 0;
 #endif
 
-#ifdef MQTT_CLIENT
+#if MQTT_CLIENT
     os_sprintf(config->mqtt_host,"%s", "none");
     config->mqtt_port			= 1883;
     os_sprintf(config->mqtt_user,"%s", "none");
@@ -128,22 +128,31 @@ uint32_t reg0, reg1, reg3;
     config->mqtt_topic_mask		= 0xffff;
 #endif
 
-#ifdef HAVE_ENC28J60
+#if HAVE_ENC28J60
     mac[0] ^= 0x04;
     os_memcpy(config->ETH_MAC_address, mac, 6);
-    config->eth_addr.addr		= 0;  // use DHCP   
-    config->eth_netmask.addr		= 0;  // use DHCP   
+#if DCHPSERVER_ENC28J60
+    IP4_ADDR(&config->eth_addr, 192, 168, 5, 1);
+    IP4_ADDR(&config->eth_netmask, 255, 255, 255, 0);
+    config->eth_gw.addr			= 0;  // Just use ARP
+    config->eth_enable			= 1;  // 0 = off
+    config->enc_DHCPserver              = 1;
+#else
+    //config->eth_addr.addr		= 0;  // use DHCP
+    //config->eth_netmask.addr		= 0;  // use DHCP
     config->eth_gw.addr			= 0;  // use DHCP
-    config->eth_enable			= 0;  // off
+    config->eth_enable			= 1;  // 0 = off
+#endif
+
 #endif
 
     config->no_routes			= 0;
 
     config->dhcps_entries		= 0;
-#ifdef ACLS
+#if ACLS
     acl_init();	// initializes the ACLs, written in config during save
 #endif
-#ifdef OTAUPDATE
+#if OTAUPDATE
     os_sprintf(config->ota_host,"%s", "none");
     config->ota_port			= 80;
 #endif
@@ -177,7 +186,7 @@ int ICACHE_FLASH_ATTR config_load(sysconfig_p config)
     ip_route_max = config->no_routes;
     os_memcpy(ip_rt_table, config->rt_table, sizeof(ip_rt_table));
 
-#ifdef ACLS
+#if ACLS
     os_memcpy(&acl, &(config->acl), sizeof(acl));
     os_memcpy(&acl_freep, &(config->acl_freep), sizeof(acl_freep));
 #endif
@@ -190,7 +199,7 @@ void ICACHE_FLASH_ATTR config_save(sysconfig_p config)
     config->no_routes = ip_route_max;
     os_memcpy(config->rt_table, ip_rt_table, sizeof(ip_rt_table));
 
-#ifdef ACLS
+#if ACLS
     os_memcpy(&(config->acl), &acl, sizeof(acl));
     os_memcpy(&(config->acl_freep), &acl_freep, sizeof(acl_freep));
 #endif
@@ -240,7 +249,7 @@ void user_rf_pre_init() {
   //os_printf("\nUser preinit: ");
    switch (size_map) {
       case FLASH_SIZE_4M_MAP_256_256:
-         rf_cal_sec = 128 - 5;     
+         rf_cal_sec = 128 - 5;
          break;
 
       case FLASH_SIZE_8M_MAP_512_512:
@@ -266,15 +275,15 @@ void user_rf_pre_init() {
   spi_flash_read(addr, (uint32_t *)esp_init_data_current, sizeof(esp_init_data_current));
 
   for (i=0; i<sizeof(esp_init_data_default); i++) {
-    
-    if (esp_init_data_current[i] != esp_init_data_default[i]) {     
+
+    if (esp_init_data_current[i] != esp_init_data_default[i]) {
       spi_flash_erase_sector(rf_cal_sec);
       spi_flash_erase_sector(rf_cal_sec+1);
       spi_flash_erase_sector(rf_cal_sec+2);
       addr = ((rf_cal_sec) * SPI_FLASH_SEC_SIZE)+SPI_FLASH_SEC_SIZE;
       os_printf("Storing rfcal init data @ address=0x%08X\n", addr);
       spi_flash_write(addr, (uint32 *)esp_init_data_default, sizeof(esp_init_data_default));
-     
+
       break;
     }
 /* else {
