@@ -14,6 +14,9 @@
 
 BUILD_AREA = $(CURDIR)/..
 
+# Move everything to irom
+CFLAGS = -I. -DICACHE_FLASH -mlongcalls
+
 # Output directors to store intermediate compiled files
 # relative to the project directory
 BUILD_BASE	= build
