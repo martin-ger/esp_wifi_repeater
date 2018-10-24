@@ -148,6 +148,12 @@
 //
 #define         DCHPSERVER_ENC28J60 1
 
+//
+// Define this ESP GPIO, if you have the HW-RESET pin of the ENC28J60 connected to it
+// Undefine it, if you have no HW-RESET
+//
+//#define		ENC28J60_HW_RESET 4
+
 // Internal
 
 typedef enum {

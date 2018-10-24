@@ -3606,13 +3606,20 @@ struct espconn *pCon;
 #if HAVE_ENC28J60
     eth_netif = NULL;
     if (config.eth_enable) {
-        os_printf("Starting enc\r\n");
+        os_printf("Starting enc28j60\r\n");
+#ifdef ENC28J60_HW_RESET
+	easygpio_pinMode(ENC28J60_HW_RESET, EASYGPIO_PULLUP, EASYGPIO_OUTPUT);
+	easygpio_outputSet(ENC28J60_HW_RESET, 0);
+	os_delay_us(500);
+	easygpio_outputSet(ENC28J60_HW_RESET, 1);
+	os_delay_us(1000);
+#endif
 	eth_netif = espenc_init(config.ETH_MAC_address, &config.eth_addr, &config.eth_netmask,
 			    &config.eth_gw, (config.eth_addr.addr == 0));
     }
 #if DCHPSERVER_ENC28J60
     if(config.enc_DHCPserver) {
-        os_printf("Starting enc DHCPd\r\n");
+        os_printf("Starting enc28j60 DHCPd\r\n");
             enc_dhcps_start(eth_netif);
     }
 #endif
