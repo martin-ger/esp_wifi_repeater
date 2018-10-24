@@ -385,15 +385,14 @@ NodeMCU/Wemos  ESP8266      ENC28J60
                Q3/V33 <---> 3.3V
                GND    <---> GND
 ```
-In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/
+In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/ . Also, it is important to have a good power supply: the ENC28j60 needs about 160mA when active. For me it fails, if I try to use the 3.3V from the ESP board.
 
 Now you can configure the new Ethernet interface: 
 - set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
 - set eth_ip _ip-addr_: sets a static IP address for the ETH interface
-- set eth_ip dhcp [0|1]: configures dynamic IP address for the ETH interface, (default: 0 - disabled)
 - set eth_netmask _netmask_: sets a static netmask for the ETH interface
 - set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
-
+- set eth_ip dhcp [0|1]: starts a DHCP server for dynamic IP addresses on the ETH interface, (default: 0 - disabled)
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
