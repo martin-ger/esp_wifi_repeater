@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.1.0"
+#define		ESP_REPEATER_VERSION "V2.1.1"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02
@@ -32,12 +32,12 @@
 // Defines the default GPIO pin for HW factory reset (when this GPIO is pulled low for more than 3 secs)
 // Any value > 16 disables this feature
 //
-#define		FACTORY_RESET_PIN 4
+#define		FACTORY_RESET_PIN 32
 
 //
 // Define this to 1 to support the "scan" command for AP search
 //
-#define		ALLOW_SCANNING 0
+#define		ALLOW_SCANNING 1
 
 //
 // Define this to 1 to support the "ping" command for IP connectivity check
@@ -48,7 +48,7 @@
 // Define this to 1 to support the "sleep" command for power management and deep sleep
 // Requires a connection of GPIO16 and RST (probably not available on ESP01 modules)
 //
-#define		ALLOW_SLEEP 0
+#define		ALLOW_SLEEP 1
 
 //
 // Define this to 1 to support a daily traffic limit
@@ -100,7 +100,7 @@
 // Packets are mirrored in pcap format to the given port.
 // CAUTION: this might be a privacy issue!!!
 //
-#define		REMOTE_MONITORING 0
+#define		REMOTE_MONITORING 1
 
 #define		MONITOR_BUFFER_SIZE 0x3c00
 
@@ -108,7 +108,7 @@
 #define		MONITOR_BUFFER_TIGHT 0x1000
 
 // Define this to 1 if you want to silently drop any packet that cannot be send to the monitor
-#define		DROP_PACKET_IF_NOT_RECORDED 0
+#define		DROP_PACKET_IF_NOT_RECORDED 1
 
 //
 //
@@ -152,7 +152,7 @@
 // Define this ESP GPIO, if you have the HW-RESET pin of the ENC28J60 connected to it
 // Undefine it, if you have no HW-RESET
 //
-//#define		ENC28J60_HW_RESET 4
+#define		ENC28J60_HW_RESET 4
 
 // Internal
 
