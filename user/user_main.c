@@ -3378,7 +3378,7 @@ void ICACHE_FLASH_ATTR to_scan(void) {
 }
 
 void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
-os_printf("netif_poll\r\n");
+//os_printf("netif_poll\r\n");
     system_os_post(0, SIG_NETIF_POLL, (ETSParam) netif);
     return;
 }
