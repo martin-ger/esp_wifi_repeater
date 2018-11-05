@@ -140,7 +140,7 @@
 // Define this to 1 to support an ENC28J60 Ethernet interface
 // Experimental feature - not yet stable
 //
-#define		HAVE_ENC28J60 0
+#define		HAVE_ENC28J60 1
 
 //
 // Define this to 1 to support ENC28J60 DHCP server
@@ -157,7 +157,7 @@
 // Internal
 
 typedef enum {
-        SIG_DO_NOTHING = 0, SIG_START_SERVER = 1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT, SIG_LOOPBACK
+        SIG_DO_NOTHING = 0, SIG_START_SERVER = 1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT, SIG_NETIF_POLL
 } USER_SIGNALS;
 
 #endif
