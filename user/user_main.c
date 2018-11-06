@@ -2761,7 +2761,7 @@ uint32_t Bps;
 #endif
 
     toggle = !toggle;
-//netif_poll(eth_netif);
+
     // Check if watchdogs
     if (toggle){
 	if (ap_watchdog_cnt >= 0) {
@@ -2964,7 +2964,7 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 
     case SIG_NETIF_POLL:
 	{
-//os_printf("START_POLL\r\n");
+	    //os_printf("START_POLL\r\n");
 	    struct netif *netif = (struct netif *) events->par;
 	    netif_poll(netif);
 	}
