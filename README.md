@@ -382,6 +382,7 @@ NodeMCU/Wemos  ESP8266      ENC28J60
         D5     GPIO14 <---> SCLK
         D8     GPIO15 <---> CS
         D1     GPIO5  <---> INT
+	D2     GPIO4  <---> RESET
                Q3/V33 <---> 3.3V
                GND    <---> GND
 ```
