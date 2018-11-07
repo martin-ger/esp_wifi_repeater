@@ -318,6 +318,31 @@ The router can be configured using the following topics:
 
 If you now want the router to publish e.g. only Vdd, its IP, and the command line output, set the mqtt_mask to 0x0001 | 0x0002 | 0x0040 (= "set mqtt_mask 0043").
 
+# ENC28J60 Ethernet Support
+The esp_wifi_repeater now includes support for an ENC28J60 Ethernet NIC connected via SPI (Thanks to Andrew Kroll https://github.com/xxxajk for his great work on getting right). The Ethernet interface will support about 1 Mbps when the ESP is running an 160 MHz. Switching the AP interface on and using the Ethernet as uplink will turn the esp_wifi_repeater into a cheap AP for WiFi devices (e.g. other ESPs).
+
+The connection via SPI has to be:
+```
+NodeMCU/Wemos  ESP8266      ENC28J60
+
+        D6     GPIO12 <---> MISO
+        D7     GPIO13 <---> MOSI
+        D5     GPIO14 <---> SCLK
+        D8     GPIO15 <---> CS
+        D1     GPIO5  <---> INT
+	D2     GPIO4  <---> RESET
+               Q3/V33 <---> 3.3V
+               GND    <---> GND
+```
+Short and soldered wires work best. In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/ . Also, it is important to have a good power supply: the ENC28j60 needs about 160mA when active. For me it fails, if I try to use the 3.3V from the ESP board.
+
+Now you can configure the new Ethernet interface: 
+- set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
+- set eth_ip _ip-addr_: sets a static IP address for the ETH interface
+- set eth_netmask _netmask_: sets a static netmask for the ETH interface
+- set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
+- set eth_dhcpd [0|1]: starts a DHCP server for dynamic IP addresses on the ETH interface, (default: 0 - disabled)
+
 # Power Management
 The repeater monitors its current supply voltage (shown in the "show stats" command). This only works, if the 107th byte in esp_init_data_default.bin, named as vdd33_const, is set to 255(0xFF). The easiest way to achive that, is to write esp_init_data_default_v08_vdd33.bin to flash (see below).
 
@@ -369,31 +394,6 @@ Set the parameter _hostname_ to the hostname or IP of your computer, set _portno
 ota upgrade
 ```
 If configured correctly, the update will start and the ESP will reboot with the new binary.
-
-# ENC28J60 Ethernet Support (experimental)
-If you enable the HAVE_ENC28J60 option in user_config.h and recompile the project, you get support for an ENC28J60 Ethernet NIC connected via SPI.
-
-The connection via SPI connection has to be:
-```
-NodeMCU/Wemos  ESP8266      ENC28J60
-
-        D6     GPIO12 <---> MISO
-        D7     GPIO13 <---> MOSI
-        D5     GPIO14 <---> SCLK
-        D8     GPIO15 <---> CS
-        D1     GPIO5  <---> INT
-	D2     GPIO4  <---> RESET
-               Q3/V33 <---> 3.3V
-               GND    <---> GND
-```
-In addition you will need a transistor for decoupling GPIO15, otherwise your ESP will not boot any more, see: https://esp8266hints.wordpress.com/category/ethernet/ . Also, it is important to have a good power supply: the ENC28j60 needs about 160mA when active. For me it fails, if I try to use the 3.3V from the ESP board.
-
-Now you can configure the new Ethernet interface: 
-- set eth_enable [0|1]: enables/disables an ENC28J60 Ethernet NIC on the SPI bus (default: 0 - disabled)
-- set eth_ip _ip-addr_: sets a static IP address for the ETH interface
-- set eth_netmask _netmask_: sets a static netmask for the ETH interface
-- set eth_gw _gw-addr_: sets a static gateway address for the ETH interface
-- set eth_ip dhcp [0|1]: starts a DHCP server for dynamic IP addresses on the ETH interface, (default: 0 - disabled)
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
