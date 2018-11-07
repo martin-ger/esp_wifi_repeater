@@ -2980,6 +2980,11 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         break;
 #endif
 #endif
+#if ENC_SCOOPS
+    case SIG_ENC_SCOOP:
+            enc_scoop_packets();
+            break;
+#endif
     case SIG_DO_NOTHING:
     default:
         // Intentionally ignoring other signals
