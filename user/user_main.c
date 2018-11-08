@@ -2961,13 +2961,14 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
             console_handle_command(pespconn);
         }
         break;
-
+#if HAVE_LOOPBACK
     case SIG_NETIF_POLL:
 	{
 	    //os_printf("START_POLL\r\n");
 	    struct netif *netif = (struct netif *) events->par;
 	    netif_poll(netif);
 	}
+#endif
         break;
 
 #if MQTT_CLIENT
@@ -2980,11 +2981,7 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         break;
 #endif
 #endif
-#if ENC_SCOOPS
-    case SIG_ENC_SCOOP:
-            enc_scoop_packets();
-            break;
-#endif
+
     case SIG_DO_NOTHING:
     default:
         // Intentionally ignoring other signals
@@ -3382,11 +3379,13 @@ void ICACHE_FLASH_ATTR to_scan(void) {
     }
 }
 
+#if HAVE_LOOPBACK
 void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
 //os_printf("netif_poll\r\n");
     system_os_post(0, SIG_NETIF_POLL, (ETSParam) netif);
     return;
 }
+#endif
 
 void ICACHE_FLASH_ATTR user_init()
 {
@@ -3620,7 +3619,7 @@ struct espconn *pCon;
 	os_delay_us(1000);
 #endif
 	eth_netif = espenc_init(config.ETH_MAC_address, &config.eth_addr, &config.eth_netmask,
-			    &config.eth_gw, (config.eth_addr.addr == 0), (netif_status_callback_fn)schedule_netif_poll);
+			    &config.eth_gw, (config.eth_addr.addr == 0));
     }
 #if DCHPSERVER_ENC28J60
     if(config.enc_DHCPserver) {

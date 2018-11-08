@@ -165,8 +165,7 @@ typedef enum {
         SIG_CONSOLE_TX,
         SIG_CONSOLE_TX_RAW,
         SIG_GPIO_INT,
-        SIG_NETIF_POLL,
-        SIG_ENC_SCOOP = 9
+        SIG_NETIF_POLL
 } USER_SIGNALS;
 
 #endif

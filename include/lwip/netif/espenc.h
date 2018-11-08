@@ -2,19 +2,10 @@
 #include <netif/etharp.h>
 
 #define ENC_SW_INTERRUPT 1
-#define ENC_SCOOPS 1
 
 err_t enc28j60_link_output(struct netif *netif, struct pbuf *p);
 err_t enc28j60_init(struct netif *netif);
-#if ENC_SW_INTERRUPT
-struct netif* espenc_init(uint8_t *mac_addr, ip_addr_t *ip, ip_addr_t *mask, ip_addr_t *gw, bool dhcp, netif_status_callback_fn cb);
-#else
 struct netif* espenc_init(uint8_t *mac_addr, ip_addr_t *ip, ip_addr_t *mask, ip_addr_t *gw, bool dhcp);
-#endif
-
-#if ENC_SCOOPS
-void enc_scoop_packets(void);
-#endif
 
 #define log(s, ...)
 //#define log(s, ...) os_printf ("[%s:%s:%d] " s "\n", __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__)
