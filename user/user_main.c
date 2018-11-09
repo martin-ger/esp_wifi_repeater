@@ -2580,7 +2580,7 @@ static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char* val)
         val[max_current_cmd_size]='\0';
     }
     os_sprintf(cmd_line, "%s %s", cmd, val);
-    os_printf("web_config_client_recv_cb(): cmd line:%s\n",cmd_line);
+    //os_printf("web_config_client_recv_cb(): cmd line:%s\n",cmd_line);
 
     ringbuf_memcpy_into(console_rx_buffer, cmd_line, os_strlen(cmd_line));
     console_handle_command(pespconn);
@@ -2612,7 +2612,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
             char *val = strtok_r(NULL, "=", &sv);
 
             keyval = strtok_r (NULL, "&", &kv);
-            os_printf("web_config_client_recv_cb(): key:%s:val:%s:\n",key,val);
+            //os_printf("web_config_client_recv_cb(): key:%s:val:%s:\n",key,val);
             if (val != NULL)
             {
 
@@ -2693,13 +2693,13 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
 
 static void ICACHE_FLASH_ATTR web_config_client_discon_cb(void *arg)
 {
-    os_printf("web_config_client_discon_cb(): client disconnected\n");
+    //os_printf("web_config_client_discon_cb(): client disconnected\n");
     struct espconn *pespconn = (struct espconn *)arg;
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
 {
-    os_printf("web_config_client_discon_cb(): data sent to client\n");
+    //os_printf("web_config_client_sent_cb(): data sent to client\n");
     struct espconn *pespconn = (struct espconn *)arg;
 
     espconn_disconnect(pespconn);
@@ -2711,10 +2711,10 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 
     struct espconn *pespconn = (struct espconn *)arg;
 
-    os_printf("web_config_client_connected_cb(): Client connected\r\n");
+    //os_printf("web_config_client_connected_cb(): Client connected\r\n");
 
     if (!check_connection_access(pespconn, config.config_access)) {
-	os_printf("Client disconnected - no config access on this network\r\n");
+	//os_printf("Client disconnected - no config access on this network\r\n");
 	espconn_disconnect(pespconn);
 	return;
     }
