@@ -45,7 +45,27 @@
 #define CPU_CLK_FREQ 80*1000000
 #endif
 
-// Maximum spec says 20Mhz, why are we running at 4??!! 2, 2 = 20Mhz
+/*
+ * Spec says maximum is 20Mhz,
+ * so why are we running at 4??!!
+ *
+ *  1000000 PREDIV: 40 CNTDIV: 2
+ *  2000000 PREDIV: 20 CNTDIV: 2
+ *  2962962 PREDIV:  9 CNTDIV: 3
+ *  4000000 PREDIV: 10 CNTDIV: 2
+ *  5000000 PREDIV:  8 CNTDIV: 2
+ *  5714285 PREDIV:  7 CNTDIV: 2
+ *  6666666 PREDIV:  6 CNTDIV: 2
+ *  8000000 PREDIV:  5 CNTDIV: 2
+ *  8888888 PREDIV:  3 CNTDIV: 3
+ * 10000000 PREDIV:  4 CNTDIV: 2
+ * 11428571 PREDIV:  1 CNTDIV: 7
+ * 13333333 PREDIV:  3 CNTDIV: 2
+ * 16000000 PREDIV:  1 CNTDIV: 5
+ * 20000000 PREDIV:  2 CNTDIV: 2
+ * 26666666 PREDIV:  1 CNTDIV: 3
+ * 40000000 PREDIV:  1 CNTDIV: 2
+ */
 //Define some default SPI clock settings
 #define SPI_CLK_PREDIV 10
 #define SPI_CLK_CNTDIV 2
