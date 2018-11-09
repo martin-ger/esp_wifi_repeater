@@ -2063,6 +2063,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		  os_sprintf(response, "Web port set to %d\r\n", config.web_port);
                 goto command_handled;
             }
+#if WEB_ALT_PAGE
+	    if (strcmp(tokens[1], "alt_web") == 0)
+	    {
+		if (strcmp(tokens[2],"none") == 0) {
+		    config.alt_web[0] = '\0';
+		    os_sprintf_flash(response, "Alternative web page cleared\r\n");
+		    goto command_handled;
+		}
+		os_strncpy(config.alt_web, tokens[2], sizeof(config.alt_web)-1);
+		config.alt_web[sizeof(config.alt_web)-1] = '\0';
+		os_sprintf_flash(response, "Alternative web page set\r\n");
+        	goto command_handled;
+	    }
+#endif
 #endif
 #if DAILY_LIMIT
             if (strcmp(tokens[1],"daily_limit") == 0)
@@ -2712,7 +2726,28 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
 
-    if (!config.locked) {
+#if WEB_ALT_PAGE
+    if (config.alt_web[0] != '\0') {
+    	static const uint8_t alt_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = ALT_PAGE;
+	uint32_t slen = (sizeof(alt_page_str) + 4) & ~3;
+	uint8_t *alt_page = (char *)os_malloc(slen);
+	if (alt_page == NULL)
+	    return;
+	os_memcpy(alt_page, alt_page_str, slen);
+
+	uint8_t *page_buf = (char *)os_malloc(slen+sizeof(config.alt_web));
+	if (page_buf == NULL)
+	    return;
+	os_sprintf(page_buf, alt_page, config.alt_web);
+	os_free(alt_page);
+
+	espconn_send(pespconn, page_buf, os_strlen(page_buf));
+
+	os_free(page_buf);
+    }
+    else 
+#endif
+	if (!config.locked) {
     	static const uint8_t config_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = CONFIG_PAGE;
 	uint32_t slen = (sizeof(config_page_str) + 4) & ~3;
 	uint8_t *config_page = (char *)os_malloc(slen);

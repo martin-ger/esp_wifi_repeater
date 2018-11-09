@@ -77,6 +77,10 @@
 //
 #define		WEB_CONFIG 1
 #define		WEB_CONFIG_PORT 80
+//
+// Define this to 1 if you want to be able to display a user defined web page.
+//
+#define		WEB_ALT_PAGE 1
 
 //
 // Define this to 1 if you want to have ACLs for the SoftAP.
@@ -140,7 +144,7 @@
 // Define this to 1 to support an ENC28J60 Ethernet interface
 // Experimental feature - not yet stable
 //
-#define		HAVE_ENC28J60 1
+#define		HAVE_ENC28J60 0
 
 //
 // Define this to 1 to support ENC28J60 DHCP server
