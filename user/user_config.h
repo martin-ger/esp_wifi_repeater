@@ -77,6 +77,10 @@
 //
 #define		WEB_CONFIG 1
 #define		WEB_CONFIG_PORT 80
+//
+// Define this to 1 if you want to be able to display a user defined web page.
+//
+#define		WEB_ALT_PAGE 1
 
 //
 // Define this to 1 if you want to have ACLs for the SoftAP.
@@ -157,7 +161,15 @@
 // Internal
 
 typedef enum {
-        SIG_DO_NOTHING = 0, SIG_START_SERVER = 1, SIG_SEND_DATA, SIG_UART0, SIG_CONSOLE_RX, SIG_CONSOLE_TX, SIG_CONSOLE_TX_RAW, SIG_GPIO_INT, SIG_LOOPBACK
+        SIG_DO_NOTHING = 0,
+        SIG_START_SERVER = 1,
+        SIG_SEND_DATA,
+        SIG_UART0,
+        SIG_CONSOLE_RX,
+        SIG_CONSOLE_TX,
+        SIG_CONSOLE_TX_RAW,
+        SIG_GPIO_INT,
+        SIG_NETIF_POLL
 } USER_SIGNALS;
 
 #endif

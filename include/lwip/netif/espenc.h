@@ -1,6 +1,8 @@
 #include <lwip/netif.h>
 #include <netif/etharp.h>
 
+#define ENC_SW_INTERRUPT 1
+
 err_t enc28j60_link_output(struct netif *netif, struct pbuf *p);
 err_t enc28j60_init(struct netif *netif);
 struct netif* espenc_init(uint8_t *mac_addr, ip_addr_t *ip, ip_addr_t *mask, ip_addr_t *gw, bool dhcp);
@@ -226,7 +228,7 @@ struct netif* espenc_init(uint8_t *mac_addr, ip_addr_t *ip, ip_addr_t *mask, ip_
 
 // max frame length which the controller will accept:
 // (note: maximum ethernet frame length would be 1518)
-#define MAX_FRAMELEN      1500
+#define MAX_FRAMELEN      1518
 
 #define FULL_SPEED  1   // switch to full-speed SPI for bulk transfers
 
@@ -251,3 +253,4 @@ struct netif* espenc_init(uint8_t *mac_addr, ip_addr_t *ip, ip_addr_t *mask, ip_
 // to use this functionality
 #define ENC_HEAP_START      SCRATCH_LIMIT
 #define ENC_HEAP_END        0x2000
+
