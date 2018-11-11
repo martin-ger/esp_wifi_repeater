@@ -135,9 +135,6 @@ typedef struct {
         uint8_t ota_host[64];
         uint16_t ota_port;
 #endif
-#if WEB_ALT_PAGE
-	uint8_t alt_web[256]; // user defined body of web page
-#endif
 } sysconfig_t, *sysconfig_p;
 
 int config_load(sysconfig_p config);

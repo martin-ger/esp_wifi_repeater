@@ -133,14 +133,3 @@ setTimeout(\"location.href = '/'\",1000);\
 </body>\
 </html>\
 "
-
-#if WEB_ALT_PAGE
-#define ALT_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
-<html>\
-<head></head>\
-<body>\
-%s\
-</body>\
-</html>\
-"
-#endif

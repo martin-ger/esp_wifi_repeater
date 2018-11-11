@@ -156,9 +156,6 @@ uint32_t reg0, reg1, reg3;
     os_sprintf(config->ota_host,"%s", "none");
     config->ota_port			= 80;
 #endif
-#if WEB_ALT_PAGE
-    config->alt_web[0]				= '\0'; // default none
-#endif
 }
 
 int ICACHE_FLASH_ATTR config_load(sysconfig_p config)

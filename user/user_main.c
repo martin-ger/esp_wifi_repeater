@@ -2063,20 +2063,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		  os_sprintf(response, "Web port set to %d\r\n", config.web_port);
                 goto command_handled;
             }
-#if WEB_ALT_PAGE
-	    if (strcmp(tokens[1], "alt_web") == 0)
-	    {
-		if (strcmp(tokens[2],"none") == 0) {
-		    config.alt_web[0] = '\0';
-		    os_sprintf_flash(response, "Alternative web page cleared\r\n");
-		    goto command_handled;
-		}
-		os_strncpy(config.alt_web, tokens[2], sizeof(config.alt_web)-1);
-		config.alt_web[sizeof(config.alt_web)-1] = '\0';
-		os_sprintf_flash(response, "Alternative web page set\r\n");
-        	goto command_handled;
-	    }
-#endif
 #endif
 #if DAILY_LIMIT
             if (strcmp(tokens[1],"daily_limit") == 0)
@@ -2580,7 +2566,7 @@ static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char* val)
         val[max_current_cmd_size]='\0';
     }
     os_sprintf(cmd_line, "%s %s", cmd, val);
-    //os_printf("web_config_client_recv_cb(): cmd line:%s\n",cmd_line);
+    os_printf("web_config_client_recv_cb(): cmd line:%s\n",cmd_line);
 
     ringbuf_memcpy_into(console_rx_buffer, cmd_line, os_strlen(cmd_line));
     console_handle_command(pespconn);
@@ -2612,7 +2598,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
             char *val = strtok_r(NULL, "=", &sv);
 
             keyval = strtok_r (NULL, "&", &kv);
-            //os_printf("web_config_client_recv_cb(): key:%s:val:%s:\n",key,val);
+            os_printf("web_config_client_recv_cb(): key:%s:val:%s:\n",key,val);
             if (val != NULL)
             {
 
@@ -2693,13 +2679,13 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
 
 static void ICACHE_FLASH_ATTR web_config_client_discon_cb(void *arg)
 {
-    //os_printf("web_config_client_discon_cb(): client disconnected\n");
+    os_printf("web_config_client_discon_cb(): client disconnected\n");
     struct espconn *pespconn = (struct espconn *)arg;
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
 {
-    //os_printf("web_config_client_sent_cb(): data sent to client\n");
+    os_printf("web_config_client_discon_cb(): data sent to client\n");
     struct espconn *pespconn = (struct espconn *)arg;
 
     espconn_disconnect(pespconn);
@@ -2711,10 +2697,10 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 
     struct espconn *pespconn = (struct espconn *)arg;
 
-    //os_printf("web_config_client_connected_cb(): Client connected\r\n");
+    os_printf("web_config_client_connected_cb(): Client connected\r\n");
 
     if (!check_connection_access(pespconn, config.config_access)) {
-	//os_printf("Client disconnected - no config access on this network\r\n");
+	os_printf("Client disconnected - no config access on this network\r\n");
 	espconn_disconnect(pespconn);
 	return;
     }
@@ -2726,28 +2712,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
 
-#if WEB_ALT_PAGE
-    if (config.alt_web[0] != '\0') {
-    	static const uint8_t alt_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = ALT_PAGE;
-	uint32_t slen = (sizeof(alt_page_str) + 4) & ~3;
-	uint8_t *alt_page = (char *)os_malloc(slen);
-	if (alt_page == NULL)
-	    return;
-	os_memcpy(alt_page, alt_page_str, slen);
-
-	uint8_t *page_buf = (char *)os_malloc(slen+sizeof(config.alt_web));
-	if (page_buf == NULL)
-	    return;
-	os_sprintf(page_buf, alt_page, config.alt_web);
-	os_free(alt_page);
-
-	espconn_send(pespconn, page_buf, os_strlen(page_buf));
-
-	os_free(page_buf);
-    }
-    else 
-#endif
-	if (!config.locked) {
+    if (!config.locked) {
     	static const uint8_t config_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = CONFIG_PAGE;
 	uint32_t slen = (sizeof(config_page_str) + 4) & ~3;
 	uint8_t *config_page = (char *)os_malloc(slen);
@@ -2997,15 +2962,13 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         }
         break;
 #if HAVE_LOOPBACK
-    case SIG_NETIF_POLL:
+    case SIG_LOOPBACK:
 	{
-	    //os_printf("START_POLL\r\n");
 	    struct netif *netif = (struct netif *) events->par;
 	    netif_poll(netif);
 	}
-#endif
         break;
-
+#endif
 #if MQTT_CLIENT
 #ifdef USER_GPIO_IN
     case SIG_GPIO_INT:
@@ -3016,7 +2979,6 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
         break;
 #endif
 #endif
-
     case SIG_DO_NOTHING:
     default:
         // Intentionally ignoring other signals
@@ -3416,9 +3378,8 @@ void ICACHE_FLASH_ATTR to_scan(void) {
 
 #if HAVE_LOOPBACK
 void ICACHE_FLASH_ATTR *schedule_netif_poll(struct netif *netif) {
-//os_printf("netif_poll\r\n");
-    system_os_post(0, SIG_NETIF_POLL, (ETSParam) netif);
-    return;
+    system_os_post(0, SIG_LOOPBACK, (ETSParam) netif);
+    return NULL;
 }
 #endif
 
