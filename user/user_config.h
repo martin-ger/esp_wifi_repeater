@@ -32,7 +32,7 @@
 // Defines the default GPIO pin for HW factory reset (when this GPIO is pulled low for more than 3 secs)
 // Any value > 16 disables this feature
 //
-#define		FACTORY_RESET_PIN 32
+#define		FACTORY_RESET_PIN 4
 
 //
 // Define this to 1 to support the "scan" command for AP search
