@@ -353,7 +353,7 @@ You can send the ESP to sleep manually once by using the "sleep" command.
 Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediately shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000.
 
 # Building and Flashing
-To build this binary you download and install the esp-open-sdk (https://github.com/pfalcon/esp-open-sdk). Make sure, you can compile and download the included "blinky" example.
+To build this binary you download and install the esp-open-sdk (I suggest this version with base NONOS SDK 2.2: https://github.com/xxxajk/esp-open-sdk). Make sure, you can compile and download the included "blinky" example.
 
 Then download this source tree in a separate directory and adjust the BUILD_AREA variable in the Makefile and any desired options in user/user_config.h. Changes of the default configuration can be made in user/config_flash.c. Build the esp_wifi_repeater firmware with "make". "make flash" flashes it onto an esp8266.
 
