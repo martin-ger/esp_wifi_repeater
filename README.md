@@ -19,9 +19,6 @@ Measurements show, that it can achieve about 5 Mbps in both directions, so even 
 
 Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
 
-### Note on WPA2 enterprise (PEAP)
-If you need a "converter" that translates a WPA2 enterprise network with PEAP authentication into a WPA2-PSK network, have a look at https://github.com/martin-ger/esp_peap_psk . Was trying to integrate this functionality into this project - however this is difficult, as WPA2 enterprise requires so much free heap during authentication that there is hardly any mem left for anything else. So I decided to leave that in a separate project.
-
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
 
@@ -100,6 +97,12 @@ Most of the set-commands are effective only after save and reset.
 - connect: tries to connect to an AP with the currently configured _ssid_ and _password_
 - disconnect: disconnects from any uplink AP
 
+### WPA2 Enterprise Config
+- set use_peap[0|1]: selects, whether the STA should connect via simple WPA-PSK (use_peap=0, default) or usinf WPA2 Enterprise (PEAP) 
+- set peap_identity _value_: sets the PEAP 'outer' identity (the string that is first presented to the RADIUS server, maybe anonymous@yourorg.org)
+- peap_username _value_: sets the PEAP username
+- peap_password _value_: sets the PEAP password
+
 ### TCP/IP Config
 - ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
@@ -140,7 +143,7 @@ Most of the set-commands are effective only after save and reset.
 - set speed [80|160]: sets the CPU clock frequency (default 80 Mhz)
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
-- set hw_reset _GPIOno_: selects a GPIO pin for a hardware factory reset (default 4, >16 disabled)
+- set hw_reset _GPIOno_: selects a GPIO pin for a hardware factory reset (>16 disabled, default)
 - set ap_watchdog _secs_: sets the AP watchdog timeout - if there are no packets received for _secs_ from the uplink AP the repeater resets ("none" = no timeout, default)
 - set client_watchdog _secs_: sets the client watchdog timeout - if there are no packets received for _secs_ from any connected client the repeater resets ("none" = no timeout, default)
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
@@ -155,7 +158,7 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
 # HW Factory Reset
-If you pull low GPIO 4 for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
+If you pull low a selected GPIO for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
 
 For many moduls, incl. ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
 
@@ -163,6 +166,13 @@ For many moduls, incl. ESP-01s and NodeMCUs, it is probably a good idea to use G
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
 
 However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achieve this, either fixed IP addresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achieved with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
+
+# PA2 Enterprise (PEAP)
+WPA2 Enterprise (PEAP) support has now been included into the project. It allows for a "converter" that translates a WPA2 enterprise network with PEAP authentication into a WPA2-PSK network. This solves a common problem especially in university environments: the local WiFi network is a WPA2 Enterprise network with PEAP-MSCHAPv2 authentication. A very prominent example is the "eduroam"-network that is available at many universities around the world. The problem is, that many IoT devices cannot handle WPA2 Enterprise authentication. So development and demos are difficult. What is very helpful is a "converter" that logs into the WPA2 Enterprise network and offers a simpler WPA-PSK network to its clients.
+
+To use it set the following config parameters: ssid, use_peap, peap_identity, peap_username, and peap_password (you don't need the usual password parameter). This configuration has to be done (and saved) via the CLI and is not avaiable in the web interface.
+
+The code currently does not check the certificate of the RADIUS-Server. It is vulnerable to MITM-attacks, when somebody sets up a rouge AP and RADIUS server. While the password is not send in plaintext, the used MSCHAPv2 is known to be broken. Also, be aware of the fact that the ESP8266 now contains your enterprise network password. All traffic that is forwarded by it can now be related by the network admin to your account. Do not missuse it and offer it to untrusted others, eg. by configuring an open network. And even when the device is locked, your enterprise network password can be extracted via serial port from the ESP's flash in plain text.
 
 # Automesh Mode
 Sometimes you might want to use several esp_wifi_repeaters in a row or a mesh to cover a larger distance or area. Generally, this can be done without any problems with NAT routers, actually you will have several layers of NAT. However, this means connectivity is limited: all nodes can talk to the internet, but generally there's no direct IP connectivity between the nodes. And, of course, the available bandwidth goes down the more hops you need. But users have reported that even 5 esp_wifi_repeaters in a row work quite well.

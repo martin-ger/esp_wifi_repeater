@@ -43,7 +43,7 @@ EXTRA_INCDIR    = include
 #LIB_MODULES	= mqtt
 
 # libraries used in this project, mainly provided by the SDK
-LIBS		= c gcc hal pp phy net80211 lwip_open_napt wpa main
+LIBS		= c gcc hal pp phy net80211 lwip_open_napt wpa wpa2 main
 
 # compiler flags using during compilation of source files
 CFLAGS		= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC -DUSE_OPTIMIZE_PRINTF

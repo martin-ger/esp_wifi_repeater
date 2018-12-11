@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.1.2"
+#define		ESP_REPEATER_VERSION "V2.2.0"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02
@@ -32,7 +32,7 @@
 // Defines the default GPIO pin for HW factory reset (when this GPIO is pulled low for more than 3 secs)
 // Any value > 16 disables this feature
 //
-#define		FACTORY_RESET_PIN 4
+#define		FACTORY_RESET_PIN 255
 
 //
 // Define this to 1 to support the "scan" command for AP search
@@ -134,7 +134,7 @@
 
 // Define this to 1 support WPA2 PEAP authentication (experimental)
 //
-#define		WPA2_PEAP 0
+#define		WPA2_PEAP 1
 
 //
 // Define this to 1 to support an ENC28J60 Ethernet interface

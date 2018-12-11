@@ -14,9 +14,9 @@
 #include "user_config.h"
 #include "acl.h"
 
-#define FLASH_BLOCK_NO 0x5e
+#define FLASH_BLOCK_NO 0x60
 
-#define MAGIC_NUMBER    0x13f435fc
+#define MAGIC_NUMBER    0x13f43ddc
 
 typedef enum {
         AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL
