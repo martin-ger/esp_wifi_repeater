@@ -10,6 +10,7 @@ Typical usage scenarios include:
 - Battery powered outdoor (mesh) networks
 - Setting up an additional WiFi network with different SSID/password for guests
 - Setting up a secure and restricted network for IoT devices
+- Translating WPA2 Enterprise networks to WPA-PSK
 - Monitor probe for WiFi traffic analysis
 - Network experiments with routes, ACLs and traffic shaping
 
