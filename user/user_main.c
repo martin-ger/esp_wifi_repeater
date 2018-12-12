@@ -3022,11 +3022,11 @@ void wifi_handle_event_cb(System_Event_t *evt)
 	}
 
 #if WPA2_PEAP
-	if (config.use_PEAP) {
-	    wifi_station_clear_enterprise_identity();
-	    wifi_station_clear_enterprise_username();
-	    wifi_station_clear_enterprise_password();
-	}
+	//if (config.use_PEAP) {
+	//    wifi_station_clear_enterprise_identity();
+	//    wifi_station_clear_enterprise_username();
+	//    wifi_station_clear_enterprise_password();
+	//}
 #endif
         break;
 

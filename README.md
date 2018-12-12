@@ -168,10 +168,10 @@ In order to allow clients from the external network to connect to server port on
 
 However, to make sure that the expected device is listening at a certain IP address, it has to be ensured the this devices has the same IP address once it or the ESP is rebooted. To achieve this, either fixed IP addresses can be configured in the devices or the ESP has to remember its DHCP leases. This can be achieved with the "save dhcp" command. It saves the current state and all DHCP leases, so that they will be restored after reboot. DHCP leases can be listed with the "show stats" command.
 
-# PA2 Enterprise (PEAP)
+# WPA2 Enterprise (PEAP)
 WPA2 Enterprise (PEAP) support has now been included into the project. It allows for a "converter" that translates a WPA2 enterprise network with PEAP authentication into a WPA2-PSK network. This solves a common problem especially in university environments: the local WiFi network is a WPA2 Enterprise network with PEAP-MSCHAPv2 authentication. A very prominent example is the "eduroam"-network that is available at many universities around the world. The problem is, that many IoT devices cannot handle WPA2 Enterprise authentication. So development and demos are difficult. What is very helpful is a "converter" that logs into the WPA2 Enterprise network and offers a simpler WPA-PSK network to its clients.
 
-To use it set the following config parameters: ssid, use_peap, peap_identity, peap_username, and peap_password (you don't need the usual password parameter). This configuration has to be done (and saved) via the CLI and is not avaiable in the web interface.
+To use it set the following config parameters: ssid, use_peap, peap_identity, peap_username, and peap_password (you don't need the usual password parameter). This configuration has to be done (and saved) via the CLI and is not available in the web interface.
 
 The code currently does not check the certificate of the RADIUS-Server. It is vulnerable to MITM-attacks, when somebody sets up a rouge AP and RADIUS server. While the password is not send in plaintext, the used MSCHAPv2 is known to be broken. Also, be aware of the fact that the ESP8266 now contains your enterprise network password. All traffic that is forwarded by it can now be related by the network admin to your account. Do not missuse it and offer it to untrusted others, eg. by configuring an open network. And even when the device is locked, your enterprise network password can be extracted via serial port from the ESP's flash in plain text.
 
