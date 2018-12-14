@@ -915,7 +915,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [eth_enable|eth_ip|eth_netmask|eth_gw|eth_mac] <val>\r\n");
         to_console(response);
 #endif
-        os_sprintf_flash(response, "route clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
+        os_sprintf_flash(response, "set [tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #if ACLS
         os_sprintf_flash(response, "show acl|acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
@@ -1069,6 +1069,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	if (config.max_clients != MAX_CLIENTS) {
 	    os_sprintf(response, "Max WiFi clients: %d\r\n", config.max_clients);
 	    to_console(response);
+	}
+
+	if (config.tcp_timeout || config.udp_timeout) {
+	    os_sprintf(response, "NAPT timeouts: TCP %ds UDP %ds\r\n", 
+		config.tcp_timeout?config.tcp_timeout:IP_NAPT_TIMEOUT_MS_TCP/1000,
+		config.udp_timeout?config.udp_timeout:IP_NAPT_TIMEOUT_MS_UDP/1000);
+	    to_console(response);	    
 	}
 
 #if REMOTE_CONFIG
@@ -2204,6 +2211,22 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         	goto command_handled;
 	    }
 #endif
+            if (strcmp(tokens[1],"tcp_timeout") == 0)
+            {
+                config.tcp_timeout = atoi(tokens[2]);
+		ip_napt_set_tcp_timeout(config.tcp_timeout);
+                os_sprintf(response, "TCP NAPT timeout set to %ds\r\n", config.tcp_timeout);
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1],"udp_timeout") == 0)
+            {
+                config.udp_timeout = atoi(tokens[2]);
+		ip_napt_set_udp_timeout(config.udp_timeout);
+                os_sprintf(response, "UDP NAPT timeout set to %ds\r\n", config.udp_timeout);
+                goto command_handled;
+            }
+
             if (strcmp(tokens[1],"network") == 0)
             {
                 config.network_addr.addr = ipaddr_addr(tokens[2]);
@@ -3425,6 +3448,11 @@ struct espconn *pCon;
 	// clear portmap table
 	blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
+
+    if (config.tcp_timeout != 0)
+	ip_napt_set_tcp_timeout(config.tcp_timeout);
+    if (config.udp_timeout != 0)
+	ip_napt_set_udp_timeout(config.udp_timeout);
 
 #if ACLS
     acl_debug = 0;

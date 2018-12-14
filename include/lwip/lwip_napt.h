@@ -57,7 +57,7 @@ extern struct portmap_table *ip_portmap_table;
  * @param max_nat max number of enties in the NAPT table (use IP_NAPT_MAX if in doubt)
  * @param max_portmap max number of enties in the NAPT table (use IP_PORTMAP_MAX if in doubt)
  */
-void ICACHE_FLASH_ATTR
+void
 ip_napt_init(uint16_t max_nat, uint8_t max_portmap);
 
 
@@ -67,7 +67,7 @@ ip_napt_init(uint16_t max_nat, uint8_t max_portmap);
  * @param addr ip address of the interface
  * @param enable non-zero to enable NAPT, or 0 to disable.
  */
-void ICACHE_FLASH_ATTR
+void
 ip_napt_enable(u32_t addr, int enable);
 
 
@@ -77,7 +77,7 @@ ip_napt_enable(u32_t addr, int enable);
  * @param netif number of the interface
  * @param enable non-zero to enable NAPT, or 0 to disable.
  */
-void ICACHE_FLASH_ATTR
+void
 ip_napt_enable_no(u8_t number, int enable);
 
 
@@ -92,7 +92,7 @@ ip_napt_enable_no(u8_t number, int enable);
  * @param daddr destination ip address
  * @param dport destination port, in host byte order.
  */
-u8_t ICACHE_FLASH_ATTR
+u8_t
 ip_portmap_add(u8_t proto, u32_t maddr, u16_t mport, u32_t daddr, u16_t dport);
 
 
@@ -102,8 +102,26 @@ ip_portmap_add(u8_t proto, u32_t maddr, u16_t mport, u32_t daddr, u16_t dport);
  * @param proto target protocol
  * @param maddr ip address of the external interface
  */
-u8_t ICACHE_FLASH_ATTR
+u8_t
 ip_portmap_remove(u8_t proto, u16_t mport);
+
+
+/**
+ * Sets the NAPT timeout for TCP connections.
+ *
+ * @param secs timeout in secs
+ */
+void
+ip_napt_set_tcp_timeout(u32_t secs);
+
+
+/**
+ * Sets the NAPT timeout for UDP 'connections'.
+ *
+ * @param secs timeout in secs
+ */
+void
+ip_napt_set_udp_timeout(u32_t secs);
 
 #endif /* IP_NAPT */
 #endif /* IP_FORWARD */

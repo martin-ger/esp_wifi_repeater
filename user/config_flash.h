@@ -63,6 +63,9 @@ typedef struct {
         uint32_t am_sleep_time; // Seconds for sleeping
 
         uint8_t nat_enable; // Enable NAT on the AP netif;
+	uint32_t tcp_timeout; // NAT timeout of TCP connections
+	uint32_t udp_timeout; // NAT timeout of UDO 'connections'
+
         ip_addr_t network_addr; // Address of the internal network
         ip_addr_t dns_addr; // Optional: address of the dns server
 

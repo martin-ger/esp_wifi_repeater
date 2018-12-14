@@ -83,6 +83,9 @@ uint32_t reg0, reg1, reg3;
     config->am_sleep_time		= 0;
 
     config->nat_enable			= 1;
+    config->tcp_timeout			= 0;  // use default
+    config->udp_timeout			= 0;  // use default
+
     IP4_ADDR(&config->network_addr, 192, 168, 4, 1);
     config->dns_addr.addr		= 0;  // use DHCP
     config->my_addr.addr		= 0;  // use DHCP
