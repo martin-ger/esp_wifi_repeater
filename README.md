@@ -126,7 +126,7 @@ Most of the set-commands are effective only after save and reset.
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
 - nslookup _name_: starts a DNS lookup for the given name and displays the result
-- ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
+- ping _host_: checks IP connectivity with ICMP echo request/reply (host as IP address or DNS name)
 
 ### Firewall/Monitor Config
 - acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL

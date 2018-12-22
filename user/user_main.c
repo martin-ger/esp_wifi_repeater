@@ -278,11 +278,11 @@ void ICACHE_FLASH_ATTR user_ping_sent(void *arg, void *pdata)
     system_os_post(0, SIG_CONSOLE_TX, (ETSParam) currentconn);
 }
 
-void ICACHE_FLASH_ATTR user_do_ping(uint32_t ipaddr)
+void ICACHE_FLASH_ATTR user_do_ping(const char *name, ip_addr_t *ipaddr, void *arg)
 {
     ping_opt.count = 4;    //  try to ping how many times
     ping_opt.coarse_time = 2;  // ping interval
-    ping_opt.ip = ipaddr;
+    ping_opt.ip = ipaddr->addr;
     ping_success_count = 0;
 
     ping_regist_recv(&ping_opt,user_ping_recv);
@@ -1654,7 +1654,6 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    os_sprintf(response, INVALID_NUMARGS);
 	    goto command_handled;
 	}
-	to_console("\r\n");
 	uint32_t result = espconn_gethostbyname(NULL, tokens[1], &resolve_ip, dns_resolved);
 	if (result == ESPCONN_OK) {
 		os_sprintf(response, "DNS lookup for %s: " IPSTR "\r\n", tokens[1], IP2STR(&resolve_ip));
@@ -1682,9 +1681,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    os_sprintf(response, INVALID_NUMARGS);
 	    goto command_handled;
 	}
-	to_console("\r\n");
         currentconn = pespconn;
-        user_do_ping(ipaddr_addr(tokens[1]));
+	uint32_t result = espconn_gethostbyname(NULL, tokens[1], &resolve_ip, user_do_ping);
+	if (result == ESPCONN_OK) {
+		ip_addr_t ip;
+		ip.addr = ipaddr_addr(tokens[1]);
+		user_do_ping(tokens[1], &ip, NULL);
+	}
+        //user_do_ping(ipaddr_addr(tokens[1]));
         return;
     }
 #endif
