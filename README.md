@@ -105,7 +105,6 @@ Most of the set-commands are effective only after save and reset.
 - peap_password _value_: sets the PEAP password
 
 ### TCP/IP Config
-- ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 - set network _ip-addr_: sets the IP address of the internal network, network is always /24, router is always x.x.x.1
 - set dns _dns-addr_: sets a static DNS address that is distributed to clients via DHCP
 - set dns dhcp: configures use of the dynamic DNS address from DHCP, default
@@ -126,6 +125,8 @@ Most of the set-commands are effective only after save and reset.
 - set nat [0|1]: selects, whether the soft-AP interface is NATed (nat=1, default) or not (nat=0). Without NAT transparent forwarding of traffic from the internal STAs doesn't work! Useful mainly in combination with static routing.
 - portmap add [TCP|UDP] _external_port_ _internal_ip_ _internal_port_: adds a port forwarding
 - portmap remove [TCP|UDP] _external_port_: deletes a port forwarding
+- nslookup _name_: starts a DNS lookup for the given name and displays the result
+- ping _ip-addr_: checks IP connectivity with ICMP echo request/reply
 
 ### Firewall/Monitor Config
 - acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL

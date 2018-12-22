@@ -103,6 +103,8 @@ bool connected;
 uint8_t my_channel;
 bool do_ip_config;
 
+static ip_addr_t resolve_ip;
+
 uint8_t mesh_level;
 uint8_t uplink_bssid[6];
 
@@ -231,6 +233,20 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
 #endif
 }
 #endif /* MQTT_CLIENT */
+
+// call back for dns lookup
+static void ICACHE_FLASH_ATTR dns_resolved(const char *name, ip_addr_t *ip, void *arg) {
+char response[128];
+
+    if (ip == 0) {
+	os_sprintf(response, "DNS lookup failed for: %s\r\n", name);
+    } else {
+	os_sprintf(response, "DNS lookup for %s: " IPSTR "\r\n", name, IP2STR(ip));
+    }
+
+    to_console(response);
+    system_os_post(0, SIG_CONSOLE_TX, (ETSParam) currentconn);
+}
 
 #if ALLOW_PING
 struct ping_option ping_opt;
@@ -925,10 +941,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [daily_limit|timezone] <val>\r\n");
         to_console(response);
 #endif
+        os_sprintf_flash(response, "nslookup <name>");
+        to_console(response);
 #if ALLOW_PING
-        os_sprintf_flash(response, "ping <ip_addr>\r\n");
+        os_sprintf_flash(response, "|ping <ip_addr>");
         to_console(response);
 #endif
+        os_sprintf_flash(response, "\r\n");
+        to_console(response);
 #if REMOTE_MONITORING
         os_sprintf_flash(response, "monitor [on|off] <portnumber>\r\n");
         to_console(response);
@@ -1628,12 +1648,30 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         goto command_handled;
       }
     }
+    if (strcmp(tokens[0], "nslookup") == 0)
+    {
+	if (nTokens != 2) {
+	    os_sprintf(response, INVALID_NUMARGS);
+	    goto command_handled;
+	}
+	to_console("\r\n");
+	uint32_t result = espconn_gethostbyname(NULL, tokens[1], &resolve_ip, dns_resolved);
+	if (result == ESPCONN_OK) {
+		os_sprintf(response, "DNS lookup for %s: " IPSTR "\r\n", tokens[1], IP2STR(&resolve_ip));
+	} else if (result == ESPCONN_INPROGRESS) {
+		// lookup taking place, will call dns_resolved on completion
+		return;
+	} else {
+		os_sprintf(response, "DNS lookup failed for: %s\r\n", tokens[1]);
+	}
+	goto command_handled;
+    }
 #if ALLOW_SCANNING
     if (strcmp(tokens[0], "scan") == 0)
     {
+        to_console("Scanning...\r\n");
         currentconn = pespconn;
         wifi_station_scan(NULL,scan_done);
-        os_sprintf_flash(response, "Scanning...\r\n");
         goto command_handled;
     }
 #endif
@@ -1644,9 +1682,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	    os_sprintf(response, INVALID_NUMARGS);
 	    goto command_handled;
 	}
+	to_console("\r\n");
         currentconn = pespconn;
         user_do_ping(ipaddr_addr(tokens[1]));
-        goto command_handled;
+        return;
     }
 #endif
 #if OTAUPDATE
