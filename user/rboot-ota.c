@@ -6,6 +6,9 @@
 // OTA code based on SDK sample from Espressif.
 //////////////////////////////////////////////////
 
+#include "user_config.h"
+#if OTAUPDATE == 1
+
 #include <c_types.h>
 #include <user_interface.h>
 #include <espconn.h>
@@ -15,6 +18,7 @@
 #include "rboot-ota.h"
 
 #include "config_flash.h"
+
 extern sysconfig_t config;
 extern struct espconn *currentconn;
 
@@ -381,4 +385,6 @@ bool ICACHE_FLASH_ATTR rboot_ota_start(ota_callback callback) {
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
