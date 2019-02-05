@@ -126,6 +126,9 @@
 #define		MQTT_ID "ESPRouter"
 #define		MQTT_REPORT_INTERVAL 15 /*seconds*/
 
+// Define this to 1 to support IP over MQTT (experimental)
+#define		MQTT_IP 1
+
 // Define this if you want to get messages about GPIO pin status changes
 //               #define USER_GPIO_IN 0
 

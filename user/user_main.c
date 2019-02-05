@@ -27,6 +27,7 @@
 #include "lwip/app/encdhcpserver.h"
 #endif
 #endif
+
 #include "user_interface.h"
 #include "string.h"
 #include "driver/uart.h"
@@ -53,6 +54,10 @@
 
 #if MQTT_CLIENT
 #include "mqtt.h"
+#endif
+
+#if MQTT_IP
+#include <mqttif.h>
 #endif
 
 #define os_sprintf_flash(str, fmt, ...) do {	\
@@ -113,6 +118,10 @@ static netif_linkoutput_fn orig_output_ap, orig_output_sta;
 
 #if HAVE_ENC28J60
 struct netif* eth_netif;
+#endif
+
+#if MQTT_IP
+struct mqtt_if_data *mqtt_if;
 #endif
 
 uint8_t remote_console_disconnect;
@@ -194,6 +203,10 @@ uint8_t buf[256];
     MQTT_Subscribe(client, config.mqtt_gpio_out_topic, 0);
   }
 #endif
+
+#if MQTT_IP
+  mqtt_if_set_up(mqtt_if);
+#endif
 }
 
 static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
@@ -201,6 +214,11 @@ static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
   MQTT_Client* client = (MQTT_Client*)args;
   os_printf("MQTT: Disconnected\r\n");
   mqtt_connected = false;
+
+#if MQTT_IP
+  mqtt_if_set_down(mqtt_if);
+#endif
+
 }
 
 static void ICACHE_FLASH_ATTR mqttPublishedCb(uint32_t *args)
@@ -3694,6 +3712,14 @@ struct espconn *pCon;
             enc_dhcps_start(eth_netif);
     }
 #endif
+#endif
+
+#if MQTT_IP
+    mqtt_if = mqtt_if_add(&mqttClient, "mqttip");
+    mqtt_if_set_ipaddr(mqtt_if, 0x0101000a);
+    mqtt_if_set_netmask(mqtt_if, 0x000000ff);
+    //mqtt_if_set_mtu(mqtt_if, 1500);
+    //mqtt_if_set_up(mqtt_if);
 #endif
 
     system_update_cpu_freq(config.clock_speed);
