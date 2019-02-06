@@ -268,11 +268,11 @@ Here is a simple example of what can be done with static routes. Given the follo
 ```
 Each ESP has a second network behind its AP with different network addresses: 10.0.1.0/24 and 10.0.2.0/24. ESP1 can ping to ESP2 to the 192.168.1.20 but not to the 10.0.2.1, as it doesn't know that it can reach it via the 192.168.1.20. This changes if you add two static routes. On ESP1:
 ```
-route add 10.0.2.0/24 92.168.1.20
+route add 10.0.2.0/24 192.168.1.20
 ```
 and on ESP2:
 ```
-route add 10.0.1.0/24 92.168.1.10
+route add 10.0.1.0/24 192.168.1.10
 ```
 Now a "ping 10.0.2.1" on ESP1 will be successful. It is send to 192.168.1.20 and then answered by ESP2.
 
