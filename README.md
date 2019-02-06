@@ -45,7 +45,7 @@ If you like, you can mark the "lock" checkbox and click "Lock". Now the config c
 
 If you want to enter non-ASCII or special characters in the web interface you have to use HTTP-style hex encoding like "My%20AccessPoint". This will result in a string "My AccessPoint". With this hex encoding you can enter any byte value you like, except for 0 (for C-internal reasons).
 
-If you did a mistake and you lost any contact with the ESP you can still use the serial console to recover it ("reset facory", see below).
+If you made a mistake and have lost all contact with the ESP you can still use the serial console to recover it ("reset factory", see below).
 
 # Command Line Interface
 Advanced configuration has to be done via the command line on the console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
