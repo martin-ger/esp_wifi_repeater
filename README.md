@@ -405,7 +405,7 @@ python -m SimpleHTTPServer 8080
 ```
 Set the parameter _hostname_ to the hostname or IP of your computer, set _portno_ to 8080, and "save". Then type on the CLI:
 ```
-ota upgrade
+ota update
 ```
 If configured correctly, the update will start and the ESP will reboot with the new binary.
 
