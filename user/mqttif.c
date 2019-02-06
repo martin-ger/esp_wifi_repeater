@@ -38,9 +38,9 @@ uint8_t buf[os_strlen(data->topic_pre) + 20];
 	iph = (struct ip_hdr *)data->buf;
 
 	os_printf("packet %d, buf %x\r\n", len, p);
-	os_printf("to: " IPSTR " from: " IPSTR "\r\n", IP2STR(&iph->dest), IP2STR(&iph->src));
+	os_printf("to: " IPSTR " from: " IPSTR " via " IPSTR "\r\n", IP2STR(&iph->dest), IP2STR(&iph->src), IP2STR(ipaddr));
 
-	os_sprintf(buf, "%s/" IPSTR , data->topic_pre, IP2STR(&iph->dest));
+	os_sprintf(buf, "%s/" IPSTR , data->topic_pre, IP2STR(ipaddr));
 	MQTT_Publish(data->mqttcl, buf, data->buf, len, 0, 1);
 
 	return 0;
