@@ -129,10 +129,10 @@ Most of the set-commands are effective only after save and reset.
 - ping _host_: checks IP connectivity with ICMP echo request/reply (host as IP address or DNS name)
 
 ### Firewall/Monitor Config
-- acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
-- acl [from_sta|to_sta] clear: clears the whole ACL
+- acl [from_sta|to_sta|from_ap|to_ap] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
+- acl [from_sta|to_sta|from_ap|to_ap] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
-- set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
+- set acl_debug [0|1]: switches ACL debug output on/off - all denied packets will be logged to the terminal
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit, default)
 - set daily_limit _limit_in_KB_: defined a max. amount of kilobytes that can be transfered by STAs per day (0 = no limit, default)
 - set timezone _hours_offset_: defines the local timezone (required to know, when a day is over at 00:00)
@@ -260,7 +260,7 @@ will allow all packets and also select all packets for monitoring that go from a
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
 
-For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add _netword_ _gateway_" command, known from Linux boxes or routers. A "save" command writes the current state of the routing table to flash configuration.
+For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without further configuration. Additional routes to other networks can be set via the "route add _netword_ _gateway_" command, known from Linux boxes or routers. A "save" command writes the current state of the routing table to flash configuration.
 	
 Here is a simple example of what can be done with static routes. Given the following network setup with two ESPs connected with the STA interfaces via a central home router:
 ```
