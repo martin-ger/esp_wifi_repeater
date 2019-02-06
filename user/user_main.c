@@ -238,6 +238,11 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
     system_os_post(0, SIG_CONSOLE_RX, 0);
     return;
   }
+
+#if MQTT_IP
+  mqtt_if_input((uint32_t *)mqtt_if, topic, topic_len, data, data_len);
+#endif
+
 #ifdef USER_GPIO_OUT
   if (topic_len == os_strlen(config.mqtt_gpio_out_topic) && os_strncmp(topic, config.mqtt_gpio_out_topic, topic_len) == 0) {
     if (data_len > 0 && data[0] == '0')
@@ -3716,8 +3721,8 @@ struct espconn *pCon;
 
 #if MQTT_IP
     mqtt_if = mqtt_if_add(&mqttClient, "mqttip");
-    mqtt_if_set_ipaddr(mqtt_if, 0x0101000a);
-    mqtt_if_set_netmask(mqtt_if, 0x000000ff);
+    mqtt_if_set_ipaddr(mqtt_if, htonl(0x0a000101));
+    mqtt_if_set_netmask(mqtt_if, htonl(0xffffff00));
     //mqtt_if_set_mtu(mqtt_if, 1500);
     //mqtt_if_set_up(mqtt_if);
 #endif
