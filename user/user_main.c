@@ -54,10 +54,9 @@
 
 #if MQTT_CLIENT
 #include "mqtt.h"
-#endif
-
 #if MQTT_IP
 #include <mqttif.h>
+#endif
 #endif
 
 #define os_sprintf_flash(str, fmt, ...) do {	\
@@ -120,7 +119,7 @@ static netif_linkoutput_fn orig_output_ap, orig_output_sta;
 struct netif* eth_netif;
 #endif
 
-#if MQTT_IP
+#if MQTT_IP && MQTT_CLIENT
 struct mqtt_if_data *mqtt_if;
 #endif
 
@@ -205,7 +204,9 @@ uint8_t buf[256];
 #endif
 
 #if MQTT_IP
-  mqtt_if_set_up(mqtt_if);
+  if (config.mqttif_enable) {
+    mqtt_if_subscribe(mqtt_if);
+  }
 #endif
 }
 
@@ -216,7 +217,10 @@ static void ICACHE_FLASH_ATTR mqttDisconnectedCb(uint32_t *args)
   mqtt_connected = false;
 
 #if MQTT_IP
-  mqtt_if_set_down(mqtt_if);
+  if (config.mqttif_enable) {
+    mqtt_if_unsubscribe(mqtt_if);
+  }
+
 #endif
 
 }
@@ -240,7 +244,9 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
   }
 
 #if MQTT_IP
-  mqtt_if_input((uint32_t *)mqtt_if, topic, topic_len, data, data_len);
+  if (config.mqttif_enable) {
+    mqtt_if_input(mqtt_if, topic, topic_len, data, data_len);
+  }
 #endif
 
 #ifdef USER_GPIO_OUT
@@ -954,6 +960,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [eth_enable|eth_ip|eth_netmask|eth_gw|eth_mac] <val>\r\n");
         to_console(response);
 #endif
+#if MQTT_IP && MQTT_CLIENT
+        os_sprintf_flash(response, "set [mqttif_enable|emqttif_ip|mqttif_netmask|mqttif_gw|eth_mac] <val>\r\n");
+        to_console(response);
+#endif
         os_sprintf_flash(response, "set [tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #if ACLS
@@ -1081,6 +1091,15 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		"ETH: DHCP\r\n", IP2STR(&config.eth_addr), IP2STR(&config.eth_netmask), IP2STR(&config.eth_gw));
 	} else {
 	    os_sprintf_flash(response, "ETH: disabled\r\n");
+	}
+        to_console(response);
+#endif
+#if MQTT_IP && MQTT_CLIENT
+	if (config.mqttif_enable) {
+	    os_sprintf(response, "MQTTIF IP: %d.%d.%d.%d Netmask: %d.%d.%d.%d Gateway: %d.%d.%d.%d\r\n",
+                   IP2STR(&config.mqttif_addr), IP2STR(&config.mqttif_netmask), IP2STR(&config.mqttif_gw));
+	} else {
+	    os_sprintf_flash(response, "MQTTIF: disabled\r\n");
 	}
         to_console(response);
 #endif
@@ -1351,6 +1370,16 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 	   to_console(response);
 	   goto command_handled_2;
       }
+#if MQTT_IP && 0
+    if (eth_netif) {
+        uint8_t buf[20];
+        addr2str(buf, eth_netif->ip_addr.addr, eth_netif->netmask.addr);
+        os_sprintf(response, "MQTTIF IP: %s GW: %d.%d.%d.%d\r\n", buf, IP2STR(&mqtt_if->gw));
+    } else {
+        os_sprintf_flash(response, "MQTTIF not initialized\r\n");
+    }
+    to_console(response);
+#endif
 #endif
 #if OTAUPDATE
       if (nTokens == 2 && strcmp(tokens[1], "ota") == 0) {
@@ -2523,6 +2552,45 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         	goto command_handled;
 	    }
 #endif
+#if MQTT_IP
+        if (strcmp(tokens[1], "mqttif_enable") == 0)
+        {
+            config.mqttif_enable = atoi(tokens[2]);
+            if (config.mqttif_enable)
+            {
+                os_sprintf_flash(response, "mqttif enabled\r\n");
+            }
+            else
+            {
+                os_sprintf_flash(response, "mqttif disabled\r\n");
+            }
+            goto command_handled;
+        }
+
+        if (strcmp(tokens[1], "mqttif_ip") == 0)
+        {
+            config.mqttif_addr.addr = ipaddr_addr(tokens[2]);
+            os_sprintf(response, "MQTTIF IP address set to %d.%d.%d.%d\r\n",
+                        IP2STR(&config.mqttif_addr));
+            goto command_handled;
+        }
+
+        if (strcmp(tokens[1], "eth_netmask") == 0)
+        {
+            config.mqttif_netmask.addr = ipaddr_addr(tokens[2]);
+            os_sprintf(response, "MQTTIF IP netmask set to %d.%d.%d.%d\r\n",
+                       IP2STR(&config.mqttif_netmask));
+            goto command_handled;
+        }
+
+        if (strcmp(tokens[1], "eth_gw") == 0)
+        {
+            config.mqttif_gw.addr = ipaddr_addr(tokens[2]);
+            os_sprintf(response, "MQTTIF Gateway set to %d.%d.%d.%d\r\n",
+                       IP2STR(&config.mqttif_gw));
+            goto command_handled;
+        }
+#endif
 #endif /* MQTT_CLIENT */
 
 #ifdef USER_GPIO_OUT
@@ -3689,6 +3757,17 @@ struct espconn *pCon;
 	MQTT_OnPublished(&mqttClient, mqttPublishedCb);
 	MQTT_OnData(&mqttClient, mqttDataCb);
     }
+
+ #if MQTT_IP
+    if (config.mqttif_enable) {
+        mqtt_if = mqtt_if_add(&mqttClient, MQTT_IP_PREFIX);
+        mqtt_if_set_ipaddr(mqtt_if, config.mqttif_addr.addr);
+        mqtt_if_set_netmask(mqtt_if, config.mqttif_netmask.addr);
+        mqtt_if_set_gw(mqtt_if, config.mqttif_gw.addr);
+        //mqtt_if_set_mtu(mqtt_if, 1500);
+        mqtt_if_set_up(mqtt_if);
+    }
+#endif
 #endif /* MQTT_CLIENT */
 
     remote_console_disconnect = 0;
@@ -3717,14 +3796,6 @@ struct espconn *pCon;
             enc_dhcps_start(eth_netif);
     }
 #endif
-#endif
-
-#if MQTT_IP
-    mqtt_if = mqtt_if_add(&mqttClient, "mqttip");
-    mqtt_if_set_ipaddr(mqtt_if, htonl(0x0a000101));
-    mqtt_if_set_netmask(mqtt_if, htonl(0xffffff00));
-    //mqtt_if_set_mtu(mqtt_if, 1500);
-    //mqtt_if_set_up(mqtt_if);
 #endif
 
     system_update_cpu_freq(config.clock_speed);

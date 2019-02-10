@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.2.4"
+#define		ESP_REPEATER_VERSION "V2.3"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02
@@ -116,7 +116,7 @@
 //
 #define		MQTT_CLIENT 1
 
-#define		MQTT_BUF_SIZE 1024
+#define		MQTT_BUF_SIZE 1600
 #define		MQTT_KEEPALIVE 120  /*seconds*/
 #define		MQTT_RECONNECT_TIMEOUT 5 /*seconds*/
 #define		PROTOCOL_NAMEv31 /*MQTT version 3.1 compatible with Mosquitto v0.15*/
@@ -128,6 +128,7 @@
 
 // Define this to 1 to support IP over MQTT (experimental)
 #define		MQTT_IP 1
+#define     MQTT_IP_PREFIX "mqttip"
 
 // Define this if you want to get messages about GPIO pin status changes
 //               #define USER_GPIO_IN 0

@@ -16,7 +16,9 @@ struct event_base;
 struct mqtt_if_data *mqtt_if_add(MQTT_Client *cl, uint8_t *topic_pre);
 void mqtt_if_del(struct mqtt_if_data *data);
 
-void mqtt_if_input(uint32_t *args, const char* topic, uint32_t topic_len, const char *mqtt_data, uint32_t mqtt_data_len);
+void mqtt_if_input(struct mqtt_if_data *data, const char* topic, uint32_t topic_len, const char *mqtt_data, uint32_t mqtt_data_len);
+void mqtt_if_subscribe(struct mqtt_if_data *data);
+void mqtt_if_unsubscribe(struct mqtt_if_data *data);
 
 void mqtt_if_set_ipaddr(struct mqtt_if_data *data, uint32_t addr);
 void mqtt_if_set_netmask(struct mqtt_if_data *data, uint32_t addr);

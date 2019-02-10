@@ -301,8 +301,19 @@ mqtt_tcpclient_recv(void *arg, char *pdata, unsigned short len)
 READPACKET:
   MQTT_INFO("TCP: data received %d bytes\r\n", len);
   // MQTT_INFO("STATE: %d\r\n", client->connState);
-  if (len < MQTT_BUF_SIZE && len > 0) {
-    os_memcpy(client->mqtt_state.in_buffer, pdata, len);
+  if (len + client->mqtt_state.in_buffer_filled < MQTT_BUF_SIZE && len > 0) {
+    os_memcpy(&client->mqtt_state.in_buffer[client->mqtt_state.in_buffer_filled], pdata, len);
+    if (client->mqtt_state.message_expected_length == 0) {
+      client->mqtt_state.message_expected_length = mqtt_get_total_length(client->mqtt_state.in_buffer,4);
+    }
+    MQTT_INFO("MQTT: Msg len: %d buffer: %d filled: %d \r\n", client->mqtt_state.message_expected_length, len, client->mqtt_state.in_buffer_filled);
+    if (len + client->mqtt_state.in_buffer_filled < client->mqtt_state.message_expected_length) {
+      client->mqtt_state.in_buffer_filled += len;
+      return;
+    }
+    len = client->mqtt_state.message_expected_length;
+    client->mqtt_state.in_buffer_filled = 0;
+    client->mqtt_state.message_expected_length = 0;
 
     msg_type = mqtt_get_type(client->mqtt_state.in_buffer);
     msg_qos = mqtt_get_qos(client->mqtt_state.in_buffer);
@@ -854,6 +865,8 @@ MQTT_InitClient(MQTT_Client *mqttClient, uint8_t* client_id, uint8_t* client_use
 
   mqttClient->mqtt_state.in_buffer = (uint8_t *)os_zalloc(MQTT_BUF_SIZE);
   mqttClient->mqtt_state.in_buffer_length = MQTT_BUF_SIZE;
+  mqttClient->mqtt_state.in_buffer_filled = 0;
+  mqttClient->mqtt_state.message_expected_length = 0;
   mqttClient->mqtt_state.out_buffer =  (uint8_t *)os_zalloc(MQTT_BUF_SIZE);
   mqttClient->mqtt_state.out_buffer_length = MQTT_BUF_SIZE;
   mqttClient->mqtt_state.connect_info = &mqttClient->connect_info;

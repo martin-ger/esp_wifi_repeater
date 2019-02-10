@@ -37,8 +37,8 @@ uint8_t buf[os_strlen(data->topic_pre) + 20];
 	len = pbuf_copy_partial(p, data->buf, sizeof(data->buf), 0);
 	iph = (struct ip_hdr *)data->buf;
 
-	os_printf("packet %d, buf %x\r\n", len, p);
-	os_printf("to: " IPSTR " from: " IPSTR " via " IPSTR "\r\n", IP2STR(&iph->dest), IP2STR(&iph->src), IP2STR(ipaddr));
+	//os_printf("packet %d, buf %x\r\n", len, p);
+	//os_printf("to: " IPSTR " from: " IPSTR " via " IPSTR "\r\n", IP2STR(&iph->dest), IP2STR(&iph->src), IP2STR(ipaddr));
 
 	os_sprintf(buf, "%s/" IPSTR , data->topic_pre, IP2STR(ipaddr));
 	MQTT_Publish(data->mqttcl, buf, data->buf, len, 0, 1);
@@ -46,19 +46,18 @@ uint8_t buf[os_strlen(data->topic_pre) + 20];
 	return 0;
 }
 
-void ICACHE_FLASH_ATTR mqtt_if_input(uint32_t *args, const char* topic, uint32_t topic_len, const char *mqtt_data, uint32_t mqtt_data_len)
+void ICACHE_FLASH_ATTR mqtt_if_input(struct mqtt_if_data *data, const char* topic, uint32_t topic_len, const char *mqtt_data, uint32_t mqtt_data_len)
 {
-  struct mqtt_if_data *data = (struct mqtt_if_data*)args;
-
   uint8_t buf[topic_len+1];
   os_strncpy(buf, topic, topic_len);
   buf[topic_len] = '\0';
-  os_printf("Received %s - %d bytes\r\n", buf, mqtt_data_len);
+  //os_printf("Received %s - %d bytes\r\n", buf, mqtt_data_len);
 
   if ((topic_len == os_strlen(data->receive_topic) && os_strncmp(topic, data->receive_topic, topic_len) == 0) || 
       (topic_len == os_strlen(data->broadcast_topic) && os_strncmp(topic, data->broadcast_topic, topic_len) == 0)) {
 
 	struct pbuf *pb = pbuf_alloc(PBUF_LINK, mqtt_data_len, PBUF_RAM);
+	//os_printf("pb: %x len: %d tot_len: %d\r\n", pb, pb->len, pb->tot_len);
  	if (pb != NULL) {
 		pbuf_take(pb, mqtt_data, mqtt_data_len);
 		if (data->netif.input(pb, &data->netif) != ERR_OK) {
@@ -115,6 +114,28 @@ mqtt_if_del(struct mqtt_if_data *data)
 }
 
 void ICACHE_FLASH_ATTR
+mqtt_if_subscribe(struct mqtt_if_data *data)
+{
+	MQTT_Subscribe(data->mqttcl, data->receive_topic, 0);
+	MQTT_Subscribe(data->mqttcl, data->broadcast_topic, 0);
+	//os_printf("Subscribe %s\r\n", data->receive_topic);
+	//os_printf("Subscribe %s\r\n", data->broadcast_topic);
+
+	data->netif.flags != NETIF_FLAG_LINK_UP;
+}
+
+void ICACHE_FLASH_ATTR
+mqtt_if_unsubscribe(struct mqtt_if_data *data)
+{
+	MQTT_UnSubscribe(data->mqttcl, data->receive_topic);
+	MQTT_UnSubscribe(data->mqttcl, data->broadcast_topic);
+	//os_printf("Unsubscribe %s\r\n", data->receive_topic);
+	//os_printf("Unsubscribe %s\r\n", data->broadcast_topic);
+
+	data->netif.flags &= ~NETIF_FLAG_LINK_UP;
+}
+
+void ICACHE_FLASH_ATTR
 mqtt_if_set_ipaddr(struct mqtt_if_data *data, uint32_t addr)
 {
 	ip_addr_t ipaddr;
@@ -144,20 +165,12 @@ mqtt_if_set_gw(struct mqtt_if_data *data, uint32_t addr)
 void ICACHE_FLASH_ATTR
 mqtt_if_set_up(struct mqtt_if_data *data)
 {
-	MQTT_Subscribe(data->mqttcl, data->receive_topic, 0);
-	MQTT_Subscribe(data->mqttcl, data->broadcast_topic, 0);
-os_printf("Subscribe %s\r\n", data->receive_topic);
-os_printf("Subscribe %s\r\n", data->broadcast_topic);
 	netif_set_up(&data->netif);
 }
 
 void ICACHE_FLASH_ATTR
 mqtt_if_set_down(struct mqtt_if_data *data)
 {
-	MQTT_UnSubscribe(data->mqttcl, data->receive_topic);
-	MQTT_UnSubscribe(data->mqttcl, data->broadcast_topic);
-os_printf("Unsubscribe %s\r\n", data->receive_topic);
-os_printf("Unsubscribe %s\r\n", data->broadcast_topic);
 	netif_set_down(&data->netif);
 }
 

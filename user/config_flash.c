@@ -129,6 +129,12 @@ uint32_t reg0, reg1, reg3;
     config->gpio_out_status		= 0;
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
     config->mqtt_topic_mask		= 0xffff;
+#if MQTT_IP
+    config->mqttif_enable       = 0;
+    IP4_ADDR(&config->mqttif_addr, 10, 0, mac[4], mac[5]);
+    IP4_ADDR(&config->mqttif_netmask, 255, 255, 0, 0);
+    config->mqttif_gw.addr		= 0;
+#endif
 #endif
 
 #if HAVE_ENC28J60

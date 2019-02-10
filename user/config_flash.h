@@ -14,7 +14,7 @@
 #include "user_config.h"
 #include "acl.h"
 
-#define FLASH_BLOCK_NO 0x60
+#define FLASH_BLOCK_NO 0x62
 
 #define MAGIC_NUMBER    0x13f43ddc
 
@@ -111,6 +111,12 @@ typedef struct {
 
         uint32_t mqtt_interval; // Interval in secs for status messages, 0 means no messages
         uint16_t mqtt_topic_mask; // Mask for active topics
+#if MQTT_IP
+        bool mqttif_enable; // Do we want to use the MQTTIP interface
+        ip_addr_t mqttif_addr; // IP address of the MQTTIP interface
+        ip_addr_t mqttif_netmask; // IP netmask of the MQTTIP interface
+        ip_addr_t mqttif_gw; // Gateway of the MQTTIP interface
+#endif
 #endif
 
         uint8_t AP_MAC_address[6]; // MAC address of the AP
