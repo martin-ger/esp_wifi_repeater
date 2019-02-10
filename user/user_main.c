@@ -961,7 +961,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #endif
 #if MQTT_IP && MQTT_CLIENT
-        os_sprintf_flash(response, "set [mqttif_enable|emqttif_ip|mqttif_netmask|mqttif_gw|eth_mac] <val>\r\n");
+        os_sprintf_flash(response, "set [mqttif_enable|emqttif_ip|mqttif_netmask|mqttif_gw] <val>\r\n");
         to_console(response);
 #endif
         os_sprintf_flash(response, "set [tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");

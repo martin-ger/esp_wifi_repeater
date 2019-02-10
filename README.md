@@ -45,7 +45,7 @@ If you like, you can mark the "lock" checkbox and click "Lock". Now the config c
 
 If you want to enter non-ASCII or special characters in the web interface you have to use HTTP-style hex encoding like "My%20AccessPoint". This will result in a string "My AccessPoint". With this hex encoding you can enter any byte value you like, except for 0 (for C-internal reasons).
 
-If you did a mistake and you lost any contact with the ESP you can still use the serial console to recover it ("reset facory", see below).
+If you made a mistake and have lost all contact with the ESP you can still use the serial console to recover it ("reset factory", see below).
 
 # Command Line Interface
 Advanced configuration has to be done via the command line on the console interface. This console is available either via the serial port at 115200 baud or via tcp port 7777 (e.g. "telnet 192.168.4.1 7777" from a connected STA).
@@ -129,10 +129,10 @@ Most of the set-commands are effective only after save and reset.
 - ping _host_: checks IP connectivity with ICMP echo request/reply (host as IP address or DNS name)
 
 ### Firewall/Monitor Config
-- acl [from_sta|to_sta] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
-- acl [from_sta|to_sta] clear: clears the whole ACL
+- acl [from_sta|to_sta|from_ap|to_ap] [TCP|UDP|IP] _src-ip_ [_src_port_] _desr-ip_ [_dest_port_] [allow|deny|allow_monitor|deny_monitor]: adds a new rule to the ACL
+- acl [from_sta|to_sta|from_ap|to_ap] clear: clears the whole ACL
 - show acl: shows the defined ACLs and some stats
-- set acl_debug [0|1]: switches ACL debug output on/off - a denied packets will be logged to the terminal
+- set acl_debug [0|1]: switches ACL debug output on/off - all denied packets will be logged to the terminal
 - set [upstream_kbps|downstream_kbps] _bitrate_: sets a maximum upstream/downstream bitrate (0 = no limit, default)
 - set daily_limit _limit_in_KB_: defined a max. amount of kilobytes that can be transfered by STAs per day (0 = no limit, default)
 - set timezone _hours_offset_: defines the local timezone (required to know, when a day is over at 00:00)
@@ -159,12 +159,12 @@ In default config GPIO2 is configured to drive a status LED (connected to GND) w
 - flashing (1 per second): working, connected to the AP
 - unperiodically flashing: working, traffic in the internal network
 
-With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the buildin blue LED on the ESP-01 boards. However, as GPIO1 ist also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
+With "set status_led GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set status_led 255" will disable the status LED completely). When configured to GPIO1, it works with the built-in blue LED on the ESP-01 boards. However, as GPIO1 is also the UART-TX-pin this means, that the serial console is not working. Configuration is then limited to network access.
 
 # HW Factory Reset
 If you pull low a selected GPIO for more than 3 seconds, the repeater will do a factory reset and restart with default config. With "set hw_reset GPIOno" the GPIO pin can be changed (any value > 16, e.g. "set hw_reset 255" will disable the hw factory reset feature).
 
-For many moduls, incl. ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
+For many modules, incl. ESP-01s and NodeMCUs, it is probably a good idea to use GPIO 0 for that, as it is used anyway. However, it is not the default pin, as it might interfere with pulling it down during flashing. Thus, if you want to use an existing push button on GPIO 0 for HW factory reset, configure it with "set hw_reset 0" and "save" after flashing. A factory reset triggered by the HW pin will NOT reset the configured hw_reset GPIO number ("reset factory" from console will do).
 
 # Port Mapping
 In order to allow clients from the external network to connect to server port on the internal network, ports have to be mapped. An external port is mapped to an internal port of a specific internal IP address. Use the "portmap add" command for that. Port mappings can be listed with the "show" command and are saved with the current config. 
@@ -260,7 +260,7 @@ will allow all packets and also select all packets for monitoring that go from a
 # Static Routes
 By default the AP interface is NATed, so that any node connected to the AP will be able to access the outside world transparently via the ESP's STA interface. So no further action is required, if you are not a real network nerd.
 
-For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without furter configuration. Additional routes to other networks can be set via the "route add _netword_ _gateway_" command, known from Linux boxes or routers. A "save" command writes the current state of the routing table to flash configuration.
+For thoses of you that are really interested in further network config: the EPS's lwip IPv4 stack has been enhanced for this project with support for static routes: "show route" displays the routing table with all known routes, including the links to the connected network interfaces (the AP and the STA interface). Routing between these two interfaces works without further configuration. Additional routes to other networks can be set via the "route add _netword_ _gateway_" command, known from Linux boxes or routers. A "save" command writes the current state of the routing table to flash configuration.
 	
 Here is a simple example of what can be done with static routes. Given the following network setup with two ESPs connected with the STA interfaces via a central home router:
 ```
@@ -268,11 +268,11 @@ Here is a simple example of what can be done with static routes. Given the follo
 ```
 Each ESP has a second network behind its AP with different network addresses: 10.0.1.0/24 and 10.0.2.0/24. ESP1 can ping to ESP2 to the 192.168.1.20 but not to the 10.0.2.1, as it doesn't know that it can reach it via the 192.168.1.20. This changes if you add two static routes. On ESP1:
 ```
-route add 10.0.2.0/24 92.168.1.20
+route add 10.0.2.0/24 192.168.1.20
 ```
 and on ESP2:
 ```
-route add 10.0.1.0/24 92.168.1.10
+route add 10.0.1.0/24 192.168.1.10
 ```
 Now a "ping 10.0.2.1" on ESP1 will be successful. It is send to 192.168.1.20 and then answered by ESP2.
 
@@ -288,7 +288,7 @@ This allows you to configure a multi-star topology of ESPs, where each ESP and i
 By setting upstream_kbps and downstream_kbps to a value != 0 (0 is the default), you can limit the maximum bitrate of the ESP's AP. This value is a limit that applies to the traffic of all connected clients. Packets that would exeed the defined bitrate are dropped. The traffic shaper uses the "Token Bucket" algorithm with a bucket size of currently four times the bitrate per seconds, allowing for bursts, when there was no traffic before.
 
 # MQTT Support
-Since version 1.3 the router has a build-in MQTT client (thanks to Tuan PM for his library https://github.com/tuanpmt/esp_mqtt). This can help to integrate the router/repeater into the IoT. A home automation system can e.g. make decisions based on infos about the currently associated stations, it can switch on and of the repeaters (e.g. based on a time schedule), or it can simply be used to monitor the load. The router can be connected either to a local MQTT broker or to a publicly available broker in the cloud. However, currently it does not support TLS encryption.
+Since version 1.3 the router has a built-in MQTT client (thanks to Tuan PM for his library https://github.com/tuanpmt/esp_mqtt). This can help to integrate the router/repeater into the IoT. A home automation system can e.g. make decisions based on infos about the currently associated stations, it can switch on and of the repeaters (e.g. based on a time schedule), or it can simply be used to monitor the load. The router can be connected either to a local MQTT broker or to a publicly available broker in the cloud. However, currently it does not support TLS encryption.
 
 By default the MQTT client is disabled. It can be enabled by setting the config parameter "mqtt_host" to a hostname different from "none". To configure MQTT you can set the following parameters:
 - set mqtt_host _IP_or_hostname_: IP or hostname of the MQTT broker ("none" disables the MQTT client)
@@ -331,6 +331,19 @@ The router can be configured using the following topics:
 - _prefix_path_/response: The router publishes on this topic the command line output (mask: 0x0001)
 
 If you now want the router to publish e.g. only Vdd, its IP, and the command line output, set the mqtt_mask to 0x0001 | 0x0002 | 0x0040 (= "set mqtt_mask 0043").
+
+# MQTT VPN Support (experimental)
+The esp_wifi_repeater now includes support for an MQTT VPN. The idea is, that all devices that can reach a certain MQTT broker (even behind another NAT router) can have direct IP connectivity. With MQTT VPN enabled you can e.g. telnet into and configure an esp_wifi_repeater behind several levels of NAT using the corresponding Linux tool from: https://github.com/martin-ger/MQTT_VPN 
+
+This is how it works: When the esp_wifi_repeater is configured to connect to an MQTT broker (see section above) and you have switched on the MQTT_IP compile option in "user_config.h", it will create a new network interface called "mq0". All IP traffic routed through this interface is encapsulated into an MQTT message and published to the broker using the topic "mqttip/[dest addr]". For the way back the esp_wifi_repeater subscribes for the topic "mqttip/[own ip addr]". Now the MQTT broker acts as virtual LAN that distributes the IP packets from the senders to the subscribed receivers.
+
+You can configure the MQTT VPN interface: 
+- set mqttif_enable [0|1]: enables/disables the MQTT VPN interface mq0 (default: 0 - disabled)
+- set mqttif_ip _ip-addr_: sets a static IP address for the MQTT VPN interface
+- set mqttif_netmask _netmask_: sets a static netmask for the MQTT VPN interface
+- set mqttif_gw _gw-addr_: sets a static gateway address for the MQTT VPN interface
+
+All MQTT VPN settings are only effective after "save" and "reset".
 
 # ENC28J60 Ethernet Support
 The esp_wifi_repeater now includes support for an ENC28J60 Ethernet NIC connected via SPI (Thanks to Andrew Kroll https://github.com/xxxajk for his great work on getting right), if you switch on the HAVE_ENC28J60 compile option in "user_config.h". The Ethernet interface will support about 1 Mbps when the ESP is running an 160 MHz. Switching the AP interface on and using the Ethernet as uplink will turn the esp_wifi_repeater into a cheap AP for WiFi devices (e.g. other ESPs).
@@ -405,7 +418,7 @@ python -m SimpleHTTPServer 8080
 ```
 Set the parameter _hostname_ to the hostname or IP of your computer, set _portno_ to 8080, and "save". Then type on the CLI:
 ```
-ota upgrade
+ota update
 ```
 If configured correctly, the update will start and the ESP will reboot with the new binary.
 
