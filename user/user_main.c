@@ -160,7 +160,7 @@ uint8_t buf[256];
 
   os_sprintf(buf, "%s/%s", config.mqtt_prefix, sub_topic);
 //os_printf("Publish: %s %s\r\n", buf, str);
-  MQTT_Publish(&mqttClient, buf, str, os_strlen(str), 0, 0);
+  MQTT_Publish(&mqttClient, buf, str, os_strlen(str), config.mqtt_qos, 0);
 }
 
 void ICACHE_FLASH_ATTR mqtt_publish_int(uint16_t mask, uint8_t *sub_topic, uint8_t *format, uint32_t val)
@@ -181,17 +181,17 @@ uint8_t buf[256];
   mqtt_connected = true;
 
   os_sprintf(buf, "%s/status", config.mqtt_prefix);
-  MQTT_Publish(client, buf, "online", os_strlen("online"), 0, 1);
+  MQTT_Publish(client, buf, "online", os_strlen("online"), config.mqtt_qos, 1);
 
   os_sprintf(buf, IPSTR, IP2STR(&my_ip));
   mqtt_publish_str(MQTT_TOPIC_IP, "IP", buf);
 
   if (os_strcmp(config.mqtt_command_topic, "none") != 0) {
-    MQTT_Subscribe(client, config.mqtt_command_topic, 0);
+    MQTT_Subscribe(client, config.mqtt_command_topic, config.mqtt_qos);
   }
 #ifdef USER_GPIO_OUT
   if (os_strcmp(config.mqtt_gpio_out_topic, "none") != 0) {
-    MQTT_Subscribe(client, config.mqtt_gpio_out_topic, 0);
+    MQTT_Subscribe(client, config.mqtt_gpio_out_topic, config.mqtt_qos);
   }
 #endif
 }
@@ -982,7 +982,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #endif
 #if MQTT_CLIENT
-        os_sprintf_flash(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
+        os_sprintf_flash(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_qos|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
         to_console(response);
 #endif
 #if OTAUPDATE
@@ -1323,8 +1323,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
            os_sprintf(response, "MQTT host: %s\r\nMQTT port: %d\r\nMQTT user: %s\r\nMQTT password: %s\r\n",
 		config.mqtt_host, config.mqtt_port, config.mqtt_user, config.locked?"***":(char*)config.mqtt_password);
 	   to_console(response);
-           os_sprintf(response, "MQTT id: %s\r\nMQTT prefix: %s\r\nMQTT command topic: %s\r\nMQTT gpio_out topic: %s\r\nMQTT interval: %d s\r\nMQTT mask: %04x\r\n",
-		config.mqtt_id, config.mqtt_prefix, config.mqtt_command_topic, config.mqtt_gpio_out_topic, config.mqtt_interval, config.mqtt_topic_mask);
+           os_sprintf(response, "MQTT id: %s\r\nMQTT prefix: %s\r\nMQTT QoS: %d\r\nMQTT command topic: %s\r\nMQTT gpio_out topic: %s\r\nMQTT interval: %d s\r\nMQTT mask: %04x\r\n",
+		config.mqtt_id, config.mqtt_prefix, config.mqtt_qos, config.mqtt_command_topic, config.mqtt_gpio_out_topic, config.mqtt_interval, config.mqtt_topic_mask);
 	   to_console(response);
 	   goto command_handled_2;
       }
@@ -2455,6 +2455,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		os_sprintf_flash(response, "MQTT id set\r\n");
         	goto command_handled;
 	    }
+
+        if (strcmp(tokens[1], "mqtt_qos") == 0)
+	    {
+        if (atoi(tokens[2]) <0 || atoi(tokens[2]) >2) {
+            os_sprintf_flash(response, "Invalid QoS value\r\n");
+        	goto command_handled;
+        }
+		config.mqtt_qos = atoi(tokens[2]);
+		os_sprintf_flash(response, "MQTT QoS set\r\n");
+        	goto command_handled;
+	    }
+
 	    if (strcmp(tokens[1], "mqtt_prefix") == 0)
 	    {
 		os_strncpy(config.mqtt_prefix, tokens[2], 64);

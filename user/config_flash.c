@@ -126,6 +126,7 @@ uint32_t reg0, reg1, reg3;
     os_sprintf(config->mqtt_prefix,"%s/%s/system", MQTT_PREFIX, config->mqtt_id);
     os_sprintf(config->mqtt_command_topic,"%s/%s/%s", MQTT_PREFIX, config->mqtt_id, "command");
     os_sprintf(config->mqtt_gpio_out_topic,"%s/%s/%s", MQTT_PREFIX, config->mqtt_id, "switch");
+    config->mqtt_qos            = 0;
     config->gpio_out_status		= 0;
     config->mqtt_interval		= MQTT_REPORT_INTERVAL;
     config->mqtt_topic_mask		= 0xffff;

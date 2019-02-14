@@ -293,8 +293,9 @@ Since version 1.3 the router has a built-in MQTT client (thanks to Tuan PM for h
 By default the MQTT client is disabled. It can be enabled by setting the config parameter "mqtt_host" to a hostname different from "none". To configure MQTT you can set the following parameters:
 - set mqtt_host _IP_or_hostname_: IP or hostname of the MQTT broker ("none" disables the MQTT client)
 - set mqtt_port _port_: Port of the MQTT broker used for connection (default: 1883)
+- set mqtt_qos _QoS_: MQTT QoS value for publications and subscriptions (0-2, default: 0)
 - set mqtt_user _username_: Username for authentication ("none" if no authentication is required at the broker)
-- set mqtt_user _password_: Password for authentication
+- set mqtt_password _password_: Password for authentication
 - set mqtt_id _clientId_: Id of the client at the broker (default: "ESPRouter_xxxxxx" derived from the MAC address)
 - set mqtt_prefix _prefix_path_: Prefix for all published topics (default: "/WiFi/ESPRouter_xxxxxx/system", again derived from the MAC address)
 - set mqtt_command_topic _command_topic_: Topic subscribed to receive commands, same as from the console. (default: "/WiFi/ESPRouter_xxxxxx/command", "none" disables commands via MQTT)

@@ -16,7 +16,7 @@
 
 #define FLASH_BLOCK_NO 0x60
 
-#define MAGIC_NUMBER    0x13f43ddc
+#define MAGIC_NUMBER    0x13f43dad
 
 typedef enum {
         AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL
@@ -107,6 +107,7 @@ typedef struct {
         uint8_t mqtt_prefix[64]; // Topic-prefix
         uint8_t mqtt_command_topic[64]; // Topic on which commands are received, "none" if not subscibed
         uint8_t mqtt_gpio_out_topic[64]; // Topic on which the status of the gpio_out pin can be set
+        uint8_t mqtt_qos;
         bool gpio_out_status; // Initial status of the gpio_out pin
 
         uint32_t mqtt_interval; // Interval in secs for status messages, 0 means no messages
