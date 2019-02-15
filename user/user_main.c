@@ -2530,7 +2530,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "gpio") == 0)
     {
         /*
-         * For gpio commands at least 4 tokens "gpio" pin:"[0-16]" action:"mode|set" value:"low|high|out|in" is needed
+         * For gpio commands at least 4 tokens "gpio" pin:"[0-16]" action:"mode|set|get" value:"low|high|out|in" is needed
          * hence the check
          * Examples:
          *      Set GPIO pin 04 mode to output:
@@ -2539,6 +2539,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
          *          gpio 4 set high
          *      Set GPIO pin 16 to low:
          *          gpio 16 set low
+         *      Get GPIO pin 2 value:
+         *          gpio 2 get
          */
         if (nTokens < 5)
         {
@@ -2548,7 +2550,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         else
         {
             pin = atoi(tokens[1]); // 0-16
-            action = tokens[2];    // mode|set
+            action = tokens[2];    // mode|set|get
             value = tokens[3];     // low|high|out|in
 
             if ((pin < 0) && (pin > 16))
@@ -2557,9 +2559,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
-            if (!((action == "mode") || (value == "set")))
+            if (!((action == "mode") || (value == "set") || (value == "get")))
             {
-                os_sprintf(response, "Invalid action (try mode or set)");
+                os_sprintf(response, "Invalid action (try mode, set, or get)");
                 goto command_handled;
             }
 
@@ -2589,6 +2591,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             if (action == "set")
             {
                 easygpio_outputSet(pin, (value == "high") ? 1 : 0);
+            }
+
+            if (action == "get")
+            {
+                pinVal = easygpio_inputGet(pin)
+                os_sprintf(response, "%d", pinVal);
+                goto command_handled;
             }
 
             os_sprintf(response, "Successfuly executed %d %s %s\r\n", pin, action, value);
