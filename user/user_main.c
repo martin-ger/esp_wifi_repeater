@@ -2559,41 +2559,41 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
-            if (!((action == "mode") || (value == "set") || (value == "get")))
+            if (!((strcmp(action, "mode") == 0) || (strcmp(value, "set") == 0) || (strcmp(value, "get") == 0)))
             {
                 os_sprintf(response, "Invalid action (try mode, set, or get)");
                 goto command_handled;
             }
 
-            if (action == "mode")
+            if (strcmp(action, "mode") == 0)
             {
-                if (!((value == "in") || (value == "out")))
+                if (!((strcmp(value, "in") == 0) || (strcmp(value, "out") == 0)))
                 {
                     os_sprintf(response, "Invalid mode (try in or out)");
                     goto command_handled;
                 }
             }
 
-            if (action == "set")
+            if (strcmp(action, "set") == 0)
             {
-                if (!((value == "high") || (value == "low")))
+                if (!((strcmp(value, "high") == 0) || (strcmp(value, "low") == 0)))
                 {
                     os_sprintf(response, "Invalid value (try low or high)");
                     goto command_handled;
                 }
             }
 
-            if (action == "mode")
+            if (strcmp(action, "mode") == 0)
             {
                 easygpio_pinMode(pin, EASYGPIO_NOPULL, (value == "in") ? EASYGPIO_INPUT : EASYGPIO_OUTPUT);
             }
 
-            if (action == "set")
+            if (strcmp(action, "set") == 0)
             {
                 easygpio_outputSet(pin, (value == "high") ? 1 : 0);
             }
 
-            if (action == "get")
+            if (strcmp(action, "get") == 0)
             {
                 pinVal = easygpio_inputGet(pin)
                 os_sprintf(response, "%d", pinVal);
