@@ -2549,6 +2549,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         }
         else
         {
+            uint16_t pin;
+            uint8_t action[4];
+            uint8_t value[4];
+
             pin = atoi(tokens[1]); // 0-16
             action = tokens[2];    // mode|set|get
             value = tokens[3];     // low|high|out|in
