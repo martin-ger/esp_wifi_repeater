@@ -2550,8 +2550,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         else
         {
             uint8_t pin;
-            char action[4];
-            char value[4];
+            char *action;
+            char *value;
 
             pin = atoi(tokens[1]); // 0-16
             action = tokens[2];    // mode|set|get
@@ -2599,7 +2599,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(action, "get") == 0)
             {
-                uint8_t pinVal = easygpio_inputGet(pin)
+                uint8_t pinVal = easygpio_inputGet(pin);
                 os_sprintf(response, "%d", pinVal);
                 goto command_handled;
             }
