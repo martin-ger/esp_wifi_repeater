@@ -2589,7 +2589,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(action, "mode") == 0)
             {
-                easygpio_pinMode(pin, EASYGPIO_NOPULL, (value == "in") ? EASYGPIO_INPUT : EASYGPIO_OUTPUT);
+                easygpio_pinMode(pin, EASYGPIO_NOPULL, (strcmp(value, "in") == 0) ? EASYGPIO_INPUT : EASYGPIO_OUTPUT);
             }
 
             if (strcmp(action, "set") == 0)
