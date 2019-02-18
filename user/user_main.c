@@ -2542,7 +2542,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
          *      Get GPIO pin 2 value:
          *          gpio 2 get
          */
-        if (nTokens < 5)
+        if (nTokens < 3)
         {
             os_sprintf(response, INVALID_NUMARGS);
             goto command_handled;
@@ -2563,7 +2563,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
-            if (!((strcmp(action, "mode") == 0) || (strcmp(value, "set") == 0) || (strcmp(value, "get") == 0)))
+            if (!((strcmp(action, "mode") == 0) || (strcmp(action, "set") == 0) || (strcmp(action, "get") == 0)))
             {
                 os_sprintf(response, "Invalid action (try mode, set, or get)");
                 goto command_handled;
