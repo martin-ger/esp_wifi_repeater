@@ -152,6 +152,9 @@ Most of the set-commands are effective only after save and reset.
 - set client_watchdog _secs_: sets the client watchdog timeout - if there are no packets received for _secs_ from any connected client the repeater resets ("none" = no timeout, default)
 - set vmin _voltage_: sets the minimum battery voltage in mV. If Vdd drops below, the ESP goes into deep sleep. If 0, nothing happens
 - set vmin_sleep _secs_: sets the time interval in seconds the ESP sleeps on low voltage
+- gpio [0-16] _mode_ [_in_|_in_pullup|_out_]: configures a GPIO port of the ESP (saved to flash)
+- gpio [0-16] _set_  [_high_|_low_]: writes to an output port
+- gpio [0-16] _get_: reads from an input port
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:

@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.2.5"
+#define		ESP_REPEATER_VERSION "V2.2.6"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02

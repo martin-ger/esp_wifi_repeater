@@ -2530,7 +2530,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     if (strcmp(tokens[0], "gpio") == 0)
     {
         /*
-         * For gpio commands at least 4 tokens "gpio" pin:"[0-16]" action:"mode|set|get" value:"low|high|out|in" is needed
+         * For gpio commands at least 4 tokens "gpio" pin:"[0-16]" action:"mode|set|get" value:"low|high|out|in|in_pullup" is needed
          * hence the check
          * Examples:
          *      Set GPIO pin 04 mode to output:
@@ -2549,64 +2549,62 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         }
         else
         {
-            uint8_t pin;
-            char *action;
-            char *value;
-
-            pin = atoi(tokens[1]); // 0-16
-            action = tokens[2];    // mode|set|get
-            value = tokens[3];     // low|high|out|in
+            uint16_t pin = atoi(tokens[1]); // 0-16
+            uint8_t *action = tokens[2];    // mode|set|get
+            uint8_t *value = nTokens == 4 ? tokens[3] : "";
 
             if ((pin < 0) && (pin > 16))
             {
-                os_sprintf(response, "Invalid pin number (try 0-16)");
-                goto command_handled;
-            }
-
-            if (!((strcmp(action, "mode") == 0) || (strcmp(action, "set") == 0) || (strcmp(action, "get") == 0)))
-            {
-                os_sprintf(response, "Invalid action (try mode, set, or get)");
-                goto command_handled;
-            }
-
-            if (strcmp(action, "mode") == 0)
-            {
-                if (!((strcmp(value, "in") == 0) || (strcmp(value, "out") == 0)))
-                {
-                    os_sprintf(response, "Invalid mode (try in or out)");
-                    goto command_handled;
-                }
-            }
-
-            if (strcmp(action, "set") == 0)
-            {
-                if (!((strcmp(value, "high") == 0) || (strcmp(value, "low") == 0)))
-                {
-                    os_sprintf(response, "Invalid value (try low or high)");
-                    goto command_handled;
-                }
-            }
-
-            if (strcmp(action, "mode") == 0)
-            {
-                easygpio_pinMode(pin, EASYGPIO_NOPULL, (strcmp(value, "in") == 0) ? EASYGPIO_INPUT : EASYGPIO_OUTPUT);
-            }
-
-            if (strcmp(action, "set") == 0)
-            {
-                easygpio_outputSet(pin, (strcmp(value, "high") == 0) ? 1 : 0);
-            }
-
-            if (strcmp(action, "get") == 0)
-            {
-                uint8_t pinVal = easygpio_inputGet(pin);
-                os_sprintf(response, "%d", pinVal);
+                os_sprintf_flash(response, "Invalid pin number (try 0-16)\r\n");
                 goto command_handled;
             }
 
             os_sprintf(response, "Successfuly executed %d %s %s\r\n", pin, action, value);
 
-            goto command_handled;
+            if (strcmp(action, "mode")==0)
+            {
+                if (strcmp(value, "in")==0)
+                {
+                    easygpio_pinMode(pin, EASYGPIO_NOPULL, EASYGPIO_INPUT);
+                    config.gpiomode[pin] = IN;
+                    goto command_handled;
+                }
+                if (strcmp(value, "out")==0)
+                {
+                    easygpio_pinMode(pin, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
+                    config.gpiomode[pin] = OUT;
+                    goto command_handled;
+                }
+                if (strcmp(value, "in_pullup")==0)
+                {
+                    easygpio_pinMode(pin, EASYGPIO_PULLUP, EASYGPIO_OUTPUT);
+                    config.gpiomode[pin] = IN_PULLUP;
+                    goto command_handled;
+                }
+                os_sprintf_flash(response, "Invalid mode (in, in_pullup, or out)\r\n");
+            }
+
+            if (strcmp(action, "set")==0)
+            {
+                if (strcmp(value, "high")==0)
+                {
+                    easygpio_outputSet(pin, 1);
+                    goto command_handled;
+                }
+                if (strcmp(value, "low")==0)
+                {
+                    easygpio_outputSet(pin, 0);
+                    goto command_handled;
+                }
+                os_sprintf_flash(response, "Invalid value (high or low)\r\n");
+            }
+
+            if (strcmp(action, "get")==0)
+            {
+                uint16_t pinVal = easygpio_inputGet(pin);
+                os_sprintf(response, "%d\r\n", pinVal);
+                goto command_handled;
+            }
         }
     }
 #endif
@@ -3635,6 +3633,20 @@ struct espconn *pCon;
 #ifdef USER_GPIO_OUT
     easygpio_pinMode(USER_GPIO_OUT, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
+#endif
+
+#if GPIO_CMDS
+    for (i=0; i<17; i++) {
+        if (config.gpiomode[i] == OUT) {
+            easygpio_pinMode(i, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
+        }
+        if (config.gpiomode[i] == IN) {
+            easygpio_pinMode(i, EASYGPIO_NOPULL, EASYGPIO_INPUT);
+        }
+        if (config.gpiomode[i] == IN_PULLUP) {
+            easygpio_pinMode(i, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+        }
+    }
 #endif
 
     // In Automesh STA and AP passwords and credentials are the same

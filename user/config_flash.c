@@ -160,6 +160,11 @@ uint32_t reg0, reg1, reg3;
     os_sprintf(config->ota_host,"%s", "none");
     config->ota_port			= 80;
 #endif
+#if GPIO_CMDS
+    int i;
+    for (i=0; i<17; i++)
+        config->gpiomode[1] = UNDEFINED;
+#endif
 }
 
 int ICACHE_FLASH_ATTR config_load(sysconfig_p config)

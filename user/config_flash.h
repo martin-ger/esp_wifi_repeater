@@ -22,6 +22,12 @@ typedef enum {
         AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL
 } automeshmode;
 
+#if GPIO_CMDS
+typedef enum {
+        UNDEFINED = 0, OUT, IN, IN_PULLUP
+} gpio_mode;
+#endif
+
 typedef struct {
         // To check if the structure is initialized or not in flash
         uint32_t magic_number;
@@ -138,6 +144,9 @@ typedef struct {
 #if OTAUPDATE
         uint8_t ota_host[64];
         uint16_t ota_port;
+#endif
+#if GPIO_CMDS
+        gpio_mode gpiomode[17];
 #endif
 } sysconfig_t, *sysconfig_p;
 
