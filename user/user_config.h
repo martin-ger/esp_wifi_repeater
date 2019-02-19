@@ -154,6 +154,11 @@
 //
 #define		ENC28J60_HW_RESET 4
 
+//
+// Define this to 1 if you want to be able to control GPIO pins from the command line
+//
+#define		GPIO_CMDS 1
+
 // Internal
 
 typedef enum {

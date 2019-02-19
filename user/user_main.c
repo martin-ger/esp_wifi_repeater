@@ -2526,6 +2526,90 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         }
     }
+#if GPIO_CMDS
+    if (strcmp(tokens[0], "gpio") == 0)
+    {
+        /*
+         * For gpio commands at least 4 tokens "gpio" pin:"[0-16]" action:"mode|set|get" value:"low|high|out|in" is needed
+         * hence the check
+         * Examples:
+         *      Set GPIO pin 04 mode to output:
+         *          gpio 4 mode out
+         *      Set GPIO pin 04 to high:
+         *          gpio 4 set high
+         *      Set GPIO pin 16 to low:
+         *          gpio 16 set low
+         *      Get GPIO pin 2 value:
+         *          gpio 2 get
+         */
+        if (nTokens < 3)
+        {
+            os_sprintf(response, INVALID_NUMARGS);
+            goto command_handled;
+        }
+        else
+        {
+            uint8_t pin;
+            char *action;
+            char *value;
+
+            pin = atoi(tokens[1]); // 0-16
+            action = tokens[2];    // mode|set|get
+            value = tokens[3];     // low|high|out|in
+
+            if ((pin < 0) && (pin > 16))
+            {
+                os_sprintf(response, "Invalid pin number (try 0-16)");
+                goto command_handled;
+            }
+
+            if (!((strcmp(action, "mode") == 0) || (strcmp(action, "set") == 0) || (strcmp(action, "get") == 0)))
+            {
+                os_sprintf(response, "Invalid action (try mode, set, or get)");
+                goto command_handled;
+            }
+
+            if (strcmp(action, "mode") == 0)
+            {
+                if (!((strcmp(value, "in") == 0) || (strcmp(value, "out") == 0)))
+                {
+                    os_sprintf(response, "Invalid mode (try in or out)");
+                    goto command_handled;
+                }
+            }
+
+            if (strcmp(action, "set") == 0)
+            {
+                if (!((strcmp(value, "high") == 0) || (strcmp(value, "low") == 0)))
+                {
+                    os_sprintf(response, "Invalid value (try low or high)");
+                    goto command_handled;
+                }
+            }
+
+            if (strcmp(action, "mode") == 0)
+            {
+                easygpio_pinMode(pin, EASYGPIO_NOPULL, (strcmp(value, "in") == 0) ? EASYGPIO_INPUT : EASYGPIO_OUTPUT);
+            }
+
+            if (strcmp(action, "set") == 0)
+            {
+                easygpio_outputSet(pin, (strcmp(value, "high") == 0) ? 1 : 0);
+            }
+
+            if (strcmp(action, "get") == 0)
+            {
+                uint8_t pinVal = easygpio_inputGet(pin);
+                os_sprintf(response, "%d", pinVal);
+                goto command_handled;
+            }
+
+            os_sprintf(response, "Successfuly executed %d %s %s\r\n", pin, action, value);
+
+            goto command_handled;
+        }
+    }
+#endif
 
     /* Control comes here only if the tokens[0] command is not handled */
     os_sprintf_flash(response, "\r\nInvalid Command\r\n");
@@ -2741,6 +2825,12 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
                 {
                     do_reset = true;
                 }
+#if GPIO_CMDS
+                else if (strcmp(key, "gpio") == 0)
+                {
+                    handle_set_cmd(pespconn, "gpio", val);
+                }
+#endif
             }
         }
 
@@ -3724,4 +3814,3 @@ struct espconn *pCon;
     //Start task
     system_os_task(user_procTask, user_procTaskPrio, user_procTaskQueue, user_procTaskQueueLen);
 }
-
