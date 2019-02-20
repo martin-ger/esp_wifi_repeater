@@ -14,6 +14,8 @@
 
 #include "user_interface.h"
 
+#include "tweetnacl.h"
+
 struct mqtt_if_data {
 	struct netif netif;
 	ip_addr_t ipaddr;
@@ -21,7 +23,10 @@ struct mqtt_if_data {
 	uint8_t *topic_pre;
 	uint8_t *receive_topic;
 	uint8_t *broadcast_topic;
-	u_char buf[4096];
+	uint8_t key_set;
+	u_char key[crypto_secretbox_KEYBYTES];
+	u_char buf[2048];
+	u_char cypherbuf_buf[2048];
 };
 
 //static pcap_dumper_t *pcap_dumper;
@@ -30,19 +35,28 @@ static err_t ICACHE_FLASH_ATTR
 mqtt_if_output(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
 {
 struct mqtt_if_data *data = netif->state;
-struct ip_hdr *iph;
+//struct ip_hdr *iph;
 int len;
 uint8_t buf[os_strlen(data->topic_pre) + 20];
 
-	len = pbuf_copy_partial(p, data->buf, sizeof(data->buf), 0);
-	iph = (struct ip_hdr *)data->buf;
-
-	//os_printf("packet %d, buf %x\r\n", len, p);
-	//os_printf("to: " IPSTR " from: " IPSTR " via " IPSTR "\r\n", IP2STR(&iph->dest), IP2STR(&iph->src), IP2STR(ipaddr));
-
 	os_sprintf(buf, "%s/" IPSTR , data->topic_pre, IP2STR(ipaddr));
-	MQTT_Publish(data->mqttcl, buf, data->buf, len, 0, 1);
+    if (data->key_set) 
+	{
+		randombytes(data->cypherbuf_buf, crypto_secretbox_NONCEBYTES);
+		os_bzero(data->buf, crypto_secretbox_ZEROBYTES);
+		len = pbuf_copy_partial(p, data->buf + crypto_secretbox_ZEROBYTES, sizeof(data->buf) - crypto_secretbox_ZEROBYTES, 0);
+		crypto_secretbox(data->cypherbuf_buf + crypto_secretbox_NONCEBYTES, data->buf, len+crypto_secretbox_ZEROBYTES, data->cypherbuf_buf, data->key);
 
+		MQTT_Publish(data->mqttcl, buf, data->cypherbuf_buf, len + crypto_secretbox_NONCEBYTES + crypto_secretbox_ZEROBYTES, 0, 1);
+	} else {
+		len = pbuf_copy_partial(p, data->buf, sizeof(data->buf), 0);
+
+		//iph = (struct ip_hdr *)data->buf;
+		//os_printf("packet %d, buf %x\r\n", len, p);
+		//os_printf("to: " IPSTR " from: " IPSTR " via " IPSTR "\r\n", IP2STR(&iph->dest), IP2STR(&iph->src), IP2STR(ipaddr));
+
+		MQTT_Publish(data->mqttcl, (const char*)buf, (const char*)data->buf, len, 0, 1);
+	}
 	return 0;
 }
 
@@ -51,18 +65,37 @@ void ICACHE_FLASH_ATTR mqtt_if_input(struct mqtt_if_data *data, const char* topi
   uint8_t buf[topic_len+1];
   os_strncpy(buf, topic, topic_len);
   buf[topic_len] = '\0';
+  struct pbuf *pb;
   //os_printf("Received %s - %d bytes\r\n", buf, mqtt_data_len);
 
   if ((topic_len == os_strlen(data->receive_topic) && os_strncmp(topic, data->receive_topic, topic_len) == 0) || 
       (topic_len == os_strlen(data->broadcast_topic) && os_strncmp(topic, data->broadcast_topic, topic_len) == 0)) {
 
-	struct pbuf *pb = pbuf_alloc(PBUF_LINK, mqtt_data_len, PBUF_RAM);
-	//os_printf("pb: %x len: %d tot_len: %d\r\n", pb, pb->len, pb->tot_len);
- 	if (pb != NULL) {
-		pbuf_take(pb, mqtt_data, mqtt_data_len);
-		if (data->netif.input(pb, &data->netif) != ERR_OK) {
-			pbuf_free(pb);
+    if (data->key_set) 
+	{
+		unsigned char m[mqtt_data_len];
+		uint32_t message_len = mqtt_data_len - crypto_secretbox_NONCEBYTES;
+
+		if (crypto_secretbox_open(m, mqtt_data + crypto_secretbox_NONCEBYTES, message_len, mqtt_data, data->key) == -1)
+		{
+			os_printf("mqttif decrypt error\r\n");
+			return;
 		}
+
+		pb = pbuf_alloc(PBUF_LINK, message_len-crypto_secretbox_ZEROBYTES, PBUF_RAM);
+		//os_printf("pb: %x len: %d tot_len: %d\r\n", pb, pb->len, pb->tot_len);
+		if (pb == NULL)
+			return;
+		pbuf_take(pb, m+crypto_secretbox_ZEROBYTES, message_len-crypto_secretbox_ZEROBYTES);
+	} else {
+		pb = pbuf_alloc(PBUF_LINK, mqtt_data_len, PBUF_RAM);
+		if (pb == NULL)
+			return;	
+		pbuf_take(pb, mqtt_data, mqtt_data_len);
+
+	}
+	if (data->netif.input(pb, &data->netif) != ERR_OK) {
+		pbuf_free(pb);
 	}
   }
 }
@@ -82,9 +115,10 @@ mqtt_if_init(struct netif *netif)
 }
 
 struct mqtt_if_data ICACHE_FLASH_ATTR *
-mqtt_if_add(MQTT_Client *cl, uint8_t *topic_prefix)
+mqtt_if_add(MQTT_Client *cl, uint8_t *topic_prefix, uint8_t *password)
 {
 	struct mqtt_if_data *data;
+    unsigned char h[crypto_hash_BYTES];
 
 	data = calloc(1, sizeof(*data));
 	data->mqttcl = cl;
@@ -97,6 +131,14 @@ mqtt_if_add(MQTT_Client *cl, uint8_t *topic_prefix)
 	data->broadcast_topic = (uint8_t *)os_malloc(os_strlen(topic_prefix) + 20);
 	os_sprintf(data->broadcast_topic, "%s/255.255.255.255", data->topic_pre);
 
+	if (os_strlen(password) > 0) 
+	{
+		crypto_hash(h, password, os_strlen(password));
+		os_memcpy(data->key, h, crypto_secretbox_KEYBYTES);
+		data->key_set = 1;
+	} else {
+		data->key_set = 0;
+	}
 	netif_add(&data->netif, NULL, NULL, NULL, data, mqtt_if_init, ip_input);
 //	netif_set_default(&data->netif);
 	return data;

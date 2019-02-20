@@ -961,7 +961,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #endif
 #if MQTT_IP && MQTT_CLIENT
-        os_sprintf_flash(response, "set [mqttif_enable|emqttif_ip|mqttif_netmask|mqttif_gw] <val>\r\n");
+        os_sprintf_flash(response, "set [mqttif_enable|mqttif_ip|mqttif_netmask|mqttif_gw|mqttif_psk] <val>\r\n");
         to_console(response);
 #endif
         os_sprintf_flash(response, "set [tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
@@ -2575,7 +2575,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             goto command_handled;
         }
 
-        if (strcmp(tokens[1], "eth_netmask") == 0)
+        if (strcmp(tokens[1], "mqttif_netmask") == 0)
         {
             config.mqttif_netmask.addr = ipaddr_addr(tokens[2]);
             os_sprintf(response, "MQTTIF IP netmask set to %d.%d.%d.%d\r\n",
@@ -2583,13 +2583,23 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             goto command_handled;
         }
 
-        if (strcmp(tokens[1], "eth_gw") == 0)
+        if (strcmp(tokens[1], "mqttif_gw") == 0)
         {
             config.mqttif_gw.addr = ipaddr_addr(tokens[2]);
             os_sprintf(response, "MQTTIF Gateway set to %d.%d.%d.%d\r\n",
                        IP2STR(&config.mqttif_gw));
             goto command_handled;
         }
+
+        if (strcmp(tokens[1], "mqttif_psk") == 0)
+	    {
+            os_strncpy(config.mqttif_psk, tokens[2], 32);
+            config.mqttif_psk[31] = 0;
+            os_sprintf_flash(response, "MQTT PSK set\r\n");
+        	goto command_handled;
+	    }
+
+
 #endif
 #endif /* MQTT_CLIENT */
 
@@ -3760,7 +3770,10 @@ struct espconn *pCon;
 
  #if MQTT_IP
     if (config.mqttif_enable) {
-        mqtt_if = mqtt_if_add(&mqttClient, MQTT_IP_PREFIX);
+        char *psk = "";
+        if (strcmp(config.mqttif_psk, "none")!=0)
+          psk = config.mqttif_psk;
+        mqtt_if = mqtt_if_add(&mqttClient, MQTT_IP_PREFIX, psk);
         mqtt_if_set_ipaddr(mqtt_if, config.mqttif_addr.addr);
         mqtt_if_set_netmask(mqtt_if, config.mqttif_netmask.addr);
         mqtt_if_set_gw(mqtt_if, config.mqttif_gw.addr);

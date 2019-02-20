@@ -14,7 +14,7 @@
 #include "user_config.h"
 #include "acl.h"
 
-#define FLASH_BLOCK_NO 0x62
+#define FLASH_BLOCK_NO 0x64 
 
 #define MAGIC_NUMBER    0x13f43ddc
 
@@ -113,6 +113,7 @@ typedef struct {
         uint16_t mqtt_topic_mask; // Mask for active topics
 #if MQTT_IP
         bool mqttif_enable; // Do we want to use the MQTTIP interface
+        uint8_t mqttif_psk[32]; // PSK of the MQTT VPN, "none" if empty
         ip_addr_t mqttif_addr; // IP address of the MQTTIP interface
         ip_addr_t mqttif_netmask; // IP netmask of the MQTTIP interface
         ip_addr_t mqttif_gw; // Gateway of the MQTTIP interface

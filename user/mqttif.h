@@ -13,7 +13,7 @@
 struct mqtt_if_data;
 struct event_base;
 
-struct mqtt_if_data *mqtt_if_add(MQTT_Client *cl, uint8_t *topic_pre);
+struct mqtt_if_data *mqtt_if_add(MQTT_Client *cl, uint8_t *topic_pre, uint8_t *password);
 void mqtt_if_del(struct mqtt_if_data *data);
 
 void mqtt_if_input(struct mqtt_if_data *data, const char* topic, uint32_t topic_len, const char *mqtt_data, uint32_t mqtt_data_len);
