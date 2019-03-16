@@ -3,7 +3,7 @@ A full functional WiFi repeater (correctly: a WiFi NAT router)
 
 This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
 
-*If you are looking for a way to integrate the NAT feature into you Arduino project* - see https://github.com/martin-ger/lwip_nat_arduino .
+*If you are looking for a way to integrate the NAT feature into your Arduino project* - see https://github.com/martin-ger/lwip_nat_arduino .
 
 Typical usage scenarios include:
 - Simple range extender for an existing WiFi network
