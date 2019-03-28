@@ -2577,7 +2577,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 }
                 if (strcmp(value, "in_pullup")==0)
                 {
-                    easygpio_pinMode(pin, EASYGPIO_PULLUP, EASYGPIO_OUTPUT);
+                    easygpio_pinMode(pin, EASYGPIO_PULLUP, EASYGPIO_INPUT);
                     config.gpiomode[pin] = IN_PULLUP;
                     goto command_handled;
                 }
