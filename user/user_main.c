@@ -228,6 +228,7 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
 	config.gpio_out_status = 1;
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
     mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
+    notifyValueToMQTT(USER_GPIO_OUT);
     return;
   }
 #endif
@@ -850,8 +851,7 @@ static void ICACHE_FLASH_ATTR OtaUpdate() {
 static os_timer_t inttimerchange;
 static uint8_t prev_values[17] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
-void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
-    uint16_t pin = (intptr_t)arg;
+void notifyValueToMQTT(uint16_t pin) {
     char buf[128];
 	os_sprintf(buf, "GpioIn/%d", pin);
     uint8_t val = easygpio_inputGet(pin);
@@ -864,6 +864,11 @@ void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
         mqtt_publish_int(MQTT_TOPIC_GPIOIN, buf, "%d", val);
         //os_printf("GPIO %d %d\r\n", (uint32_t)arg, val);
     }
+}
+
+void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
+    uint16_t pin = (intptr_t)arg;
+    notifyValueToMQTT(pin);
 
     // Reactivate interrupts for GPIO
     gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);
@@ -3691,6 +3696,9 @@ struct espconn *pCon;
 #ifdef USER_GPIO_OUT
     easygpio_pinMode(USER_GPIO_OUT, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
+#if MQTT_CLIENT
+    notifyValueToMQTT(USER_GPIO_OUT);
+#endif
 #endif
 
 #if GPIO_CMDS
