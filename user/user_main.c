@@ -845,6 +845,51 @@ static void ICACHE_FLASH_ATTR OtaUpdate() {
 }
 #endif
 
+#if MQTT_CLIENT
+#if GPIO_CMDS
+static os_timer_t inttimerchange;
+static uint8_t prev_values[17] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+
+void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
+    uint16_t pin = (intptr_t)arg;
+    char buf[128];
+	os_sprintf(buf, "GpioIn/%d", pin);
+    uint8_t val = easygpio_inputGet(pin);
+    bool notify = true;
+    if (pin >= 0 && pin <= 16) {
+        notify = val != prev_values[pin];
+        prev_values[pin] = val;
+    }
+	if (notify) {
+        mqtt_publish_int(MQTT_TOPIC_GPIOIN, buf, "%d", val);
+        //os_printf("GPIO %d %d\r\n", (uint32_t)arg, val);
+    }
+
+    // Reactivate interrupts for GPIO
+    gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);
+}
+
+LOCAL void  gpio_change_handler(void *arg) 
+{
+    uint16_t pin = (intptr_t)arg;
+
+    uint32 gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
+
+    if (gpio_status & BIT(pin)) {
+        gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_DISABLE);
+
+        // Clear interrupt status for GPIO
+        GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status & BIT(pin));
+
+	    // Start the timer
+    	os_timer_setfn(&inttimerchange, int_timerchange_func, (void *)(intptr_t)pin);
+    	os_timer_arm(&inttimerchange, 50, 0);
+    }
+}
+
+#endif /* GPIO_CMDS */
+#endif
+
 // Use this from ROM instead
 int ets_str2macaddr(uint8 *mac, char *str_mac);
 #define parse_mac ets_str2macaddr
@@ -2565,19 +2610,32 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 if (strcmp(value, "in")==0)
                 {
+#if MQTT_CLIENT
+                    easygpio_attachInterrupt(pin, EASYGPIO_NOPULL, gpio_change_handler, (void *)(intptr_t)pin);
+                    gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);                    
+#else
                     easygpio_pinMode(pin, EASYGPIO_NOPULL, EASYGPIO_INPUT);
+#endif
                     config.gpiomode[pin] = IN;
                     goto command_handled;
                 }
                 if (strcmp(value, "out")==0)
                 {
                     easygpio_pinMode(pin, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
+#if MQTT_CLIENT
+                    easygpio_detachInterrupt(pin);
+#endif
                     config.gpiomode[pin] = OUT;
                     goto command_handled;
                 }
                 if (strcmp(value, "in_pullup")==0)
                 {
-                    easygpio_pinMode(pin, EASYGPIO_PULLUP, EASYGPIO_OUTPUT);
+#if MQTT_CLIENT
+                    easygpio_attachInterrupt(pin, EASYGPIO_PULLUP, gpio_change_handler, (void *)(intptr_t)pin);
+                    gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);                    
+#else
+                    easygpio_pinMode(pin, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+#endif
                     config.gpiomode[pin] = IN_PULLUP;
                     goto command_handled;
                 }
@@ -3641,10 +3699,20 @@ struct espconn *pCon;
             easygpio_pinMode(i, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
         }
         if (config.gpiomode[i] == IN) {
+#if MQTT_CLIENT
+            easygpio_attachInterrupt(i, EASYGPIO_NOPULL, gpio_change_handler, (void *)(intptr_t)i);
+            gpio_pin_intr_state_set(GPIO_ID_PIN(i), GPIO_PIN_INTR_ANYEDGE);                    
+#else
             easygpio_pinMode(i, EASYGPIO_NOPULL, EASYGPIO_INPUT);
+#endif
         }
         if (config.gpiomode[i] == IN_PULLUP) {
+#if MQTT_CLIENT
+            easygpio_attachInterrupt(i, EASYGPIO_PULLUP, gpio_change_handler, (void *)(intptr_t)i);
+            gpio_pin_intr_state_set(GPIO_ID_PIN(i), GPIO_PIN_INTR_ANYEDGE);                    
+#else
             easygpio_pinMode(i, EASYGPIO_PULLUP, EASYGPIO_INPUT);
+#endif
         }
     }
 #endif
