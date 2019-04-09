@@ -853,7 +853,7 @@ static uint8_t prev_values[17] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
 
 void notifyValueToMQTT(uint16_t pin) {
     char buf[128];
-	os_sprintf(buf, "GpioIn/%d", pin);
+	os_sprintf(buf, "Gpio/%d", pin);
     uint8_t val = easygpio_inputGet(pin);
     bool notify = true;
     if (pin >= 0 && pin <= 16) {
