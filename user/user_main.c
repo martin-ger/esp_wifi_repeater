@@ -1035,6 +1035,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [mqtt_host|mqtt_port|mqtt_user|mqtt_password|mqtt_id|mqtt_qos|mqtt_prefix|mqtt_command_topic|mqtt_interval] <val>\r\n");
         to_console(response);
 #endif
+#if GPIO_CMDS
+        os_sprintf_flash(response, "gpio [0-16] mode [out|in|in_pullup]\r\n");
+        to_console(response);
+        os_sprintf_flash(response, "gpio [0-16] set [high|low]\r\n");
+        to_console(response);
+        os_sprintf_flash(response, "gpio [0-16] get\r\n");
+        to_console(response);
+#endif
 #if OTAUPDATE
         os_sprintf_flash(response, "ota [switch|update]\r\n");
         to_console(response);
