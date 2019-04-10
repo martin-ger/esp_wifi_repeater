@@ -156,6 +156,7 @@ Most of the set-commands are effective only after save and reset.
 - set vmin_sleep _secs_: sets the time interval in seconds the ESP sleeps on low voltage
 - gpio [0-16] mode [_in_|_in_pullup_|_out_]: configures a GPIO port of the ESP (saved to flash)
 - gpio [0-16] set [_high_|_low_]: writes to an output port
+- gpio [0-16] set [_high_|_low_] for _seconds_: writes to an output port and reverts after a certain duration
 - gpio [0-16] get: reads from an input port
 
 # Status LED

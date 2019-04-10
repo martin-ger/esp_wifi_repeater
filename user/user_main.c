@@ -895,6 +895,33 @@ LOCAL void  gpio_change_handler(void *arg)
 #endif /* GPIO_CMDS */
 #endif
 
+#if GPIO_CMDS
+static os_timer_t duration_timer[17];
+void do_outputSet(uint8_t pin, uint8_t value, uint16_t duration);
+
+void ICACHE_FLASH_ATTR set_high(void *arg){
+    uint16_t pin = (intptr_t)arg;
+    do_outputSet(pin, 1, 0);
+}
+
+void ICACHE_FLASH_ATTR set_low(void *arg){
+    uint16_t pin = (intptr_t)arg;
+    do_outputSet(pin, 0, 0);
+}
+
+void do_outputSet(uint8_t pin, uint8_t value, uint16_t duration) {
+    os_timer_disarm(&duration_timer[pin]);
+    easygpio_outputSet(pin, value);
+#if MQTT_CLIENT
+    notifyValueToMQTT(pin);
+#endif
+    if (duration > 0) {
+    	os_timer_setfn(&duration_timer[pin], value>0?set_low:set_high, (void *)(uint32_t)pin);
+    	os_timer_arm(&duration_timer[pin], duration * 1000, 0);
+    }
+}
+#endif
+
 // Use this from ROM instead
 int ets_str2macaddr(uint8 *mac, char *str_mac);
 #define parse_mac ets_str2macaddr
@@ -2597,6 +2624,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
          *          gpio 4 set high
          *      Set GPIO pin 16 to low:
          *          gpio 16 set low
+         *      Set GPIO pin 04 to high for 5 seconds:
+         *          gpio 4 set high for 5
          *      Get GPIO pin 2 value:
          *          gpio 2 get
          */
@@ -2609,7 +2638,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         {
             uint16_t pin = atoi(tokens[1]); // 0-16
             uint8_t *action = tokens[2];    // mode|set|get
-            uint8_t *value = nTokens == 4 ? tokens[3] : "";
+            uint8_t *value = nTokens >= 4 ? tokens[3] : "";
 
             if ((pin < 0) && (pin > 16))
             {
@@ -2657,15 +2686,33 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(action, "set")==0)
             {
-                if (strcmp(value, "high")==0)
-                {
-                    easygpio_outputSet(pin, 1);
-                    goto command_handled;
+                bool correct = false;
+                int16_t duration = -1;
+                if (nTokens == 4) {
+                    duration = 0;
+                    correct = true;
+                } else if (nTokens == 6 && strcmp(tokens[4], "for")==0) {
+                    duration = atoi(tokens[5]);
+                    if (duration <= 0) {
+                        os_sprintf_flash(response, "Invalid duration (seconds)\r\n");
+                        goto command_handled;
+                    }
+                    correct = true;
+                } else {
+                        os_sprintf_flash(response, "Syntax: gpio <pin> set low|high [for <duration>]\r\n");
+                        goto command_handled;
                 }
-                if (strcmp(value, "low")==0)
-                {
-                    easygpio_outputSet(pin, 0);
-                    goto command_handled;
+                if (correct) {
+                    if (strcmp(value, "high")==0)
+                    {
+                        do_outputSet(pin, 1, duration);
+                     goto command_handled;
+                    }
+                    if (strcmp(value, "low")==0)
+                    {
+                        do_outputSet(pin, 0, duration);
+                        goto command_handled;
+                }
                 }
                 os_sprintf_flash(response, "Invalid value (high or low)\r\n");
             }
