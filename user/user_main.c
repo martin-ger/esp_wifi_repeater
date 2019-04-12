@@ -228,7 +228,7 @@ static void ICACHE_FLASH_ATTR mqttDataCb(uint32_t *args, const char* topic, uint
 	config.gpio_out_status = 1;
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
     mqtt_publish_int(MQTT_TOPIC_GPIOOUT, "GpioOut", "%d", (uint32_t)config.gpio_out_status);
-    notifyValueToMQTT(USER_GPIO_OUT);
+    handlePinValueChange(USER_GPIO_OUT);
     return;
   }
 #endif
@@ -846,12 +846,13 @@ static void ICACHE_FLASH_ATTR OtaUpdate() {
 }
 #endif
 
-#if MQTT_CLIENT
 #if GPIO_CMDS
+void do_outputSet(uint8_t pin, uint8_t value, uint16_t duration);
+
 static os_timer_t inttimerchange;
 static uint8_t prev_values[17] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
-void notifyValueToMQTT(uint16_t pin) {
+void handlePinValueChange(uint16_t pin) {
     char buf[128];
 	os_sprintf(buf, "Gpio/%d", pin);
     uint8_t val = easygpio_inputGet(pin);
@@ -861,14 +862,36 @@ void notifyValueToMQTT(uint16_t pin) {
         prev_values[pin] = val;
     }
 	if (notify) {
+        uint8_t trigger_pin = config.gpio_trigger_pin[pin];
+        if (config.gpio_trigger_type[pin]!=NONE && trigger_pin!=-1 && 
+            (config.gpiomode[pin]==IN || config.gpiomode[pin]==IN_PULLUP) &&
+            config.gpiomode[trigger_pin]==OUT ) {
+            switch(config.gpio_trigger_type[pin]) {
+                case MONOSTABLE_NC:
+                    if (val == 1) {
+                        do_outputSet(trigger_pin, !prev_values[trigger_pin], 0);
+                    }
+                    break;
+                case MONOSTABLE_NO:
+                    if (val == 0) {
+                        do_outputSet(trigger_pin, !prev_values[trigger_pin], 0);
+                    }
+                    break;
+                case BISTABLE:
+                    do_outputSet(trigger_pin, val, 0);
+                    break;
+            }
+        }
+#if MQTT_CLIENT
         mqtt_publish_int(MQTT_TOPIC_GPIOIN, buf, "%d", val);
+#endif
         //os_printf("GPIO %d %d\r\n", (uint32_t)arg, val);
     }
 }
 
 void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
     uint16_t pin = (intptr_t)arg;
-    notifyValueToMQTT(pin);
+    handlePinValueChange(pin);
 
     // Reactivate interrupts for GPIO
     gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);
@@ -893,11 +916,9 @@ LOCAL void  gpio_change_handler(void *arg)
 }
 
 #endif /* GPIO_CMDS */
-#endif
 
 #if GPIO_CMDS
 static os_timer_t duration_timer[17];
-void do_outputSet(uint8_t pin, uint8_t value, uint16_t duration);
 
 void ICACHE_FLASH_ATTR set_high(void *arg){
     uint16_t pin = (intptr_t)arg;
@@ -913,7 +934,7 @@ void do_outputSet(uint8_t pin, uint8_t value, uint16_t duration) {
     os_timer_disarm(&duration_timer[pin]);
     easygpio_outputSet(pin, value);
 #if MQTT_CLIENT
-    notifyValueToMQTT(pin);
+    handlePinValueChange(pin);
 #endif
     if (duration > 0) {
     	os_timer_setfn(&duration_timer[pin], value>0?set_low:set_high, (void *)(uint32_t)pin);
@@ -1068,6 +1089,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "gpio [0-16] set [high|low]\r\n");
         to_console(response);
         os_sprintf_flash(response, "gpio [0-16] get\r\n");
+        to_console(response);
+        os_sprintf_flash(response, "gpio [0-16] trigger [0-16] [monostable_NC|monostable_NO|bistable]\r\n");
+        to_console(response);
+        os_sprintf_flash(response, "gpio [0-16] trigger none\r\n");
         to_console(response);
 #endif
 #if OTAUPDATE
@@ -2628,6 +2653,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
          *          gpio 4 set high for 5
          *      Get GPIO pin 2 value:
          *          gpio 2 get
+         *      Link GPIO input pin 5 to GPIO output pin 2 as a monostable normally open:
+         *          gpio 5 trigger 2 monostable_NO 
+         *      Clear previous link:
+         *          gpio 5 trigger none 
          */
         if (nTokens < 3)
         {
@@ -2652,32 +2681,22 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 if (strcmp(value, "in")==0)
                 {
-#if MQTT_CLIENT
                     easygpio_attachInterrupt(pin, EASYGPIO_NOPULL, gpio_change_handler, (void *)(intptr_t)pin);
                     gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);                    
-#else
-                    easygpio_pinMode(pin, EASYGPIO_NOPULL, EASYGPIO_INPUT);
-#endif
                     config.gpiomode[pin] = IN;
                     goto command_handled;
                 }
                 if (strcmp(value, "out")==0)
                 {
                     easygpio_pinMode(pin, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
-#if MQTT_CLIENT
                     easygpio_detachInterrupt(pin);
-#endif
                     config.gpiomode[pin] = OUT;
                     goto command_handled;
                 }
                 if (strcmp(value, "in_pullup")==0)
                 {
-#if MQTT_CLIENT
                     easygpio_attachInterrupt(pin, EASYGPIO_PULLUP, gpio_change_handler, (void *)(intptr_t)pin);
                     gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);                    
-#else
-                    easygpio_pinMode(pin, EASYGPIO_PULLUP, EASYGPIO_INPUT);
-#endif
                     config.gpiomode[pin] = IN_PULLUP;
                     goto command_handled;
                 }
@@ -2722,6 +2741,37 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 uint16_t pinVal = easygpio_inputGet(pin);
                 os_sprintf(response, "%d\r\n", pinVal);
                 goto command_handled;
+            }
+
+            if (nTokens == 5 && strcmp(action, "trigger")==0)
+            {
+                const char *type = tokens[4];
+                uint16_t linked_pin = atoi(tokens[3]); // 0-16
+
+                if (strcmp(type, "monostable_NO")!=0 && strcmp(type, "monostable_NC")!=0 && strcmp(type, "bistable")!=0) 
+                {
+                        os_sprintf_flash(response, "Invalid type (monostable_NO, monostable_NC or bistable)\r\n");
+                        goto command_handled;
+                }
+
+                if ((linked_pin < 0) || (linked_pin > 16))
+                {
+                    os_sprintf_flash(response, "Invalid pin number (try 0-16)\r\n");
+                    goto command_handled;
+                }
+
+                if (strcmp(type, "monostable_NO")==0) config.gpio_trigger_type[pin] = MONOSTABLE_NO;
+                if (strcmp(type, "monostable_NC")==0) config.gpio_trigger_type[pin] = MONOSTABLE_NC;
+                if (strcmp(type, "bistable")==0) config.gpio_trigger_type[pin] = BISTABLE;
+                config.gpio_trigger_pin[pin] = linked_pin;
+                goto command_handled;
+            }
+
+            if (nTokens == 4 && strcmp(action, "trigger")==0 && strcmp(tokens[3], "none")==0)
+            {
+                config.gpio_trigger_type[pin] = NONE;
+                config.gpio_trigger_pin[pin] = -1;
+
             }
         }
     }
@@ -3752,7 +3802,7 @@ struct espconn *pCon;
     easygpio_pinMode(USER_GPIO_OUT, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
     easygpio_outputSet(USER_GPIO_OUT, config.gpio_out_status);
 #if MQTT_CLIENT
-    notifyValueToMQTT(USER_GPIO_OUT);
+    handlePinValueChange(USER_GPIO_OUT);
 #endif
 #endif
 

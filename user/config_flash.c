@@ -163,7 +163,11 @@ uint32_t reg0, reg1, reg3;
 #if GPIO_CMDS
     int i;
     for (i=0; i<17; i++)
+    {
         config->gpiomode[1] = UNDEFINED;
+        config->gpio_trigger_pin[i] = -1;
+        config->gpio_trigger_type[i] = NONE;
+    }
 #endif
 }
 
