@@ -877,8 +877,11 @@ void handlePinValueChange(uint16_t pin) {
                         do_outputSet(trigger_pin, !prev_values[trigger_pin], 0);
                     }
                     break;
-                case BISTABLE:
+                case BISTABLE_NO:
                     do_outputSet(trigger_pin, val, 0);
+                    break;
+                case BISTABLE_NC:
+                    do_outputSet(trigger_pin, !val, 0);
                     break;
             }
         }
@@ -1457,7 +1460,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 if ((config.gpiomode[pin]==IN || config.gpiomode[pin]==IN_PULLUP) && config.gpio_trigger_pin[pin]!=-1) {
                     if (config.gpio_trigger_type[pin]==MONOSTABLE_NC) type = "monostable normally closed";
                     if (config.gpio_trigger_type[pin]==MONOSTABLE_NO) type = "monostable normally open";
-                    if (config.gpio_trigger_type[pin]==BISTABLE) type = "bistable";
+                    if (config.gpio_trigger_type[pin]==BISTABLE_NC) type = "bistable normally closed";
+                    if (config.gpio_trigger_type[pin]==BISTABLE_NO) type = "bistable normally open";
                 }
                 os_sprintf(response, "GPIO %d: %s", pin, mode);
                 to_console(response);
@@ -2780,9 +2784,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 const char *type = tokens[4];
                 uint16_t linked_pin = atoi(tokens[3]); // 0-16
 
-                if (strcmp(type, "monostable_NO")!=0 && strcmp(type, "monostable_NC")!=0 && strcmp(type, "bistable")!=0) 
+                if (strcmp(type, "monostable_NO")!=0 && strcmp(type, "monostable_NC")!=0 && strcmp(type, "bistable_NO")!=0 && strcmp(type, "bistable_NC")!=0) 
                 {
-                        os_sprintf_flash(response, "Invalid type (monostable_NO, monostable_NC or bistable)\r\n");
+                        os_sprintf_flash(response, "Invalid type (monostable_NO, monostable_NC, bistable_NO or bistable_NC)\r\n");
                         goto command_handled;
                 }
 
@@ -2794,7 +2798,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
                 if (strcmp(type, "monostable_NO")==0) config.gpio_trigger_type[pin] = MONOSTABLE_NO;
                 if (strcmp(type, "monostable_NC")==0) config.gpio_trigger_type[pin] = MONOSTABLE_NC;
-                if (strcmp(type, "bistable")==0) config.gpio_trigger_type[pin] = BISTABLE;
+                if (strcmp(type, "bistable_NO")==0) config.gpio_trigger_type[pin] = BISTABLE_NO;
+                if (strcmp(type, "bistable_NC")==0) config.gpio_trigger_type[pin] = BISTABLE_NC;
                 config.gpio_trigger_pin[pin] = linked_pin;
                 goto command_handled;
             }

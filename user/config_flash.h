@@ -27,7 +27,7 @@ typedef enum {
         UNDEFINED = 0, OUT, IN, IN_PULLUP
 } gpio_mode;
 typedef enum {
-        NONE = 0, MONOSTABLE_NO, MONOSTABLE_NC, BISTABLE
+        NONE = 0, MONOSTABLE_NO, MONOSTABLE_NC, BISTABLE_NO, BISTABLE_NC
 } gpio_trigger_type;
 #endif
 
