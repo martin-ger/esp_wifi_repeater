@@ -2701,7 +2701,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             uint8_t *action = tokens[2];    // mode|set|get
             uint8_t *value = nTokens >= 4 ? tokens[3] : "";
 
-            if ((pin < 0) && (pin > 16))
+            if ((pin < 0) || (pin > 16))
             {
                 os_sprintf_flash(response, "Invalid pin number (try 0-16)\r\n");
                 goto command_handled;
