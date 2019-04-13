@@ -2707,7 +2707,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
-            os_sprintf(response, "Successfuly executed %d %s %s\r\n", pin, action, value);
+            os_sprintf(response, "Successfully executed %d %s %s\r\n", pin, action, value);
 
             if (strcmp(action, "mode")==0)
             {
