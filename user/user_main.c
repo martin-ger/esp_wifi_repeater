@@ -1005,6 +1005,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #else
 		""
 #endif
+#if GPIO_CMDS
+        "|gpio"
+#else
+        ""
+#endif
 #if OTAUPDATE
 		"|ota"
 #else
@@ -1437,6 +1442,33 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 		config.mqtt_id, config.mqtt_prefix, config.mqtt_qos, config.mqtt_command_topic, config.mqtt_gpio_out_topic, config.mqtt_interval, config.mqtt_topic_mask);
 	   to_console(response);
 	   goto command_handled_2;
+      }
+#endif
+#if GPIO_CMDS
+      if (nTokens == 2 && strcmp(tokens[1], "gpio") == 0) {
+        uint pin;
+        for(pin=0; pin<17; pin++) {
+            char *mode = NULL;
+            if (config.gpiomode[pin]==OUT) mode = "out";
+            if (config.gpiomode[pin]==IN) mode = "in";
+            if (config.gpiomode[pin]==IN_PULLUP) mode = "in_pullup";
+            if (mode) {
+                char *type = NULL;
+                if ((config.gpiomode[pin]==IN || config.gpiomode[pin]==IN_PULLUP) && config.gpio_trigger_pin[pin]!=-1) {
+                    if (config.gpio_trigger_type[pin]==MONOSTABLE_NC) type = "monostable normally closed";
+                    if (config.gpio_trigger_type[pin]==MONOSTABLE_NO) type = "monostable normally open";
+                    if (config.gpio_trigger_type[pin]==BISTABLE) type = "bistable";
+                }
+                os_sprintf(response, "GPIO %d: %s", pin, mode);
+                to_console(response);
+                if (type) {
+                    os_sprintf(response, ", triggers GPIO %d as a %s", config.gpio_trigger_pin[pin], type);
+                    to_console(response);
+                }
+                to_console("\r\n");
+            }
+        }
+        goto command_handled_2;
       }
 #endif
 #if OTAUPDATE
