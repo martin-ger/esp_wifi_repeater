@@ -18,7 +18,7 @@
 //
 // Size of the console buffers
 //
-#define		MAX_CON_SEND_SIZE 1300
+#define		MAX_CON_SEND_SIZE 1500
 #define		MAX_CON_CMD_SIZE 80
 
 //

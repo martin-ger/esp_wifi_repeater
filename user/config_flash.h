@@ -26,6 +26,9 @@ typedef enum {
 typedef enum {
         UNDEFINED = 0, OUT, IN, IN_PULLUP
 } gpio_mode;
+typedef enum {
+        NONE = 0, MONOSTABLE_NO, MONOSTABLE_NC, BISTABLE_NO, BISTABLE_NC
+} gpio_trigger_type;
 #endif
 
 typedef struct {
@@ -147,6 +150,8 @@ typedef struct {
 #endif
 #if GPIO_CMDS
         gpio_mode gpiomode[17];
+        gpio_trigger_type gpio_trigger_type[17];
+        uint8_t gpio_trigger_pin[17];
 #endif
 } sysconfig_t, *sysconfig_p;
 

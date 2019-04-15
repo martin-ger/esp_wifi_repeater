@@ -158,6 +158,9 @@ Most of the set-commands are effective only after save and reset.
 - gpio [0-16] set [_high_|_low_]: writes to an output port
 - gpio [0-16] set [_high_|_low_] for _seconds_: writes to an output port and reverts after a certain duration
 - gpio [0-16] get: reads from an input port
+- gpio [0-16] trigger [0-16] [_monostable_NO_|_monostable_NC_|_bistable_NO_|_bistable_NC_]: links an input port to an output port, either as a monostable normally open (pushbutton triggering when state changes to low), a monostable normally closed (pushbutton triggering when state changes to high), a bistable normally open (switch replicating the input), or a bistable normally closed (switch which state is the opposite of the input).
+- gpio [0-16] trigger none: clears the link.
+- show gpio: displays the gpio configuration.
 
 # Status LED
 In default config GPIO2 is configured to drive a status LED (connected to GND) with the following indications:
