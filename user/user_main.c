@@ -2808,7 +2808,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             {
                 config.gpio_trigger_type[pin] = NONE;
                 config.gpio_trigger_pin[pin] = -1;
-
+                goto command_handled;
             }
         }
     }
