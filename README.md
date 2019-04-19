@@ -1,7 +1,7 @@
 # esp_wifi_repeater
 A full functional WiFi repeater (correctly: a WiFi NAT router)
 
-This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
+This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, simple GPIO interaction, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
 
 *If you are looking for a way to integrate the NAT feature into your Arduino project* - see https://github.com/martin-ger/lwip_nat_arduino .
 
@@ -15,6 +15,7 @@ Typical usage scenarios include:
 - Translating WPA2 Enterprise networks to WPA-PSK
 - Monitor probe for WiFi traffic analysis
 - Network experiments with routes, ACLs and traffic shaping
+- Meshed IoT device with basic I/O capabilities and MQTT control
 
 By default, the ESP acts as STA and as soft-AP and transparently forwards any IP traffic through it. As it uses NAT no routing entries are required neither on the network side nor on the connected stations. Stations are configured via DHCP by default in the 192.168.4.0/24 net and receive their DNS responder address from the existing WiFi network.
 
