@@ -849,7 +849,6 @@ static void ICACHE_FLASH_ATTR OtaUpdate() {
 #if GPIO_CMDS
 void do_outputSet(uint8_t pin, uint8_t value, uint16_t duration);
 
-static os_timer_t inttimerchange;
 static uint8_t prev_values[17] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 void handlePinValueChange(uint16_t pin) {
@@ -892,30 +891,46 @@ void handlePinValueChange(uint16_t pin) {
     }
 }
 
-void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
-    uint16_t pin = (intptr_t)arg;
-    handlePinValueChange(pin);
+typedef struct { 
+    uint32_t gpio_status;
+    os_timer_t timer;
+} status_timer_t;
 
-    // Reactivate interrupts for GPIO
-    gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);
+void ICACHE_FLASH_ATTR int_timerchange_func(void *arg){
+    status_timer_t *inttimerchange = arg;
+    uint32_t gpio_status = inttimerchange->gpio_status;
+    uint16_t pin;
+    for (pin = 0; pin <= 16; pin++) {
+        if (gpio_status & BIT(pin)) {
+            handlePinValueChange(pin);
+
+            // Reactivate interrupts for GPIO
+            gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_ANYEDGE);
+        }
+    }
+
+    os_free(inttimerchange);
 }
 
 LOCAL void  gpio_change_handler(void *arg) 
 {
-    uint16_t pin = (intptr_t)arg;
+    uint16_t pin = (intptr_t)arg; // not used
 
     uint32 gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
-
-    if (gpio_status & BIT(pin)) {
-        gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_DISABLE);
-
-        // Clear interrupt status for GPIO
-        GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status & BIT(pin));
-
-	    // Start the timer
-    	os_timer_setfn(&inttimerchange, int_timerchange_func, (void *)(intptr_t)pin);
-    	os_timer_arm(&inttimerchange, 50, 0);
+    for (pin = 0; pin <= 16; pin++) {
+        if (gpio_status & BIT(pin)) {
+            gpio_pin_intr_state_set(GPIO_ID_PIN(pin), GPIO_PIN_INTR_DISABLE);
+        }       
     }
+
+    // Clear interrupt status 
+    GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, gpio_status);
+
+    // Start the timer
+    status_timer_t *inttimerchange = os_malloc(sizeof(status_timer_t));
+    inttimerchange->gpio_status = gpio_status;
+    os_timer_setfn(&inttimerchange->timer, int_timerchange_func, inttimerchange);
+    os_timer_arm(&inttimerchange->timer, 0, 0);
 }
 
 #endif /* GPIO_CMDS */
