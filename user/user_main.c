@@ -3848,6 +3848,8 @@ struct espconn *pCon;
         if (config.gpiomode[i] == OUT) {
             easygpio_pinMode(i, EASYGPIO_NOPULL, EASYGPIO_OUTPUT);
         }
+    }
+    for (i=0; i<17; i++) {
         if (config.gpiomode[i] == IN) {
 #if MQTT_CLIENT
             easygpio_attachInterrupt(i, EASYGPIO_NOPULL, gpio_change_handler, (void *)(intptr_t)i);
@@ -3855,6 +3857,7 @@ struct espconn *pCon;
 #else
             easygpio_pinMode(i, EASYGPIO_NOPULL, EASYGPIO_INPUT);
 #endif
+            handlePinValueChange(i);        
         }
         if (config.gpiomode[i] == IN_PULLUP) {
 #if MQTT_CLIENT
@@ -3863,6 +3866,7 @@ struct espconn *pCon;
 #else
             easygpio_pinMode(i, EASYGPIO_PULLUP, EASYGPIO_INPUT);
 #endif
+            handlePinValueChange(i);        
         }
     }
 #endif
