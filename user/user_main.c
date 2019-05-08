@@ -3680,7 +3680,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 
     for (bss_link = (struct bss_info *)arg; bss_link != NULL; bss_link = bss_link->next.stqe_next)
     {
-      if (os_strcmp(bss_link->ssid, config.ssid) == 0) {
+      if (os_strcmp(bss_link->ssid, config.ssid) == 0 || os_strcmp(bss_link->ssid, config.ap_ssid) == 0) {
 	uint8_t this_mesh_level;
 
         os_printf("Found: %d,\"%s\",%d,\""MACSTR"\",%d",
@@ -3888,8 +3888,13 @@ struct espconn *pCon;
 
     // In Automesh STA and AP passwords and credentials are the same
     if (config.automesh_mode != AUTOMESH_OFF) {
+        if (os_strcmp(config.ap_ssid, "none") == 0) {
 	os_memcpy(config.ap_ssid, config.ssid, sizeof(config.ssid));
+        } else {
+            if (os_strcmp(config.ap_ssid, "none") == 0) {
 	os_memcpy(config.ap_password, config.password, sizeof(config.password));
+            }
+        }
 
 	if (config.automesh_mode == AUTOMESH_LEARNING) {
 	  config.ap_on = 0;
