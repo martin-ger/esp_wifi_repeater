@@ -70,6 +70,7 @@ typedef struct {
         int8_t automesh_threshold; // RSSI limit
         uint32_t am_scan_time; // Seconds for scanning
         uint32_t am_sleep_time; // Seconds for sleeping
+        uint8_t automesh_use_ap_ssid; // Indicates if ssid or ap_ssid has to be used
 
         uint8_t nat_enable; // Enable NAT on the AP netif;
 	uint32_t tcp_timeout; // NAT timeout of TCP connections
