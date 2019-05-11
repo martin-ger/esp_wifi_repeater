@@ -3891,7 +3891,7 @@ struct espconn *pCon;
         if (os_strcmp(config.ap_ssid, "none") == 0) {
 	os_memcpy(config.ap_ssid, config.ssid, sizeof(config.ssid));
         } else {
-            if (os_strcmp(config.ap_ssid, "none") == 0) {
+            if (os_strcmp(config.ap_password, "none") == 0) {
 	os_memcpy(config.ap_password, config.password, sizeof(config.password));
             }
         }
