@@ -205,6 +205,8 @@ Now each esp_wifi_repeater can learn which other esp_wifi_repeater is the closes
 
 For convenience, the esp_wifi_repeater after "automesh" configuration first tries to check, whether it can connect to an uplink AP. If this fails, even when an AP with the correct SSID has been found, it assumes, the user did a mistake with the password and resets to factory defaults. After it had connected successfully once, it will assume config is correct and keep on trying after connection loss or reset as long as it takes (to avoid a DOS attack with a misconfigured AP). 
 
+An option is to set a specific ap_ssid (and possibly ap_password). In that case, the "automesh" mode will create a dedicated WiFi network where each ESP will be connected either to the orginal network or to the dedicated network, but will be reachable only through the ap_ssid. This can be useful if you want a dedicated network for your ESPs (e.g. for IoT).
+
 ## Tuning Automesh
 If there are more than one ESP in range, there might be a trade-off between a shorter "bad" path and a longer "good" path (good and bad in terms of link quality). The parameter _am_threshold_ determines what a bad connection is: if the RSSI in a scan is less than this threshold, a connection is bad and path with one more hop is prefered. I.e. given _am_threshold_ is 85 and there are two automesh nodes detected in the scan: A with level 1 and RSSI -88 dB and B with level 2 and RSSI -60 dB, then a link to A is considered as too bad (-88 dB < -_am_threshold_) and B is preferred. The new node will become a level 3 node with uplink via B. _am_threshold_ is given as a positive value but means a negative dB. A smaller value is better. 
 

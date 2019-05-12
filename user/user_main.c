@@ -3613,8 +3613,8 @@ void ICACHE_FLASH_ATTR user_set_station_config(void)
     //char hostname[40];
 
     /* Setup AP credentials */
-    os_sprintf(stationConf.ssid, "%s", config.ssid);
-    os_sprintf(stationConf.password, "%s", config.password);
+    os_sprintf(stationConf.ssid, "%s", config.automesh_use_ap_ssid?config.ap_ssid:config.ssid);
+    os_sprintf(stationConf.password, "%s", config.automesh_use_ap_ssid?config.ap_password:config.password);
     if (*(int*)config.bssid != 0) {
 	stationConf.bssid_set = 1;
 	os_memcpy(stationConf.bssid, config.bssid, 6);
@@ -3675,12 +3675,13 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
   {
     mesh_level = 0xff;
     int rssi = -1000;
+    bool automesh_use_ap_ssid = false;
 
     struct bss_info *bss_link;
 
     for (bss_link = (struct bss_info *)arg; bss_link != NULL; bss_link = bss_link->next.stqe_next)
     {
-      if (os_strcmp(bss_link->ssid, config.ssid) == 0) {
+      if (os_strcmp(bss_link->ssid, config.ssid) == 0 || os_strcmp(bss_link->ssid, config.ap_ssid) == 0) {
 	uint8_t this_mesh_level;
 
         os_printf("Found: %d,\"%s\",%d,\""MACSTR"\",%d",
@@ -3704,6 +3705,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
 	  rssi = bss_link->rssi;
 	  mesh_level = this_mesh_level;
 	  os_memcpy(config.bssid, bss_link->bssid, 6);
+      automesh_use_ap_ssid = os_strcmp(bss_link->ssid, config.ap_ssid) == 0;
 	}
       }
     }
@@ -3716,6 +3718,7 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
       config.AP_MAC_address[2] = mesh_level+1;
       os_get_random(&config.AP_MAC_address[3], 3);
 
+      config.automesh_use_ap_ssid = automesh_use_ap_ssid;
       wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);
       user_set_softap_wifi_config();
 
@@ -3738,7 +3741,13 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
      os_printf("Scan fail !!!\r\n");
   }
 
-  os_printf("No AP with ssid %s found\r\n", config.ssid);
+    char *nor = "";
+    char *apssid = "";
+    if (os_strcmp(config.ap_ssid, "none") != 0) {
+        nor = " nor ";
+        apssid = config.ap_ssid;
+    }
+  os_printf("No AP with ssid %s%s%s found\r\n", config.ssid, nor, apssid);
 
 #if ALLOW_SLEEP
   if (config.am_scan_time && config.am_sleep_time) {
@@ -3888,8 +3897,13 @@ struct espconn *pCon;
 
     // In Automesh STA and AP passwords and credentials are the same
     if (config.automesh_mode != AUTOMESH_OFF) {
+        if (os_strcmp(config.ap_ssid, "none") == 0) {
 	os_memcpy(config.ap_ssid, config.ssid, sizeof(config.ssid));
+        } else {
+            if (os_strcmp(config.ap_password, "none") == 0) {
 	os_memcpy(config.ap_password, config.password, sizeof(config.password));
+            }
+        }
 
 	if (config.automesh_mode == AUTOMESH_LEARNING) {
 	  config.ap_on = 0;

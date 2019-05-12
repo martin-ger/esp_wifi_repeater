@@ -81,6 +81,7 @@ uint32_t reg0, reg1, reg3;
     config->automesh_threshold		= 85;
     config->am_scan_time		= 0;
     config->am_sleep_time		= 0;
+    config->automesh_use_ap_ssid= 0;
 
     config->nat_enable			= 1;
     config->tcp_timeout			= 0;  // use default
