@@ -426,6 +426,6 @@ If configured correctly, the update will start and the ESP will reboot with the 
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
-- The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
-- All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
+- The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable, has a bad throughput, or reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here. It has been reported that there are sometimes severe throughput problems with the small power supply/serial-to-usb boards for the ESP01. These boards use an XC6206 voltage regulator labeled "662K". Maybe you try an alternative power supply first, if you experience these kind of problems.
+
 
