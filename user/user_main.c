@@ -2179,6 +2179,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         }
         else if (nTokens == 2)
         {
+            if (os_strlen(tokens[1]) > sizeof(config.lock_password)-1)
+            {
+                os_sprintf_flash(response, "Password too long\r\n");
+                goto command_handled;
+            }
             os_sprintf(config.lock_password, "%s", tokens[1]);
         }
         else
@@ -2308,6 +2313,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1], "password") == 0)
             {
+                if (os_strlen(tokens[2]) > sizeof(config.password)-1)
+                {
+                    os_sprintf_flash(response, "Password too long\r\n");
+                    goto command_handled;
+                }
                 os_sprintf(config.password, "%s", tokens[2]);
                 if (config.automesh_mode != AUTOMESH_OFF)
                 {

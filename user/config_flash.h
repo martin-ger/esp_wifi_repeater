@@ -58,7 +58,7 @@ typedef struct {
         uint8_t PEAP_username[64]; // PEAP enterprise username
         uint8_t PEAP_password[32]; // PEAP enterprise password
 #endif
-        uint8_t lock_password[32]; // Password of config lock
+        uint8_t lock_password[64]; // Password of config lock
         uint8_t locked; // Should we allow for config changes
 
         int32_t ap_watchdog; // Seconds without ap traffic will cause reset (-1 off, default)
