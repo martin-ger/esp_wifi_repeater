@@ -1254,7 +1254,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             to_console(response);
 
             os_sprintf(response, "STA: SSID:%s PW:%s%s\r\n",
-                       config.ssid,
+                       config.automesh_mode != AUTOMESH_OFF && config.automesh_use_ap_ssid ? config.ap_ssid : config.ssid,
                        config.locked ? "***" : (char *)config.password,
                        config.auto_connect ? "" : " [AutoConnect:0]");
             to_console(response);
