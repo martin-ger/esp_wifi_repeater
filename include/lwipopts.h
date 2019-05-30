@@ -511,7 +511,7 @@
  * If NAPT is used, ip_napt_init() has to be called explicitly once.
  */
 #ifndef IP_NAPT_DYNAMIC
-#define IP_NAPT_DYNAMIC                 0
+#define IP_NAPT_DYNAMIC                 1
 #endif
 
 /**

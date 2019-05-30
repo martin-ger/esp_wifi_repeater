@@ -1169,7 +1169,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [eth_enable|eth_ip|eth_netmask|eth_gw|eth_mac] <val>\r\n");
         to_console(response);
 #endif
-        os_sprintf_flash(response, "set [tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
+        os_sprintf_flash(response, "set [max_nat|max_portmap|tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #if ACLS
         os_sprintf_flash(response, "show acl|acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
@@ -1353,9 +1353,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 to_console(response);
             }
 
-            if (config.tcp_timeout || config.udp_timeout)
+            if (config.max_nat != IP_NAPT_MAX || config.tcp_timeout || config.udp_timeout)
             {
-                os_sprintf(response, "NAPT timeouts: TCP %ds UDP %ds\r\n",
+                os_sprintf(response, "NAPT table size: %d\r\nNAPT timeouts: TCP %ds UDP %ds\r\n",
+                           config.max_nat,
                            config.tcp_timeout ? config.tcp_timeout : IP_NAPT_TIMEOUT_MS_TCP / 1000,
                            config.udp_timeout ? config.udp_timeout : IP_NAPT_TIMEOUT_MS_UDP / 1000);
                 to_console(response);
@@ -2733,6 +2734,20 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 #endif
+            if (strcmp(tokens[1], "max_nat") == 0)
+            {
+                config.max_nat = atoi(tokens[2]);
+                os_sprintf(response, "NAPT table size set to %ds\r\n", config.max_nat);
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1], "max_portmap") == 0)
+            {
+                config.max_portmap = atoi(tokens[2]);
+                os_sprintf(response, "Portmap table size set to %ds\r\n", config.max_portmap);
+                goto command_handled;
+            }
+
             if (strcmp(tokens[1], "tcp_timeout") == 0)
             {
                 config.tcp_timeout = atoi(tokens[2]);
@@ -4244,6 +4259,8 @@ void ICACHE_FLASH_ATTR user_init()
         // clear portmap table
         blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
+
+    ip_napt_init(config.max_nat, config.max_portmap);
 
     if (config.tcp_timeout != 0)
         ip_napt_set_tcp_timeout(config.tcp_timeout);

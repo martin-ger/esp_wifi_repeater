@@ -115,6 +115,8 @@ Most of the set-commands are effective only after save and reset.
 - set ip dhcp: configures dynamic IP address for the STA interface, default
 - set netmask _netmask_: sets a static netmask for the STA interface
 - set gw _gw-addr_: sets a static gateway address for the STA interface
+- set max_nat _no_of_entries_: sets the size of the NAPT table (default 512)
+- set max_portmap _no_of_entries_: sets the size of the portmap table (default 32)
 - set tcp_timeout _secs_: sets the NAPT timeout for TCP connections (0=default (1800 secs))
 - set udp_timeout _secs_: sets the NAPT timeout for UDP connections (0=default (2 secs))
 - show dhcp: prints the current status of the dhcp lease table

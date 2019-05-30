@@ -1,5 +1,6 @@
 #include "user_interface.h"
 #include "lwip/ip.h"
+#include "lwip/lwip_napt.h"
 #include "config_flash.h"
 
 
@@ -85,6 +86,8 @@ uint32_t reg0, reg1, reg3;
     config->automesh_use_ap_ssid= 0;
 
     config->nat_enable			= 1;
+    config->max_nat			    = IP_NAPT_MAX;
+    config->max_portmap	        = IP_PORTMAP_MAX;
     config->tcp_timeout			= 0;  // use default
     config->udp_timeout			= 0;  // use default
 
