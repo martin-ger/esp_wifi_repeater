@@ -207,8 +207,6 @@ Now each esp_wifi_repeater can learn which other esp_wifi_repeater is the closes
 
 For convenience, the esp_wifi_repeater after "automesh" configuration first tries to check, whether it can connect to an uplink AP. If this fails, even when an AP with the correct SSID has been found, it assumes, the user did a mistake with the password and resets to factory defaults. After it had connected successfully once, it will assume config is correct and keep on trying after connection loss or reset as long as it takes (to avoid a DOS attack with a misconfigured AP). 
 
-An option is to set a specific ap_ssid (and possibly ap_password). In that case, the "automesh" mode will create a dedicated WiFi network where each ESP will be connected either to the orginal network or to the dedicated network, but will be reachable only through the ap_ssid. This can be useful if you want a dedicated network for your ESPs (e.g. for IoT).
-
 ## Tuning Automesh
 If there are more than one ESP in range, there might be a trade-off between a shorter "bad" path and a longer "good" path (good and bad in terms of link quality). The parameter _am_threshold_ determines what a bad connection is: if the RSSI in a scan is less than this threshold, a connection is bad and path with one more hop is prefered. I.e. given _am_threshold_ is 85 and there are two automesh nodes detected in the scan: A with level 1 and RSSI -88 dB and B with level 2 and RSSI -60 dB, then a link to A is considered as too bad (-88 dB < -_am_threshold_) and B is preferred. The new node will become a level 3 node with uplink via B. _am_threshold_ is given as a positive value but means a negative dB. A smaller value is better. 
 
@@ -428,6 +426,6 @@ If configured correctly, the update will start and the ESP will reboot with the 
 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
-- The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable, has a bad throughput, or reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here. It has been reported that there are sometimes severe throughput problems with the small power supply/serial-to-usb boards for the ESP01. These boards use an XC6206 voltage regulator labeled "662K". Maybe you try an alternative power supply first, if you experience these kind of problems.
-
+- The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
+- All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 

@@ -40,6 +40,7 @@ uint32_t reg0, reg1, reg3;
 	mac[2] = 0x74;
     } else {
 	os_printf("MAC read error\r\n");
+
     }
     mac[3] = (reg1 >> 8) & 0xff;
     mac[4] = reg1 & 0xff;
@@ -83,7 +84,6 @@ uint32_t reg0, reg1, reg3;
     config->automesh_threshold		= 85;
     config->am_scan_time		= 0;
     config->am_sleep_time		= 0;
-    config->automesh_use_ap_ssid= 0;
 
     config->nat_enable			= 1;
     config->max_nat			    = IP_NAPT_MAX;
