@@ -104,6 +104,7 @@ static ip_addr_t dns_ip;
 bool connected;
 uint8_t my_channel;
 bool do_ip_config;
+int new_portmap;
 
 static ip_addr_t resolve_ip;
 
@@ -1399,7 +1400,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 to_console(response);
             }
 #endif
-            for (i = 0; i < IP_PORTMAP_MAX; i++)
+            for (i = 0; i < config.max_portmap; i++)
             {
                 p = &ip_portmap_table[i];
                 if (p->valid)
@@ -2005,9 +2006,21 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
         if (nTokens == 1 || (nTokens == 2 && strcmp(tokens[1], "config") == 0))
         {
+            if (config.max_portmap >= new_portmap)
+            {
+                // if nothing has changed or table is smaller, save the current portmap table
+                blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * new_portmap);
+            } else {
+                // if max_portmap has increased, save the new size
+                uint8_t mem[sizeof(struct portmap_table) * new_portmap];
+                os_memset(mem, 0, sizeof(mem));
+                os_memcpy(mem, (uint8_t *)ip_portmap_table, sizeof(struct portmap_table) * config.max_portmap);
+                blob_save(0, (uint32_t *)mem, sizeof(mem));
+            }
+            int save_portmap = config.max_portmap;
+            config.max_portmap = new_portmap;
             config_save(&config);
-            // also save the portmap table
-            blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+            config.max_portmap = save_portmap;
             os_sprintf_flash(response, "Config saved\r\n");
             goto command_handled;
         }
@@ -2034,7 +2047,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             config.dhcps_entries = i;
             config_save(&config);
             // also save the portmap table
-            blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+            blob_save(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * config.max_portmap);
             os_sprintf_flash(response, "Config and DHCP table saved\r\n");
             goto command_handled;
         }
@@ -2131,7 +2144,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             config_load_default(&config);
             config_save(&config);
             // clear saved portmap table
-            blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+            blob_zero(0, sizeof(struct portmap_table) * config.max_portmap);
         }
         os_printf("Restarting ... \r\n");
         system_restart();
@@ -2743,8 +2756,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1], "max_portmap") == 0)
             {
-                config.max_portmap = atoi(tokens[2]);
-                os_sprintf(response, "Portmap table size set to %ds\r\n", config.max_portmap);
+                new_portmap = atoi(tokens[2]);
+                os_sprintf(response, "Portmap table size set to %ds\r\n", new_portmap);
                 goto command_handled;
             }
 
@@ -3567,7 +3580,7 @@ void ICACHE_FLASH_ATTR timer_func(void *arg)
                 config_load_default(&config);
                 config.hw_reset = pin;
                 config_save(&config);
-                blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+                blob_zero(0, sizeof(struct portmap_table) * config.max_portmap);
                 system_restart();
                 while (true)
                     ;
@@ -3889,7 +3902,7 @@ void wifi_handle_event_cb(System_Event_t *evt)
         patch_netif(my_ip, my_input_sta, &orig_input_sta, my_output_sta, &orig_output_sta, false);
 
         // Update any predefined portmaps to the new IP addr
-        for (i = 0; i < IP_PORTMAP_MAX; i++)
+        for (i = 0; i < config.max_portmap; i++)
         {
             if (ip_portmap_table[i].valid)
             {
@@ -4239,16 +4252,17 @@ void ICACHE_FLASH_ATTR user_init()
 
     // Load config
     uint8_t config_state = config_load(&config);
+    new_portmap = config.max_portmap;
     ip_napt_init(config.max_nat, config.max_portmap);
     if (config_state == 0)
     {
         // valid config in FLASH, can read portmap table
-        blob_load(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+        blob_load(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * config.max_portmap);
     }
     else
     {
         // clear portmap table
-        blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
+        blob_zero(0, sizeof(struct portmap_table) * config.max_portmap);
     }
 
     if (config.tcp_timeout != 0)
