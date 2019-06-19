@@ -4238,19 +4238,18 @@ void ICACHE_FLASH_ATTR user_init()
     os_printf("\r\n\r\nWiFi Repeater %s starting\r\n\nrunning rom %d\r", ESP_REPEATER_VERSION, rboot_get_current_rom());
 
     // Load config
-    if (config_load(&config) == 0)
+    uint8_t config_state = config_load(&config);
+    ip_napt_init(config.max_nat, config.max_portmap);
+    if (config_state == 0)
     {
         // valid config in FLASH, can read portmap table
         blob_load(0, (uint32_t *)ip_portmap_table, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
     else
     {
-
         // clear portmap table
         blob_zero(0, sizeof(struct portmap_table) * IP_PORTMAP_MAX);
     }
-
-    ip_napt_init(config.max_nat, config.max_portmap);
 
     if (config.tcp_timeout != 0)
         ip_napt_set_tcp_timeout(config.tcp_timeout);
