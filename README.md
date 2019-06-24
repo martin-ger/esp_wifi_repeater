@@ -396,7 +396,7 @@ On Windows you can flash it using the "ESP8266 Download Tool" available at https
 
 <img src="https://raw.githubusercontent.com/martin-ger/esp_wifi_repeater/master/FlashRepeaterWindows.jpg">
 
-If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted.
+If "QIO" mode fails on your device, try "DIO" instead. Also have a look at the "Detected Info" to check size and mode of the flash chip. If your downloaded firmware still doesn't start properly, please check with the enclosed checksums whether the binary files are possibly corrupted. If you are in doubt concerning the firmware binaries being corrupted, download the complete repo as zip and extract the binaries from that zip - this avoids HTTP-download problems (e.g. CR-LF conversions).
 
 # OTA (Over the air) update support
 
