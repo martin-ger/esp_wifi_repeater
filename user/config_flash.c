@@ -309,3 +309,66 @@ void user_rf_pre_init() {
     }*/
   }
 }
+
+#if PUYA_SUPPORT
+#undef spi_flash_write
+
+static int ICACHE_FLASH_ATTR spi_flash_write_puya(uint32_t offset, uint32_t *data, size_t size) {
+    if (data == NULL) {
+      return 1; // SPI_FLASH_RESULT_ERR
+    }
+    // PUYA flash chips need to read existing data, update in memory and write modified data again.
+    static uint32_t *flash_write_puya_buf = NULL;
+    int rc = 0;
+    uint32_t* ptr = data;
+
+    if (flash_write_puya_buf == NULL) {
+        flash_write_puya_buf = (uint32_t*) os_malloc(PUYA_BUFFER_SIZE);
+        // No need to ever free this, since the flash chip will never change at runtime.
+        if (flash_write_puya_buf == NULL) {
+            // Memory could not be allocated.
+            return 1; // SPI_FLASH_RESULT_ERR
+        }
+    }
+    size_t bytesLeft = size;
+    uint32_t pos = offset;
+    while (bytesLeft > 0 && rc == 0) {
+        size_t bytesNow = bytesLeft;
+        if (bytesNow > PUYA_BUFFER_SIZE) {
+            bytesNow = PUYA_BUFFER_SIZE;
+            bytesLeft -= PUYA_BUFFER_SIZE;
+        } else {
+            bytesLeft = 0;
+        }
+        rc = spi_flash_read(pos, flash_write_puya_buf, bytesNow);
+        if (rc != 0) {
+            return rc;
+        }
+        size_t i;
+        for (i = 0; i < bytesNow / 4; ++i) {
+            flash_write_puya_buf[i] &= *ptr;
+            ++ptr;
+        }
+        rc = spi_flash_write(pos, flash_write_puya_buf, bytesNow);
+        pos += bytesNow;
+    }
+    return rc;
+}
+
+static const int FLASH_INT_MASK = ((0x02 << 8) | 0x3A);
+
+int ICACHE_FLASH_ATTR spi_flash_write_universal(uint32_t offset, uint32_t *data, size_t size) {
+    ets_isr_mask(FLASH_INT_MASK);
+    int rc = 0;
+
+    if ((spi_flash_get_id() & 0x000000ff) == SPI_FLASH_VENDOR_PUYA) {
+        rc = spi_flash_write_puya(offset, data, size);
+    }
+    else
+    {
+        rc = spi_flash_write(offset, data, size);
+    }
+    ets_isr_unmask(FLASH_INT_MASK);
+    return rc == 0;
+}
+#endif

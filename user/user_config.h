@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.2.13"
+#define		ESP_REPEATER_VERSION "V2.2.14"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02
@@ -158,6 +158,11 @@
 // Define this to 1 if you want to be able to control GPIO pins from the command line
 //
 #define		GPIO_CMDS 1
+
+//
+// Define this to 1 if you want include the PUYA flash chips
+//
+#define		PUYA_SUPPORT 1
 
 // Internal
 
