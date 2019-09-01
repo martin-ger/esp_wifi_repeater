@@ -18,6 +18,9 @@
 
 #define MAGIC_NUMBER    0x13f43dad
 
+#define SPI_FLASH_VENDOR_PUYA 0x85
+#define PUYA_BUFFER_SIZE 256
+
 typedef enum {
         AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL
 } automeshmode;
@@ -164,6 +167,11 @@ void config_save(sysconfig_p config);
 void blob_save(uint8_t blob_no, uint32_t *data, uint16_t len);
 void blob_load(uint8_t blob_no, uint32_t *data, uint16_t len);
 void blob_zero(uint8_t blob_no, uint16_t len);
+
+#if PUYA_SUPPORT
+int spi_flash_write_universal(uint32_t offset, uint32_t *data, size_t size);
+#define spi_flash_write spi_flash_write_universal
+#endif
 
 #endif
 
