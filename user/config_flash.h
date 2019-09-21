@@ -16,7 +16,7 @@
 
 #define FLASH_BLOCK_NO 0x61
 
-#define MAGIC_NUMBER    0x13f43dad
+#define MAGIC_NUMBER    0x6e2f5510
 
 typedef enum {
         AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL
