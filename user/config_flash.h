@@ -41,7 +41,7 @@ typedef struct {
 
         /* Below variables are specific to my code */
         uint8_t ssid[32]; // SSID of the AP to connect to
-        uint8_t password[64]; // Password of the network
+        uint8_t password[65]; // Password of the network
         uint8_t auto_connect; // Should we auto connect
         uint8_t bssid[6]; // Optional: BSSID the AP
         uint8_t sta_hostname[32]; // Name of the station
