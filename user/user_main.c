@@ -299,6 +299,16 @@ void ICACHE_FLASH_ATTR user_ping_sent(void *arg, void *pdata)
 
 void ICACHE_FLASH_ATTR user_do_ping(const char *name, ip_addr_t *ipaddr, void *arg)
 {
+    if (ipaddr == NULL)
+    {
+        char response[128+os_strlen(name)];
+
+        os_sprintf(response, "DNS lookup failed for: %s\r\n", name);
+        to_console(response);
+        system_os_post(0, SIG_CONSOLE_TX, (ETSParam)currentconn);
+        return;    
+    }
+
     ping_opt.count = 4;       //  try to ping how many times
     ping_opt.coarse_time = 2; // ping interval
     ping_opt.ip = ipaddr->addr;
@@ -1111,7 +1121,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     char response[256];
     char *tokens[MAX_CMD_TOKENS];
 
-    int bytes_count, nTokens;
+    int bytes_count, nTokens, i;
 
     bytes_count = ringbuf_bytes_used(console_rx_buffer);
     ringbuf_memcpy_from(cmd_line, console_rx_buffer, bytes_count);
@@ -1120,6 +1130,16 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
     response[0] = 0;
 
     nTokens = parse_str_into_tokens(cmd_line, tokens, MAX_CMD_TOKENS);
+
+    // Comment: ignore anything after a single '#'
+    for (i = 0; i<nTokens; i++)
+    {
+        if (strcmp(tokens[i], "#") == 0)
+        {
+            nTokens = i;
+            break;
+        }
+    }
 
     if (nTokens == 0)
     {
@@ -2096,12 +2116,18 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         uint32_t result = espconn_gethostbyname(NULL, tokens[1], &resolve_ip, user_do_ping);
         if (result == ESPCONN_OK)
         {
-            ip_addr_t ip;
-            ip.addr = ipaddr_addr(tokens[1]);
-            user_do_ping(tokens[1], &ip, NULL);
+            user_do_ping(tokens[1], &resolve_ip, NULL);
         }
-        //user_do_ping(ipaddr_addr(tokens[1]));
-        return;
+        else if (result == ESPCONN_INPROGRESS)
+        {
+            // lookup taking place, will call dns_resolved on completion
+            return;
+        }
+        else
+        {
+            os_sprintf(response, "DNS lookup failed for: %s\r\n", tokens[1]);
+        }
+        goto command_handled;
     }
 #endif
 #if OTAUPDATE

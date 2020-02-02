@@ -80,6 +80,9 @@ Enough to get it working in nearly all environments.
 
 ## Advanced Commands
 Most of the set-commands are effective only after save and reset.
+
+Any part of a command line input after a single "#" until the end of the line will be treated as a comment and will be ignored.
+
 ### Automesh Config
 - set automesh [0|1]: selects, whether the automesh mode is on or off (default), see details here https://github.com/martin-ger/esp_wifi_repeater#automesh-mode
 - set am_threshold _dB_: sets the threshold for a "bad" connection (in negative dB, default 85, i.e. -85 dB) 
