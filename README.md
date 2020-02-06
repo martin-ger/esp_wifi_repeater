@@ -5,7 +5,7 @@ This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It al
 
 *If you are looking for a way to integrate the NAT feature into your Arduino project* - see https://github.com/martin-ger/lwip_nat_arduino .
 
-A similar *NAT feature for the ESP32* can be found at: https://github.com/jonask1337/esp-lwip .
+A similar *NAT feature for the ESP32* can be found at: https://github.com/martin-ger/esp-lwip (older version here: https://github.com/jonask1337/esp-lwip , sample here: https://github.com/jonask1337/esp-idf-nat-example ).
 
 Typical usage scenarios include:
 - Simple range extender for an existing WiFi network
