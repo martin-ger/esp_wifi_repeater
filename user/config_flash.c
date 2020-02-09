@@ -190,12 +190,13 @@ int ICACHE_FLASH_ATTR config_load(sysconfig_p config)
         config_save(config);
         return -1;
     }
-
-    os_printf("\r\nConfig found and loaded\r\n");
     spi_flash_read(base_address * SPI_FLASH_SEC_SIZE, (uint32 *) config, sizeof(sysconfig_t));
+
+    os_printf("\r\nConfig found and loaded (%d Bytes)\r\n", config->length);
+
     if (config->length != sizeof(sysconfig_t))
     {
-        os_printf("Length Mismatch, probably old version of config, loading defaults\r\n");
+        os_printf("Length Mismatch (should be %d), probably old version of config, loading defaults\r\n", sizeof(sysconfig_t));
         config_load_default(config);
         config_save(config);
 	return -1;
@@ -309,3 +310,81 @@ void user_rf_pre_init() {
     }*/
   }
 }
+/*
+// user_pre_init is required from SDK v3.0.0 onwards
+// It is used to register the parition map with the SDK, primarily to allow
+// the app to use the SDK's OTA capability.  We don't make use of that in 
+// otb-iot and therefore the only info we provide is the mandatory stuff:
+// - RF calibration data
+// - Physical data
+// - System parameter
+// The location and length of these are from the 2A SDK getting started guide
+void ICACHE_FLASH_ATTR user_pre_init(void)
+{
+  bool rc = false;
+  static const partition_item_t part_table[] = 
+  {
+    {SYSTEM_PARTITION_RF_CAL,
+     0x3fb000,
+     0x1000},
+    {SYSTEM_PARTITION_PHY_DATA,
+     0x3fc000,
+     0x1000},
+    {SYSTEM_PARTITION_SYSTEM_PARAMETER,
+     0x3fd000,
+     0x3000},
+  };
+/*
+  enum flash_size_map size_map = system_get_flash_size_map();
+  uint32 rf_cal_sec = 0, addr, i;
+  //os_printf("\nUser preinit: ");
+   switch (size_map) {
+      case FLASH_SIZE_4M_MAP_256_256:
+         rf_cal_sec = 128 - 5;
+         break;
+
+      case FLASH_SIZE_8M_MAP_512_512:
+         rf_cal_sec = 256 - 5;
+         break;
+
+      case FLASH_SIZE_16M_MAP_512_512:
+      case FLASH_SIZE_16M_MAP_1024_1024:
+         rf_cal_sec = 512 - 5;
+         break;
+
+      case FLASH_SIZE_32M_MAP_512_512:
+      case FLASH_SIZE_32M_MAP_1024_1024:
+         rf_cal_sec = 1024 - 5;
+         break;
+
+      default:
+         rf_cal_sec = 0;
+         break;
+   }
+
+    static const partition_item_t part_table[] = 
+    {
+        {SYSTEM_PARTITION_RF_CAL,
+        rf_cal_sec * 0x1000,
+        0x1000},
+        {SYSTEM_PARTITION_PHY_DATA,
+        (rf_cal_sec + 1) * 0x1000,
+        0x1000},
+        {SYSTEM_PARTITION_SYSTEM_PARAMETER,
+        (rf_cal_sec + 2) * 0x1000,
+        0x3000},
+    };
+
+  // This isn't an ideal approach but there's not much point moving on unless
+  // or until this has succeeded cos otherwise the SDK will just barf and 
+  // refuse to call user_init()
+  while (!rc)
+  {
+    rc = system_partition_table_regist(part_table,
+				       sizeof(part_table)/sizeof(part_table[0]),
+                                       4);
+  }
+
+  return;
+}
+*/

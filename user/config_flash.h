@@ -14,9 +14,9 @@
 #include "user_config.h"
 #include "acl.h"
 
-#define FLASH_BLOCK_NO 0x61
+#define FLASH_BLOCK_NO 0x68
 
-#define MAGIC_NUMBER    0x6e2f5510
+#define MAGIC_NUMBER    0x6e2dc510
 
 typedef enum {
         AUTOMESH_OFF = 0, AUTOMESH_LEARNING, AUTOMESH_OPERATIONAL
@@ -56,7 +56,7 @@ typedef struct {
         uint8_t use_PEAP; // WPA2 PEAP Authentication
         uint8_t PEAP_identity[64]; // PEAP enterprise outer identity
         uint8_t PEAP_username[64]; // PEAP enterprise username
-        uint8_t PEAP_password[32]; // PEAP enterprise password
+        uint8_t PEAP_password[64]; // PEAP enterprise password
 #endif
         uint8_t lock_password[64]; // Password of config lock
         uint8_t locked; // Should we allow for config changes

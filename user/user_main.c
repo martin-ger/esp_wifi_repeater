@@ -2523,7 +2523,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1], "peap_identity") == 0)
             {
-                if (os_strlen(tokens[2]) > sizeof(config.PEAP_password) - 1)
+                if (os_strlen(tokens[2]) > sizeof(config.PEAP_identity) - 1)
                 {
                     os_sprintf(response, "Identity too long (max. %d)\r\n", sizeof(config.PEAP_identity) - 1);
                 }
@@ -2537,7 +2537,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
             if (strcmp(tokens[1], "peap_username") == 0)
             {
-                if (os_strlen(tokens[2]) > sizeof(config.PEAP_password) - 1)
+                if (os_strlen(tokens[2]) > sizeof(config.PEAP_username) - 1)
                 {
                     os_sprintf(response, "Username too long (max. %d)\r\n", sizeof(config.PEAP_username) - 1);
                 }
