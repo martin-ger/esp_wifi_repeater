@@ -242,12 +242,25 @@ From the console a monitor service can be started ("monitor on [portno]"). This 
 # Firewall
 The ESP router has a integrated basic firewall. ACLs (Access Control Lists) can be applied to the SoftAP interface. This is a cornerstone in IoT security, when the router is used to bring other IoT devices into the internet. It can be used to prevent e.g. third-party IoT devices from "calling home", being misused as malware bots, and to protect your home network with PCs, tablets and phones from being visible to home automation devices. 
 
-The four ACL lists are named "from_sta", "to_sta", "from_ap" and "to_ap" for incoming and outgoing packets on both interfaces ("sta" means the interfaces to the connectes clients, "ap" the interface to the uplink AP). ACLs are defined in "CISCO IOS style". The following example will allow for outgoing local broadcasts (for DHCP), UDP 53 (DNS), and TCP 1883 (MQTT) to a local broker, any other packets will be blocked:
-- acl from_sta clear
-- acl from_sta IP any 255.255.255.255 allow
-- acl from_sta UDP any any any 53 allow
-- acl from_sta TCP any any 192.168.0.0/16 1883 allow
-- acl from_sta IP any any deny
+The four ACL lists are named "from_sta", "to_sta", "from_ap" and "to_ap" for incoming and outgoing packets on both interfaces ("sta" means the interfaces to the connectes clients, "ap" the interface to the uplink AP). ACLs are defined in "CISCO IOS style". 
+
+The following example is useful for a guest subnet. It allows access to the internet but not to any other local addresses (use your local network range for the xx.xx.xx.xx address). This rule set allows for outgoing local broadcasts (for DHCP) and UDP 53 (DNS), any other packet to the subnet of the upstream router will be blocked, all other packets can pass to the internet:
+```
+acl from_sta clear
+acl from_sta IP any 255.255.255.255 allow
+acl from_sta UDP any any any 53 allow
+acl from_sta IP any xx.xx.xx.xx/24 deny
+acl from_sta IP any any allow
+```
+
+The next example is more restrictive and is useful when you plan an IoT subnet with very restricted access at the AP of the ESP. It will also allow for outgoing local broadcasts (for DHCP), UDP 53 (DNS), and TCP 1883 (MQTT) to a local broker, but any other packets will be blocked, incl. arbitrary internet access (you may adapt the fourth statement according to your needs to enable other hosts):
+```
+acl from_sta clear
+acl from_sta IP any 255.255.255.255 allow
+acl from_sta UDP any any any 53 allow
+acl from_sta TCP any any 192.168.0.0/16 1883 allow
+acl from_sta IP any any deny
+```
 
 ACLs for the "to_sta" direction may be defined as well, but this is usually not required, as the reverse direction is quite well protected against unsolicited traffic by the NAT transation.
 
@@ -263,14 +276,15 @@ With the command "set acl_debug 1" a summary of all denied packets is printed to
 
 For deeper analysis the monitoring service can be used (even denied packets are reported to the monitor before they are dropped). When the monitor is started with the "monitor acl _port_" command, ACLs can be used as online filters. All rules that are defined as 
 "allow_monitor" instead of "allow" and "deny_monitor" instead of "deny" are processed as usual, resulting in allowing of forwarding a packet, but they also send the packet to the monitor. Thus a list of rules that basically "allow" or "allow_monitor" all packets still makes sense, as it can be used to select already during catpure time which packet should be recorded. E.g. a lists:
+```
+acl from_sta clear
+acl from_sta IP 192.168.0.0/16 any allow_monitor
+acl from_sta IP any any allow
 
-- acl from_sta clear
-- acl from_sta IP 192.168.0.0/16 any allow_monitor
-- acl from_sta IP any any allow
-
-- acl to_sta clear
-- acl to_sta IP any 192.168.0.0/16 allow_monitor
-- acl to_sta IP any any allow
+acl to_sta clear
+acl to_sta IP any 192.168.0.0/16 allow_monitor
+cl to_sta IP any any allow
+```
 
 will allow all packets and also select all packets for monitoring that go from a station to the 192.168.0.0/16 (local)subnet and from the 192.168.0.0/16 to a station. Of course such a filter can be applied also after the capture to a full monitoring trace, but if you already know, what you are looking for, these online filters will help to reduce monitoring overhead drastically. It can also be used to debug all deny firewall rules by simply using "deny_monitor" instead of deny.
 
