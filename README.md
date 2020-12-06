@@ -399,10 +399,11 @@ You can send the ESP to sleep manually once by using the "sleep" command.
 Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediately shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000.
 
 # Building and Flashing
-Tf you have Docker installed, the easiest way to get access to the full build environment is to run the image using:
+If you have Docker installed, the easiest way to get access to the full build environment is to run the image using:
 ```
 docker run -it --device=/dev/ttyUSB0 martinfger/iot_devel:1.0
 cd esp_wifi_repeater
+git pull
 make
 make flash
 ``` 
