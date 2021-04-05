@@ -22,7 +22,7 @@ setTimeout(\"location.href = '/'\",10000);\
 </tr>\
 <tr>\
 <td>Password:</td>\
-<td><input type='text' name='password' value='%s'/></td>\
+<td><input type='password' name='password' value='%s'/></td>\
 </tr>\
 <td>Automesh:</td>\
 <td><input type='checkbox' name='am' value='mesh' %s></td>\
