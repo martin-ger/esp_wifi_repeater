@@ -99,7 +99,7 @@ uint32_t reg0, reg1, reg3;
 #if PHY_MODE
     config->phy_mode			= 3;  // mode n
 #endif
-    config->clock_speed			= 80;
+    config->clock_speed		= 160;
     config->status_led			= STATUS_LED_GPIO;
     config->hw_reset			= FACTORY_RESET_PIN;
 #if DAILY_LIMIT
