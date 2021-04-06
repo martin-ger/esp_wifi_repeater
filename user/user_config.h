@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.2.15"
+#define		ESP_REPEATER_VERSION "V2.2.16"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02
@@ -19,7 +19,7 @@
 // Size of the console buffers
 //
 #define		MAX_CON_SEND_SIZE 1500
-#define		MAX_CON_CMD_SIZE 80
+#define		MAX_CON_CMD_SIZE 120
 
 //
 // Defines the default GPIO pin if you have a status LED connected to a GPIO pin
