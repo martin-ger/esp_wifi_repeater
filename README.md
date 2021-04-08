@@ -455,3 +455,6 @@ If configured correctly, the update will start and the ESP will reboot with the 
 - The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
 - All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
+# Licenses
+The software is open source. Third party source files have their own license header. For all other files the MIT license applies.
+
