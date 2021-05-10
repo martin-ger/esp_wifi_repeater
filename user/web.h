@@ -1,6 +1,45 @@
+
+#define STYLE "<style>\
+body {\
+  transition: 0.4s;\
+  font-family: sans-serif;\
+  display: flex;\
+  flex-flow: column;\
+  align-items: center;\
+}\
+\
+h1 {\
+  font-size: 1.5em;\
+  margin: 0.6em 0;\
+}\
+h2 {\
+  font-size: 1.2em;\
+  margin: 0.6em 0;\
+}\
+\
+input,\
+select {\
+  border: 1px solid #bfbfbf;\
+  border-radius: 4px;\
+  padding: 6px 10px;\
+  margin: 3px 0 1px 0;\
+}\
+\
+input[type=\"submit\"] {\
+  padding: 6px 20px;\
+  color: white;\
+  border: none;\
+  background: #2196f3;\
+}\
+input[type=\"submit\"]:hover {\
+  background: #48aeff;\
+}\
+</style>\
+"
+
 #define CONFIG_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
 <html>\
-<head></head>\
+<head>" STYLE "</head>\
 <meta name='viewport' content='width=device-width, initial-scale=1'>\
 <body>\
 <h1>ESP WiFi NAT Router Config</h1>\
@@ -99,7 +138,7 @@ setTimeout(\"location.href = '/'\",10000);\
 
 #define LOCK_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
 <html>\
-<head></head>\
+<head>" STYLE "</head>\
 <meta name='viewport' content='width=device-width, initial-scale=1'>\
 <body>\
 <h1>ESP WiFi NAT Router Config</h1>\
