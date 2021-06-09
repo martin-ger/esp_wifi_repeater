@@ -8,7 +8,8 @@ on:
 
 jobs:
   build:
-    runs-on: martinfger/iot_devel:1.0
+    runs-on: ubuntu
+    container: martinfger/iot_devel:1.0
 
     steps:
       - uses: actions/checkout@v2
