@@ -28,4 +28,4 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{env.CURR_DATE }}-firmware.tar.gz
-          path: firmware.tar.gz
+          path: /home/esp/esp_wifi_repeater/firmware.tar.gz
