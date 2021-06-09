@@ -21,11 +21,11 @@ jobs:
           git clone https://github.com/shafr/esp_wifi_repeater.git
           cd esp_wifi_repeater
           make 
-          tar xf firmware.tar firmware
+          tar cf firmware.tar firmware/
           gzip firmware.tar
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: ${{env.CURR_DATE }}.yaml
-          path: Spider/build/libs/flats/${{env.CURR_DATE }}.yaml.zip
+          name: ${{env.CURR_DATE }}-firmware.tar.gz
+          path: firmware.tar.gz
