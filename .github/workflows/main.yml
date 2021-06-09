@@ -1,0 +1,20 @@
+name: Build firmware
+
+on:
+  push:
+  pull_request:
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: martinfger/iot_devel:1.0
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Run a multi-line script
+        run: |
+          cd esp_wifi_repeater
+          make
+          make flash
