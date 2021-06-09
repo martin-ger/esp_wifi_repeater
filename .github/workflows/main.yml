@@ -16,8 +16,7 @@ jobs:
 
       - name: Run a multi-line script
         run: |
-          whoami
-          pwd
+          cd /home/esp
           rm -rf esp_wifi_repeater
           git clone https://github.com/shafr/esp_wifi_repeater.git
           cd esp_wifi_repeater
