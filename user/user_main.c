@@ -306,7 +306,7 @@ void ICACHE_FLASH_ATTR user_do_ping(const char *name, ip_addr_t *ipaddr, void *a
         os_sprintf(response, "DNS lookup failed for: %s\r\n", name);
         to_console(response);
         system_os_post(0, SIG_CONSOLE_TX, (ETSParam)currentconn);
-        return;    
+        return;
     }
 
     ping_opt.count = 4;       //  try to ping how many times
@@ -1224,7 +1224,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         os_sprintf_flash(response, "] <val>\r\n");
         to_console(response);
-        os_sprintf_flash(response, "set [speed|status_led|hw_reset|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
+        os_sprintf_flash(response, "set [speed|power|status_led|hw_reset|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
         to_console(response);
         os_sprintf_flash(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
         to_console(response);
@@ -2718,6 +2718,16 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                     config.clock_speed = speed;
                 os_sprintf(response, "Clock speed update %s\r\n",
                            succ ? "successful" : "failed");
+                goto command_handled;
+            }
+
+            if (strcmp(tokens[1], "power") == 0)
+            {
+                uint16_t power = atoi(tokens[2]);
+                if (power > 82)
+                    power = 82;
+                system_phy_set_max_tpw(power);
+                os_sprintf(response, "RF Tx Power updated %d\r\n", power);
                 goto command_handled;
             }
 
