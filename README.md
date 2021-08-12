@@ -1,3 +1,13 @@
+# **!!!!!! NOTE [SHAFR] !!!!!!!**
+
+The only change in my repository - is Github Action that builds firmware in ^Actions tab after you push it.
+So ideally:
+* you fork it
+* make repo private if possible
+* update wifi configuration & password
+* download built file in actions tab
+
+
 # esp_wifi_repeater
 A full functional WiFi repeater (correctly: a WiFi NAT router)
 
