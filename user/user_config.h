@@ -9,7 +9,7 @@
 #define		WIFI_SSID "ssid"
 #define		WIFI_PASSWORD "password"
 
-#define		WIFI_AP_SSID "MyAP"
+#define		WIFI_AP_SSID "APPP"
 #define		WIFI_AP_PASSWORD "none"
 
 #define		MAX_CLIENTS 8
@@ -140,7 +140,7 @@
 // Define this to 1 to support an ENC28J60 Ethernet interface
 // Experimental feature - not yet stable
 //
-#define		HAVE_ENC28J60 0
+#define		HAVE_ENC28J60 1
 
 //
 // Define this to 1 to support ENC28J60 DHCP server
