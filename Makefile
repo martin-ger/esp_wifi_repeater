@@ -29,27 +29,28 @@ SDK_BASE	?= $(BUILD_AREA)/esp-open-sdk/sdk
 # # esptool.py path and port
 ESPTOOL		?= $(XTENSA_TOOLS_ROOT)/esptool.py
 ESPPORT		?= /dev/ttyUSB0
-ESPTOOLBAUD	?= 115200
-ESPTOOLOPTS	= -ff 40m -fm dio -fs 32m
+#ESPTOOLBAUD	?= 115200
+ESPTOOLBAUD	?= 460800 # will work with modern hardware
+ESPTOOLOPTS	= -ff 40m -fm dio -fs 4MB
 
 # name for the target project
 TARGET		= app
 
 # which modules (subdirectories) of the project to include in compiling
 MODULES		= driver user mqtt easygpio
-#EXTRA_INCDIR    = include $(BUILD_AREA)/esp-open-sdk/esp-open-lwip/include
-EXTRA_INCDIR    = include
+EXTRA_INCDIR    = include $(BUILD_AREA)/esp-open-sdk/esp-open-lwip/include
+#EXTRA_INCDIR    = include
 
 #LIB_MODULES	= mqtt
 
 # libraries used in this project, mainly provided by the SDK
-LIBS		= c gcc hal pp phy net80211 lwip_open_napt wpa wpa2 main
+LIBS		= c gcc hal pp phy net80211 lwip_open_napt wpa wpa2 main crypto
 
 # compiler flags using during compilation of source files
 CFLAGS		= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC -DUSE_OPTIMIZE_PRINTF
 
 # linker flags used to generate the main object file
-LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static -L.
+LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static -L. -L$(SDK_BASE)/ld
 
 # linker script used for the above linkier step
 #LD_SCRIPT	= eagle.app.v6.ld
@@ -65,6 +66,7 @@ SDK_INCDIR	= include include/json
 # these are the names and options to generate them
 FW_FILE_1_ADDR	= 0x02000
 FW_FILE_2_ADDR	= 0x82000
+FW_FILE_ESP_INIT_ADDR	= 0x3FC000
 
 # select which tools to use as compiler, librarian and linker
 CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
@@ -96,6 +98,7 @@ MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
 
 FW_FILE_1	:= $(addprefix $(FW_BASE)/,$(FW_FILE_1_ADDR).bin)
 FW_FILE_2	:= $(addprefix $(FW_BASE)/,$(FW_FILE_2_ADDR).bin)
+FW_FILE_ESP_INIT	:= $(SDK_BASE)/bin/esp_init_data_default_v08_vdd33.bin
 RBOOT_FILE	:= $(addprefix $(FW_BASE)/,0x00000.bin)
 
 V ?= $(VERBOSE)
@@ -157,13 +160,16 @@ $(FW_BASE):
 	$(Q) mkdir -p $@
 
 flash: $(FW_BASE)/sha1sums
-	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_1_ADDR) $(FW_FILE_1)
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2) $(FW_FILE_ESP_INIT_ADDR) $(FW_FILE_ESP_INIT)
+
+flash0: $(FW_BASE)/sha1sums
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_1_ADDR) $(FW_FILE_1)
 
 flash1: $(FW_BASE)/sha1sums
-	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_2_ADDR) $(FW_FILE_2)
 
 flashboth: $(FW_BASE)/sha1sums
-	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
 
 clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)
