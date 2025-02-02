@@ -313,7 +313,7 @@ void user_rf_pre_init() {
 /*
 // user_pre_init is required from SDK v3.0.0 onwards
 // It is used to register the parition map with the SDK, primarily to allow
-// the app to use the SDK's OTA capability.  We don't make use of that in 
+// the app to use the SDK's OTA capability.  We don't make use of that in
 // otb-iot and therefore the only info we provide is the mandatory stuff:
 // - RF calibration data
 // - Physical data
@@ -322,7 +322,7 @@ void user_rf_pre_init() {
 void ICACHE_FLASH_ATTR user_pre_init(void)
 {
   bool rc = false;
-  static const partition_item_t part_table[] = 
+  static const partition_item_t part_table[] =
   {
     {SYSTEM_PARTITION_RF_CAL,
      0x3fb000,
@@ -362,7 +362,7 @@ void ICACHE_FLASH_ATTR user_pre_init(void)
          break;
    }
 
-    static const partition_item_t part_table[] = 
+    static const partition_item_t part_table[] =
     {
         {SYSTEM_PARTITION_RF_CAL,
         rf_cal_sec * 0x1000,
@@ -376,7 +376,7 @@ void ICACHE_FLASH_ATTR user_pre_init(void)
     };
 
   // This isn't an ideal approach but there's not much point moving on unless
-  // or until this has succeeded cos otherwise the SDK will just barf and 
+  // or until this has succeeded cos otherwise the SDK will just barf and
   // refuse to call user_init()
   while (!rc)
   {
@@ -388,3 +388,36 @@ void ICACHE_FLASH_ATTR user_pre_init(void)
   return;
 }
 */
+
+uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
+{
+    enum flash_size_map size_map = system_get_flash_size_map();
+    uint32 rf_cal_sec = 0;
+
+    switch (size_map) {
+        case FLASH_SIZE_4M_MAP_256_256:
+            rf_cal_sec = 128 - 5;
+            break;
+        case FLASH_SIZE_8M_MAP_512_512:
+            rf_cal_sec = 256 - 5;
+            break;
+        case FLASH_SIZE_16M_MAP_512_512:
+        case FLASH_SIZE_16M_MAP_1024_1024:
+            rf_cal_sec = 512 - 5;
+            break;
+        case FLASH_SIZE_32M_MAP_512_512:
+        case FLASH_SIZE_32M_MAP_1024_1024:
+            rf_cal_sec = 1024 - 5;
+            break;
+        case FLASH_SIZE_64M_MAP_1024_1024:
+            rf_cal_sec = 2048 - 5;
+            break;
+        case FLASH_SIZE_128M_MAP_1024_1024:
+            rf_cal_sec = 4096 - 5;
+            break;
+        default:
+            rf_cal_sec = 0;
+            break;
+    }
+    return rf_cal_sec;
+}
