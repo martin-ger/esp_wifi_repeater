@@ -784,7 +784,7 @@ void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
     console_output = (char *)os_malloc(len + 4);
     if (console_output == NULL)
     {
-        os_printf("Heap overflow. Free: %d, Needed: %d\r\n", system_get_free_heap_size(), len);
+        os_printf("Heap overflow. Free: %d, Needed: %d\r\n", system_get_free_heap_size(), len + 4);
         return;
     }
 
