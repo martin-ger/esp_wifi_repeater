@@ -1454,7 +1454,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             to_console(response);
 #if DAILY_LIMIT
             uint32_t current_stamp = sntp_get_current_timestamp();
-            os_sprintf(response, "Local time: %s\r\n", current_stamp ? sntp_get_real_time(current_stamp) : "no NTP sync\r\n");
+            os_sprintf(response, "Local time: %s\r", current_stamp ? sntp_get_real_time(current_stamp) : "no NTP sync\n");
             to_console(response);
 #endif
             os_sprintf(response, "%d KiB in (%d packets)\r\n%d KiB out (%d packets)\r\n",
