@@ -1,3 +1,4 @@
+#include "stdint.h"
 #include "c_types.h"
 #include "mem.h"
 #include "ets_sys.h"
@@ -306,7 +307,7 @@ void ICACHE_FLASH_ATTR user_do_ping(const char *name, ip_addr_t *ipaddr, void *a
         os_sprintf(response, "DNS lookup failed for: %s\r\n", name);
         to_console(response);
         system_os_post(0, SIG_CONSOLE_TX, (ETSParam)currentconn);
-        return;    
+        return;
     }
 
     ping_opt.count = 4;       //  try to ping how many times
@@ -3106,9 +3107,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
          *      Get GPIO pin 2 value:
          *          gpio 2 get
          *      Link GPIO input pin 5 to GPIO output pin 2 as a monostable normally open:
-         *          gpio 5 trigger 2 monostable_NO 
+         *          gpio 5 trigger 2 monostable_NO
          *      Clear previous link:
-         *          gpio 5 trigger none 
+         *          gpio 5 trigger none
          */
         if (nTokens < 3)
         {
