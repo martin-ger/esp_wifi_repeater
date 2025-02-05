@@ -782,6 +782,11 @@ void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
 {
     uint16_t len = ringbuf_bytes_used(console_tx_buffer);
     console_output = (char *)os_malloc(len + 4);
+    if (console_output == NULL)
+    {
+        os_printf("Heap overflow. Free: %d, Needed: %d\r\n", system_get_free_heap_size(), len + 4);
+        return;
+    }
 
     ringbuf_memcpy_from(console_output, console_tx_buffer, len);
 #if MQTT_CLIENT
@@ -804,9 +809,9 @@ void console_send_response(struct espconn *pespconn, uint8_t do_cmd)
     else
     {
         UART_Send(0, console_output, len);
-        os_free(console_output);
-        console_output = NULL;
     }
+    os_free(console_output);
+    console_output = NULL;
 }
 
 #if ALLOW_SCANNING
