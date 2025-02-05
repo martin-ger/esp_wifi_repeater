@@ -122,6 +122,7 @@ Any part of a command line input after a single "#" until the end of the line wi
 - set max_portmap _no_of_entries_: sets the size of the portmap table (default 32)
 - set tcp_timeout _secs_: sets the NAPT timeout for TCP connections (0=default (1800 secs))
 - set udp_timeout _secs_: sets the NAPT timeout for UDP connections (0=default (2 secs))
+- set lease _min_: sets the lease time in minutes for the internal network DHCP server (default 120)
 - show dhcp: prints the current status of the dhcp lease table
 
 ### Routing
