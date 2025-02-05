@@ -1279,6 +1279,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         {
             os_sprintf(response, "Version %s (build: %s)\r\n", ESP_REPEATER_VERSION, __TIMESTAMP__);
             to_console(response);
+            os_sprintf(response, "SKD Version %s\r\n", system_get_sdk_version());
+            to_console(response);
 
             os_sprintf(response, "STA: SSID:%s PW:%s%s\r\n",
                        config.ssid,
@@ -1324,9 +1326,9 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 to_console(response);
             }
 #endif
-            os_sprintf(response, "AP:  SSID:%s %s PW:%s%s%s IP:%d.%d.%d.%d/24%s\r\n",
+            os_sprintf(response, "AP:  SSID:%s%s PW:%s%s%s IP:%d.%d.%d.%d/24%s\r\n",
                        config.ap_ssid,
-                       config.ssid_hidden ? "[hidden]" : "",
+                       config.ssid_hidden ? " [hidden]" : "",
                        config.locked ? "***" : (char *)config.ap_password,
                        config.ap_open ? " [open]" : "",
                        config.ap_on ? "" : " [disabled]",
@@ -3340,7 +3342,9 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
 
-    espconn_send(pespconn, "CMD>", 4);
+    char send_data[] = "Welcome to WiFi Repeater " ESP_REPEATER_VERSION "\r\n"
+            "Enter 'help' to get help.\r\nCMD>";
+    espconn_send(pespconn, (uint8_t *) send_data, os_strlen(send_data));
 #if ACLS
     deny_cb_conn = pespconn;
 #endif
@@ -4280,7 +4284,7 @@ void ICACHE_FLASH_ATTR user_init()
 
     UART_init_console(BIT_RATE_115200, 0, console_rx_buffer, console_tx_buffer);
 
-    os_printf("\r\n\r\nWiFi Repeater %s starting\r\n\nrunning rom %d\r", ESP_REPEATER_VERSION, rboot_get_current_rom());
+    os_printf("\r\n\r\nWiFi Repeater %s starting\r\nrunning rom %d\r\n", ESP_REPEATER_VERSION, rboot_get_current_rom());
 
     // Load config
     uint8_t config_state = config_load(&config);
