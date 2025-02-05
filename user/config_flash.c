@@ -158,6 +158,7 @@ uint32_t reg0, reg1, reg3;
     config->no_routes			= 0;
 
     config->dhcps_entries		= 0;
+    config->dhcps_lease_time	= 120;
 #if ACLS
     acl_init();	// initializes the ACLs, written in config during save
 #endif

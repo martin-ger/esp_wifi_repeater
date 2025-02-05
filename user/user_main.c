@@ -1595,6 +1595,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         {
             int i;
             struct dhcps_pool *p;
+            os_sprintf(response, "DHCP lease time: %dmin\r\n", config.dhcps_lease_time);
+            to_console(response);
             os_sprintf_flash(response, "DHCP table:\r\n");
             to_console(response);
             for (i = 0; (p = dhcps_get_mapping(i)); i++)
@@ -2865,6 +2867,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 goto command_handled;
             }
 
+            if (strcmp(tokens[1], "lease") == 0)
+            {
+                config.dhcps_lease_time = atoi(tokens[2]);
+                os_sprintf(response, "Lease time set to %dmin\r\n",
+                           config.dhcps_lease_time);
+                goto command_handled;
+            }
+
             if (strcmp(tokens[1], "ap_mac") == 0)
             {
                 if (!parse_mac(config.AP_MAC_address, tokens[2]))
@@ -4035,6 +4045,7 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
     dhcp_lease.end_ip = config.network_addr;
     ip4_addr4(&dhcp_lease.end_ip) = 128;
     wifi_softap_set_dhcps_lease(&dhcp_lease);
+    wifi_softap_set_dhcps_lease_time(config.dhcps_lease_time); // in minutes
 
     wifi_softap_dhcps_start();
 

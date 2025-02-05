@@ -142,6 +142,7 @@ typedef struct {
 
         uint16_t dhcps_entries; // number of allocated entries in the following table
         struct dhcps_pool dhcps_p[MAX_DHCP]; // DHCP entries
+        uint32_t dhcps_lease_time; // DHCP server lease time, 120 minutes by default [1, 2880]
 #if ACLS
         acl_entry acl[MAX_NO_ACLS][MAX_ACL_ENTRIES]; // ACL entries
         uint8_t acl_freep[MAX_NO_ACLS]; // ACL free pointers
