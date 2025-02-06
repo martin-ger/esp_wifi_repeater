@@ -390,6 +390,7 @@ void ICACHE_FLASH_ATTR user_pre_init(void)
 }
 */
 
+#if NO_RF_CAL
 uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
 {
     enum flash_size_map size_map = system_get_flash_size_map();
@@ -422,3 +423,4 @@ uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
     }
     return rf_cal_sec;
 }
+#endif
