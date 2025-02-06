@@ -16,6 +16,11 @@
 #define		MAX_DHCP 8
 
 //
+// Set this to 1 if user_rf_cal_sector_set() is missing in your lib
+//
+#define        NO_RF_CAL 0
+
+//
 // Size of the console buffers
 //
 #define		MAX_CON_SEND_SIZE 1500
