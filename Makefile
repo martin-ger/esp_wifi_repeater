@@ -98,7 +98,8 @@ MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
 
 FW_FILE_1	:= $(addprefix $(FW_BASE)/,$(FW_FILE_1_ADDR).bin)
 FW_FILE_2	:= $(addprefix $(FW_BASE)/,$(FW_FILE_2_ADDR).bin)
-FW_FILE_ESP_INIT	:= $(SDK_BASE)/bin/esp_init_data_default_v08_vdd33.bin
+FW_FILE_ESP_INIT	:= $(SDK_BASE)/bin/esp_init_data_default_v08.bin
+#FW_FILE_ESP_INIT	:= $(SDK_BASE)/bin/esp_init_data_default_v08_vdd33.bin
 RBOOT_FILE	:= $(addprefix $(FW_BASE)/,0x00000.bin)
 
 V ?= $(VERBOSE)
