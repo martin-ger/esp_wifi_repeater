@@ -290,8 +290,6 @@ uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
 }
 #endif
 
-#if ESP_SDK_VERSION_NUMBER < 0x030000
-
 const uint8_t esp_init_data_default[] = {
     "\x05\x08\x04\x02\x05\x05\x05\x02\x05\x00\x04\x05\x05\x04\x05\x05"
     "\x04\xFE\xFD\xFF\xF0\xF0\xF0\xE0\xE0\xE0\xE1\x0A\xFF\xFF\xF8\x00"
@@ -334,7 +332,7 @@ void user_rf_pre_init()
     }
 }
 
-#else // ESP_SDK_VERSION_NUMBER >= 0x030000
+#if ESP_SDK_VERSION_NUMBER >= 0x030000
 
 // user_pre_init is required from SDK v3.0.0 onwards
 // It is used to register the parition map with the SDK, primarily to allow
@@ -368,6 +366,9 @@ void ICACHE_FLASH_ATTR user_pre_init(void)
         rc = system_partition_table_regist(part_table,
             sizeof(part_table) / sizeof(part_table[0]), 4);
     }
+
+    // check and update esp_init_data
+    user_rf_pre_init();
 
     return;
 }
