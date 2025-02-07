@@ -16,6 +16,12 @@
 #define		MAX_DHCP 8
 
 //
+// Docker SDK comes with a user_rf_cal_sector_set() in libmain.a.
+// Define this to 1 if you use an official SDK (and need the user_rf_cal_sector_set() here)
+//
+#define		USER_RF_CAL 0
+
+//
 // Size of the console buffers
 //
 #define		MAX_CON_SEND_SIZE 1500
