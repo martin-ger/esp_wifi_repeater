@@ -66,7 +66,6 @@ SDK_INCDIR	= include include/json
 # these are the names and options to generate them
 FW_FILE_1_ADDR	= 0x02000
 FW_FILE_2_ADDR	= 0x82000
-FW_FILE_ESP_INIT_ADDR	= 0x3FC000
 
 # select which tools to use as compiler, librarian and linker
 CC		:= $(XTENSA_TOOLS_ROOT)/xtensa-lx106-elf-gcc
@@ -98,7 +97,6 @@ MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
 
 FW_FILE_1	:= $(addprefix $(FW_BASE)/,$(FW_FILE_1_ADDR).bin)
 FW_FILE_2	:= $(addprefix $(FW_BASE)/,$(FW_FILE_2_ADDR).bin)
-FW_FILE_ESP_INIT	:= $(SDK_BASE)/bin/esp_init_data_default_v08_vdd33.bin
 RBOOT_FILE	:= $(addprefix $(FW_BASE)/,0x00000.bin)
 
 V ?= $(VERBOSE)
@@ -160,7 +158,7 @@ $(FW_BASE):
 	$(Q) mkdir -p $@
 
 flash: $(FW_BASE)/sha1sums
-	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2) $(FW_FILE_ESP_INIT_ADDR) $(FW_FILE_ESP_INIT)
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) 0x00000 $(RBOOT_FILE) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
 
 flash0: $(FW_BASE)/sha1sums
 	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_1_ADDR) $(FW_FILE_1)
@@ -170,6 +168,9 @@ flash1: $(FW_BASE)/sha1sums
 
 flashboth: $(FW_BASE)/sha1sums
 	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) write_flash $(ESPTOOLOPTS) $(FW_FILE_1_ADDR) $(FW_FILE_1) $(FW_FILE_2_ADDR) $(FW_FILE_2)
+
+flasherase: $(FW_BASE)/sha1sums
+	$(ESPTOOL) --port $(ESPPORT) --baud $(ESPTOOLBAUD) erase_flash
 
 clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)

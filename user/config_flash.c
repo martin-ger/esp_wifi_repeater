@@ -1,3 +1,4 @@
+#include "version.h"
 #include "user_interface.h"
 #include "lwip/ip.h"
 #include "lwip/lwip_napt.h"
@@ -25,21 +26,21 @@ uint32_t reg0, reg1, reg3;
     reg3 = *(uint32*)(0x3ff0005c);
 
     if (reg3 != 0) {
-	mac[0] = (reg3 >> 16) & 0xff;
-	mac[1] = (reg3 >> 8) & 0xff;
-	mac[2] = reg3 & 0xff;
+    mac[0] = (reg3 >> 16) & 0xff;
+    mac[1] = (reg3 >> 8) & 0xff;
+    mac[2] = reg3 & 0xff;
     } else
     if (((reg1 >> 16) & 0xff) == 0) {
-	mac[0] = 0x18;
-	mac[1] = 0xfe;
-	mac[2] = 0x34;
+    mac[0] = 0x18;
+    mac[1] = 0xfe;
+    mac[2] = 0x34;
     } else
     if (((reg1 >> 16) & 0xff) == 1) {
-	mac[0] = 0xac;
-	mac[1] = 0xd0;
-	mac[2] = 0x74;
+    mac[0] = 0xac;
+    mac[1] = 0xd0;
+    mac[2] = 0x74;
     } else {
-	os_printf("MAC read error\r\n");
+    os_printf("MAC read error\r\n");
 
     }
     mac[3] = (reg1 >> 8) & 0xff;
@@ -200,7 +201,7 @@ int ICACHE_FLASH_ATTR config_load(sysconfig_p config)
         os_printf("Length Mismatch (should be %d), probably old version of config, loading defaults\r\n", sizeof(sysconfig_t));
         config_load_default(config);
         config_save(config);
-	return -1;
+        return -1;
     }
 
     ip_route_max = config->no_routes;
@@ -243,13 +244,51 @@ void ICACHE_FLASH_ATTR blob_load(uint8_t blob_no, uint32_t *data, uint16_t len)
 
 void ICACHE_FLASH_ATTR blob_zero(uint8_t blob_no, uint16_t len)
 {
-int i;
+    int i;
     uint8_t z[len];
     os_memset(z, 0,len);
     uint16_t base_address = FLASH_BLOCK_NO + 1 + blob_no;
     spi_flash_erase_sector(base_address);
     spi_flash_write(base_address * SPI_FLASH_SEC_SIZE, (uint32_t *)z, len);
 }
+
+// For versions ESP8266_NONOS_SDK v1.5.2 to v2.2.1, user_rf_cal_sector_set() need to be added.
+// Docker SDK comes with a user_rf_cal_sector_set() in libmain.a, needed for official SDKs.
+#if USER_RF_CAL
+uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
+{
+    enum flash_size_map size_map = system_get_flash_size_map();
+    uint32 rf_cal_sec = 0;
+
+    switch (size_map)
+    {
+    case FLASH_SIZE_4M_MAP_256_256:
+        rf_cal_sec = 128 - 5;
+        break;
+    case FLASH_SIZE_8M_MAP_512_512:
+        rf_cal_sec = 256 - 5;
+        break;
+    case FLASH_SIZE_16M_MAP_512_512:
+    case FLASH_SIZE_16M_MAP_1024_1024:
+        rf_cal_sec = 512 - 5;
+        break;
+    case FLASH_SIZE_32M_MAP_512_512:
+    case FLASH_SIZE_32M_MAP_1024_1024:
+        rf_cal_sec = 1024 - 5;
+        break;
+    case FLASH_SIZE_64M_MAP_1024_1024:
+        rf_cal_sec = 2048 - 5;
+        break;
+    case FLASH_SIZE_128M_MAP_1024_1024:
+        rf_cal_sec = 4096 - 5;
+        break;
+    default:
+        rf_cal_sec = 0;
+        break;
+    }
+    return rf_cal_sec;
+}
+#endif
 
 const uint8_t esp_init_data_default[] = {
     "\x05\x08\x04\x02\x05\x05\x05\x02\x05\x00\x04\x05\x05\x04\x05\x05"
@@ -261,57 +300,40 @@ const uint8_t esp_init_data_default[] = {
     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\x00\x00\x00\x00"
     "\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"};
 
-void user_rf_pre_init() {
-  uint8_t esp_init_data_current[sizeof(esp_init_data_default)];
+void user_rf_pre_init()
+{
+    uint8_t esp_init_data_current[sizeof(esp_init_data_default)];
+    enum flash_size_map size_map = system_get_flash_size_map();
+    uint32 rf_cal_sec = 0, addr, i;
 
-  enum flash_size_map size_map = system_get_flash_size_map();
-  uint32 rf_cal_sec = 0, addr, i;
-  //os_printf("\nUser preinit: ");
-   switch (size_map) {
-      case FLASH_SIZE_4M_MAP_256_256:
-         rf_cal_sec = 128 - 5;
-         break;
+    rf_cal_sec = user_rf_cal_sector_set();
+    addr = ((rf_cal_sec)*SPI_FLASH_SEC_SIZE) + SPI_FLASH_SEC_SIZE;
+    spi_flash_read(addr, (uint32_t *)esp_init_data_current, sizeof(esp_init_data_current));
 
-      case FLASH_SIZE_8M_MAP_512_512:
-         rf_cal_sec = 256 - 5;
-         break;
+    for (i = 0; i < sizeof(esp_init_data_default); i++)
+    {
+        if (esp_init_data_current[i] != esp_init_data_default[i])
+        {
+            spi_flash_erase_sector(rf_cal_sec);
+            spi_flash_erase_sector(rf_cal_sec + 1);
+            spi_flash_erase_sector(rf_cal_sec + 2);
+            addr = ((rf_cal_sec)*SPI_FLASH_SEC_SIZE) + SPI_FLASH_SEC_SIZE;
+            os_printf("Writing rfcal init data @0x%08X\n", addr);
+            spi_flash_write(addr, (uint32 *)esp_init_data_default, sizeof(esp_init_data_default));
 
-      case FLASH_SIZE_16M_MAP_512_512:
-      case FLASH_SIZE_16M_MAP_1024_1024:
-         rf_cal_sec = 512 - 5;
-         break;
-
-      case FLASH_SIZE_32M_MAP_512_512:
-      case FLASH_SIZE_32M_MAP_1024_1024:
-         rf_cal_sec = 1024 - 5;
-         break;
-
-      default:
-         rf_cal_sec = 0;
-         break;
-   }
-
-  addr = ((rf_cal_sec) * SPI_FLASH_SEC_SIZE)+SPI_FLASH_SEC_SIZE;
-  spi_flash_read(addr, (uint32_t *)esp_init_data_current, sizeof(esp_init_data_current));
-
-  for (i=0; i<sizeof(esp_init_data_default); i++) {
-
-    if (esp_init_data_current[i] != esp_init_data_default[i]) {
-      spi_flash_erase_sector(rf_cal_sec);
-      spi_flash_erase_sector(rf_cal_sec+1);
-      spi_flash_erase_sector(rf_cal_sec+2);
-      addr = ((rf_cal_sec) * SPI_FLASH_SEC_SIZE)+SPI_FLASH_SEC_SIZE;
-      os_printf("Storing rfcal init data @ address=0x%08X\n", addr);
-      spi_flash_write(addr, (uint32 *)esp_init_data_default, sizeof(esp_init_data_default));
-
-      break;
+            break;
+        }
+        /*
+        else
+        {
+            os_printf("RF data[%u] is ok\n", i);
+        }
+        */
     }
-/* else {
-      os_printf("RF data[%u] is ok\n", i);
-    }*/
-  }
 }
-/*
+
+#if ESP_SDK_VERSION_NUMBER >= 0x030000
+
 // user_pre_init is required from SDK v3.0.0 onwards
 // It is used to register the parition map with the SDK, primarily to allow
 // the app to use the SDK's OTA capability.  We don't make use of that in
@@ -322,105 +344,32 @@ void user_rf_pre_init() {
 // The location and length of these are from the 2A SDK getting started guide
 void ICACHE_FLASH_ATTR user_pre_init(void)
 {
-  bool rc = false;
-  static const partition_item_t part_table[] =
-  {
-    {SYSTEM_PARTITION_RF_CAL,
-     0x3fb000,
-     0x1000},
-    {SYSTEM_PARTITION_PHY_DATA,
-     0x3fc000,
-     0x1000},
-    {SYSTEM_PARTITION_SYSTEM_PARAMETER,
-     0x3fd000,
-     0x3000},
-  };
-/*
-  enum flash_size_map size_map = system_get_flash_size_map();
-  uint32 rf_cal_sec = 0, addr, i;
-  //os_printf("\nUser preinit: ");
-   switch (size_map) {
-      case FLASH_SIZE_4M_MAP_256_256:
-         rf_cal_sec = 128 - 5;
-         break;
-
-      case FLASH_SIZE_8M_MAP_512_512:
-         rf_cal_sec = 256 - 5;
-         break;
-
-      case FLASH_SIZE_16M_MAP_512_512:
-      case FLASH_SIZE_16M_MAP_1024_1024:
-         rf_cal_sec = 512 - 5;
-         break;
-
-      case FLASH_SIZE_32M_MAP_512_512:
-      case FLASH_SIZE_32M_MAP_1024_1024:
-         rf_cal_sec = 1024 - 5;
-         break;
-
-      default:
-         rf_cal_sec = 0;
-         break;
-   }
-
+    bool rc = false;
     static const partition_item_t part_table[] =
     {
         {SYSTEM_PARTITION_RF_CAL,
-        rf_cal_sec * 0x1000,
+        0x3fb000,
         0x1000},
         {SYSTEM_PARTITION_PHY_DATA,
-        (rf_cal_sec + 1) * 0x1000,
+        0x3fc000,
         0x1000},
         {SYSTEM_PARTITION_SYSTEM_PARAMETER,
-        (rf_cal_sec + 2) * 0x1000,
+        0x3fd000,
         0x3000},
     };
 
-  // This isn't an ideal approach but there's not much point moving on unless
-  // or until this has succeeded cos otherwise the SDK will just barf and
-  // refuse to call user_init()
-  while (!rc)
-  {
-    rc = system_partition_table_regist(part_table,
-				       sizeof(part_table)/sizeof(part_table[0]),
-                                       4);
-  }
-
-  return;
-}
-*/
-
-#if NO_RF_CAL
-uint32 ICACHE_FLASH_ATTR user_rf_cal_sector_set(void)
-{
-    enum flash_size_map size_map = system_get_flash_size_map();
-    uint32 rf_cal_sec = 0;
-
-    switch (size_map) {
-        case FLASH_SIZE_4M_MAP_256_256:
-            rf_cal_sec = 128 - 5;
-            break;
-        case FLASH_SIZE_8M_MAP_512_512:
-            rf_cal_sec = 256 - 5;
-            break;
-        case FLASH_SIZE_16M_MAP_512_512:
-        case FLASH_SIZE_16M_MAP_1024_1024:
-            rf_cal_sec = 512 - 5;
-            break;
-        case FLASH_SIZE_32M_MAP_512_512:
-        case FLASH_SIZE_32M_MAP_1024_1024:
-            rf_cal_sec = 1024 - 5;
-            break;
-        case FLASH_SIZE_64M_MAP_1024_1024:
-            rf_cal_sec = 2048 - 5;
-            break;
-        case FLASH_SIZE_128M_MAP_1024_1024:
-            rf_cal_sec = 4096 - 5;
-            break;
-        default:
-            rf_cal_sec = 0;
-            break;
+    // This isn't an ideal approach but there's not much point moving on unless
+    // or until this has succeeded cos otherwise the SDK will just barf and
+    // refuse to call user_init()
+    while (!rc)
+    {
+        rc = system_partition_table_regist(part_table,
+            sizeof(part_table) / sizeof(part_table[0]), 4);
     }
-    return rf_cal_sec;
+
+    // check and update esp_init_data
+    user_rf_pre_init();
+
+    return;
 }
 #endif

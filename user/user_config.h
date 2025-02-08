@@ -1,7 +1,7 @@
 #ifndef _USER_CONFIG_
 #define _USER_CONFIG_
 
-#define		ESP_REPEATER_VERSION "V2.2.16"
+#define		ESP_REPEATER_VERSION "V2.2.17"
 
 #define		LOCAL_ACCESS 0x01
 #define		REMOTE_ACCESS 0x02
@@ -16,9 +16,10 @@
 #define		MAX_DHCP 8
 
 //
-// Set this to 1 if user_rf_cal_sector_set() is missing in your lib
+// Docker SDK comes with a user_rf_cal_sector_set() in libmain.a.
+// Define this to 1 if you use an official SDK (and need the user_rf_cal_sector_set() here)
 //
-#define        NO_RF_CAL 0
+#define		USER_RF_CAL 0
 
 //
 // Size of the console buffers
