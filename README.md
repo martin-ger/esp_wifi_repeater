@@ -163,6 +163,7 @@ Any part of a command line input after a single "#" until the end of the line wi
 
 ### Chip Config
 - set speed [80|160]: sets the CPU clock frequency (default 160 Mhz)
+- set power [0-82]: sets the RF Tx power
 - sleep _seconds_: Put ESP into deep sleep for the specified amount of seconds. Valid values between 1 and 4294 (aprox. 71 minutes)
 - set status_led _GPIOno_: selects a GPIO pin for the status LED (default 2, >16 disabled)
 - set hw_reset _GPIOno_: selects a GPIO pin for a hardware factory reset (>16 disabled, default)
