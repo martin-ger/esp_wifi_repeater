@@ -29,9 +29,9 @@ SDK_BASE	?= $(BUILD_AREA)/esp-open-sdk/sdk
 # # esptool.py path and port
 ESPTOOL		?= $(XTENSA_TOOLS_ROOT)/esptool.py
 ESPPORT		?= /dev/ttyUSB0
-#ESPTOOLBAUD	?= 115200
-ESPTOOLBAUD	?= 460800 # will work with modern hardware
-ESPTOOLOPTS	= -ff 40m -fm dio -fs 4MB
+ESPTOOLBAUD	?= 115200
+#ESPTOOLBAUD	?= 460800 # will work with modern hardware
+ESPTOOLOPTS	= -ff 40m -fm dio -fs 32m
 
 # name for the target project
 TARGET		= app
