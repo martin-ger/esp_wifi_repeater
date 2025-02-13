@@ -1,0 +1,31 @@
+name: Build firmware
+
+on:
+  push:
+  pull_request:
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: martinfger/iot_devel:1.0
+
+# I cannot use Git checkout here, since we are using different folder, and esp_wifi_repeater already exists there
+
+    steps:
+      - name: Run a multi-line script
+        run: |
+          cd /home/esp
+          rm -rf esp_wifi_repeater
+          git clone https://github.com/martin-ger/esp_wifi_repeater.git
+          cd esp_wifi_repeater
+          make 
+          tar cf firmware.tar firmware/
+          gzip firmware.tar
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: firmware.tar.gz
+          path: /home/esp/esp_wifi_repeater/firmware.tar.gz
