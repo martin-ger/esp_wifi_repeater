@@ -3656,7 +3656,7 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
         if (do_reset == true)
         {
             do_reset = false;
-            char response[] = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nRestarting ...";
+            char response[] = WEB_HEADER "<script>setTimeout(\"location.href = '/'\",10000);</script>Restarting, please wait ..." WEB_FOOTER;
             espconn_send(pespconn, response, os_strlen(response));
             handle_set_cmd(pespconn, "reset", "");
         } else {
