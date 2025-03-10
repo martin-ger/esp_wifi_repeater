@@ -1123,6 +1123,7 @@ int i;
     return true;
 }
 */
+
 static char INVALID_LOCKED[] = "Invalid command. Config locked\r\n";
 static char INVALID_NUMARGS[] = "Invalid number of arguments\r\n";
 static char INVALID_ARG[] = "Invalid argument\r\n";
@@ -3368,6 +3369,10 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 #endif /* REMOTE_CONFIG */
 
 #if WEB_CONFIG
+#define MAX_PACKET_SIZE 1460  // ESP8266 TCP buffer limit
+uint8_t *page_buf = NULL;
+int page_buf_offset = 0;
+
 static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char *val)
 {
     struct espconn *pespconn = (struct espconn *)arg;
@@ -3379,13 +3384,161 @@ static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char *val)
         val[max_current_cmd_size] = '\0';
     }
     os_sprintf(cmd_line, "%s %s", cmd, val);
-    //os_printf("web_config_client_recv_cb(): cmd line:%s\r\n", cmd_line);
+    //os_printf("handle_set_cmd(): cmd line:%s\r\n", cmd_line);
 
     ringbuf_memcpy_into(console_rx_buffer, cmd_line, os_strlen(cmd_line));
     console_handle_command(pespconn);
 }
 
-char *strstr(char *string, char *needle);
+static void ICACHE_FLASH_ATTR espconn_send_packet_end(struct espconn *pespconn)
+{
+    os_free(page_buf);
+    page_buf = NULL;
+    page_buf_offset = 0;
+    espconn_disconnect(pespconn);
+}
+
+static void ICACHE_FLASH_ATTR espconn_send_packet(struct espconn *pespconn)
+{
+    int page_buf_len = (page_buf != NULL) ? os_strlen(page_buf) : page_buf_offset;
+    if (page_buf_offset >= page_buf_len)
+    {
+        os_printf("espconn_send_packet(): All data sent\r\n");
+        espconn_send_packet_end(pespconn);
+        return;
+    }
+
+    int remaining = page_buf_len - page_buf_offset;
+    int packet_size = remaining > MAX_PACKET_SIZE ? MAX_PACKET_SIZE : remaining;
+    os_printf("espconn_send_packet(): Sending packet_size: %d, remaining: %d\r\n", packet_size, remaining - packet_size);
+    sint8 result = espconn_send(pespconn, &page_buf[page_buf_offset], packet_size);
+    if (result == 0)
+    {
+        page_buf_offset += packet_size;
+    }
+    else
+    {
+        os_printf("espconn_send_packet(): espconn_send failed with code: %d\r\n", result);
+        espconn_send_packet_end(pespconn);
+    }
+}
+
+static void ICACHE_FLASH_ATTR web_config_create_page(struct espconn *pespconn)
+{
+    // do not allow another page creation while buffer is not fully sent (NULL)
+    if (page_buf != NULL)
+    {
+        os_printf("web_config_create_page(): Error. page_buf it not empty! Exit.\r\n");
+        return;
+    }
+    // TODO: implement a timeout after that buffer will be erased in case of network problems
+
+    char time_buf[21]; // "12345 days, 23:59:59" == 20 chars
+    get_uptime_string(time_buf);
+
+    int i;
+    struct dhcps_pool *p;
+    uint8_t *dhcp_buf = (uint8_t *)os_malloc(76 * MAX_DHCP + 1); // <tr><td>80:64:6f:54:79:a0</td><td>| 100.100.100.200</td><td>| 2846</td></tr>
+    if (dhcp_buf == NULL)
+        return;
+    dhcp_buf[0] = '\0';  // empty string
+    for (i = 0; (p = dhcps_get_mapping(i)) && i < MAX_DHCP; i++)
+    {
+        os_sprintf(dhcp_buf, "%s<tr><td>%02x:%02x:%02x:%02x:%02x:%02x</td><td>| " IPSTR "</td><td>| %d</td></tr>",
+            dhcp_buf,
+            p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5],
+            IP2STR(&p->ip), p->lease_timer);
+    }
+
+    enum phy_mode phy = wifi_get_phy_mode();
+    char phymode = phy == PHY_MODE_11B ? 'b' : phy == PHY_MODE_11G ? 'g' : 'n';
+    uint8_t sta_ip[20];
+    struct netif *sta_nf = (struct netif *)eagle_lwip_getif(0);
+    addr2str(sta_ip, sta_nf->ip_addr.addr, sta_nf->netmask.addr);
+
+    size_t slen;
+    if (!config.locked)
+    {
+        static const uint8_t config_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = CONFIG_PAGE;
+        slen = ((sizeof(config_page_str) + 4) & ~3) + 768;
+        page_buf = (uint8_t *)os_malloc(slen);
+        if (page_buf == NULL)
+        {
+            os_free(dhcp_buf);
+            return;
+        }
+        os_sprintf(page_buf, config_page_str, config.ssid, config.password,
+            config.automesh_mode != AUTOMESH_OFF ? "checked" : "",
+            config.ap_ssid, config.ap_password,
+            config.ap_open ? " selected" : "", config.ap_open ? "" : " selected",
+            IP2STR(&config.network_addr),
+            // WEB_STATUS
+            time_buf,
+            (uint32_t)(Bytes_in / 1024), Packets_in,
+            (uint32_t)(Bytes_out / 1024), Packets_out,
+            Vdd / 1000, Vdd % 1000,
+            phymode,
+            system_get_free_heap_size(),
+            sta_ip,
+            IP2STR(&sta_nf->gw),
+            wifi_station_get_rssi(),
+            config.ap_on ? wifi_softap_get_station_num() : 0,
+            // WEB_DHCP_STATUS
+            config.dhcps_lease_time,
+            dhcp_buf
+        );
+    }
+    else
+    {
+        static const uint8_t lock_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = LOCK_PAGE;
+        slen = ((sizeof(lock_page_str) + 4) & ~3) + 768;
+        page_buf = (uint8_t *)os_malloc(slen);
+        if (page_buf == NULL)
+        {
+            os_free(dhcp_buf);
+            return;
+        }
+        os_sprintf(page_buf, lock_page_str,
+            // WEB_STATUS
+            time_buf,
+            (uint32_t)(Bytes_in / 1024), Packets_in,
+            (uint32_t)(Bytes_out / 1024), Packets_out,
+            Vdd / 1000, Vdd % 1000,
+            phymode,
+            system_get_free_heap_size(),
+            sta_ip,
+            IP2STR(&sta_nf->gw),
+            wifi_station_get_rssi(),
+            config.ap_on ? wifi_softap_get_station_num() : 0,
+            // WEB_DHCP_STATUS
+            config.dhcps_lease_time,
+            dhcp_buf
+        );
+    }
+    os_free(dhcp_buf);
+    os_printf("web_config_create_page(): page_buf size=%d, used=%d\r\n", slen, os_strlen(page_buf));
+    espconn_send_packet(pespconn);
+}
+
+/**
+ * @brief Parse HTTP request and extract the requested URL, e.g. "GET / HTTP/1.1"
+ */
+static void ICACHE_FLASH_ATTR parse_http_request(char *data, uint8_t **url, unsigned short *url_length)
+{
+    *url_length = 0;
+    char *method_end = os_strstr(data, " ");
+    if (method_end)
+    {
+        char *url_start = method_end + 1;
+        char *url_end = os_strstr(url_start, " ");
+        if (url_end)
+        {
+            *url_length = url_end - url_start;
+            *url = url_start;
+        }
+    }
+}
+
 char *strtok(char *str, const char *delimiters);
 char *strtok_r(char *s, const char *delim, char **last);
 
@@ -3398,10 +3551,22 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
     bool do_reset = false;
     char *token[1];
     char *str;
+    uint8_t *url;
+    unsigned short url_len;
+    int i;
 
-    str = strstr(data, " /?");
+    // Extract the requested URL
+    parse_http_request(data, &url, &url_len);
+
+    os_printf("web_config_client_recv_cb(): ");
+    for (i = 0; i < url_len; i++) os_printf("%c", url[i]);
+    os_printf("\r\n");
+
+    str = os_strstr(data, " /?");
     if (str != NULL)
     {
+        ringbuf_reset(console_rx_buffer);
+        ringbuf_reset(console_tx_buffer);
         str = strtok(str + 3, " ");
 
         char *keyval = strtok_r(str, "&", &kv);
@@ -3491,58 +3656,34 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
         if (do_reset == true)
         {
             do_reset = false;
-            ringbuf_memcpy_into(console_rx_buffer, "reset", os_strlen("reset"));
-            console_handle_command(pespconn);
+            char response[] = "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nRestarting ...";
+            espconn_send(pespconn, response, os_strlen(response));
+            handle_set_cmd(pespconn, "reset", "");
+        } else {
+            web_config_create_page(pespconn);
         }
+    }
+    else if (url_len == 1 && url[0] == '/')
+    {
+        web_config_create_page(pespconn);
+    }
+    else
+    {
+        os_printf("web_config_client_recv_cb(): unknown url, sending 404\r\n");
+        char response[] = "HTTP/1.0 404 Not Found\r\nContent-Type: text/plain\r\n\r\n404 - URL not found.";
+        espconn_send(pespconn, response, os_strlen(response));
     }
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_discon_cb(void *arg)
 {
-    //os_printf("web_config_client_discon_cb(): client disconnected\n");
+    os_printf("web_config_client_discon_cb(): client disconnected\n");
     struct espconn *pespconn = (struct espconn *)arg;
-}
-
-#define MAX_PACKET_SIZE 1460  // ESP8266 TCP buffer limit
-uint8_t *page_buf = NULL;
-int page_buf_offset = 0;
-
-static void ICACHE_FLASH_ATTR espconn_send_packet_end(struct espconn *pespconn)
-{
-    os_free(page_buf);
-    page_buf = NULL;
-    page_buf_offset = 0;
-    espconn_disconnect(pespconn);
-}
-
-static void ICACHE_FLASH_ATTR espconn_send_packet(struct espconn *pespconn)
-{
-    int page_buf_len = (page_buf != NULL) ? os_strlen(page_buf) : page_buf_offset;
-    if (page_buf_offset >= page_buf_len)
-    {
-        os_printf("espconn_send_packet(): All data sent\r\n");
-        espconn_send_packet_end(pespconn);
-        return;
-    }
-
-    int remaining = page_buf_len - page_buf_offset;
-    int packet_size = remaining > MAX_PACKET_SIZE ? MAX_PACKET_SIZE : remaining;
-    os_printf("espconn_send_packet(): Sending packet_size: %d, remaining: %d\r\n", packet_size, remaining - packet_size);
-    sint8 result = espconn_send(pespconn, &page_buf[page_buf_offset], packet_size);
-    if (result == 0)
-    {
-        page_buf_offset += packet_size;
-    }
-    else
-    {
-        os_printf("espconn_send_packet(): espconn_send failed with code: %d\r\n", result);
-        espconn_send_packet_end(pespconn);
-    }
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
 {
-    //os_printf("web_config_client_sent_cb(): data sent to client\r\n");
+    os_printf("web_config_client_sent_cb(): data sent to client\r\n");
     struct espconn *pespconn = (struct espconn *)arg;
 
     espconn_send_packet(pespconn);
@@ -3555,13 +3696,6 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 
     os_printf("web_config_client_connected_cb(): Client connected\r\n");
 
-    // do not allow another connection while buffer is not fully sent (NULL)
-    if (page_buf != NULL)
-    {
-        os_printf("web_config_client_connected_cb(): Error. page_buf it not empty! Exit.\r\n");
-        return;
-    }
-
     if (!check_connection_access(pespconn, config.config_access))
     {
         os_printf("Client disconnected - no config access on this network\r\n");
@@ -3572,96 +3706,6 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
     espconn_regist_disconcb(pespconn, web_config_client_discon_cb);
     espconn_regist_recvcb(pespconn, web_config_client_recv_cb);
     espconn_regist_sentcb(pespconn, web_config_client_sent_cb);
-
-    ringbuf_reset(console_rx_buffer);
-    ringbuf_reset(console_tx_buffer);
-
-    char time_buf[21]; // "12345 days, 23:59:59" == 20 chars
-    get_uptime_string(time_buf);
-
-    int i;
-    struct dhcps_pool *p;
-    uint8_t *dhcp_buf = (uint8_t *)os_malloc(76 * MAX_DHCP + 1); // <tr><td>80:64:6f:54:79:a0</td><td>| 100.100.100.200</td><td>| 2846</td></tr>
-    if (dhcp_buf == NULL)
-        return;
-    dhcp_buf[0] = '\0';  // empty string
-    for (i = 0; (p = dhcps_get_mapping(i)) && i < MAX_DHCP; i++)
-    {
-        os_sprintf(dhcp_buf, "%s<tr><td>%02x:%02x:%02x:%02x:%02x:%02x</td><td>| " IPSTR "</td><td>| %d</td></tr>",
-            dhcp_buf,
-            p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5],
-            IP2STR(&p->ip), p->lease_timer);
-    }
-
-    enum phy_mode phy = wifi_get_phy_mode();
-    char phymode = phy == PHY_MODE_11B ? 'b' : phy == PHY_MODE_11G ? 'g' : 'n';
-    uint8_t sta_ip[20];
-    struct netif *sta_nf = (struct netif *)eagle_lwip_getif(0);
-    addr2str(sta_ip, sta_nf->ip_addr.addr, sta_nf->netmask.addr);
-
-    if (!config.locked)
-    {
-        static const uint8_t config_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = CONFIG_PAGE;
-        size_t slen = ((sizeof(config_page_str) + 4) & ~3) + 768;
-        page_buf = (uint8_t *)os_malloc(slen);
-        if (page_buf == NULL)
-        {
-            os_free(dhcp_buf);
-            return;
-        }
-        os_sprintf(page_buf, config_page_str, config.ssid, config.password,
-            config.automesh_mode != AUTOMESH_OFF ? "checked" : "",
-            config.ap_ssid, config.ap_password,
-            config.ap_open ? " selected" : "", config.ap_open ? "" : " selected",
-            IP2STR(&config.network_addr),
-            // WEB_STATUS
-            time_buf,
-            (uint32_t)(Bytes_in / 1024), Packets_in,
-            (uint32_t)(Bytes_out / 1024), Packets_out,
-            Vdd / 1000, Vdd % 1000,
-            phymode,
-            system_get_free_heap_size(),
-            sta_ip,
-            IP2STR(&sta_nf->gw),
-            wifi_station_get_rssi(),
-            config.ap_on ? wifi_softap_get_station_num() : 0,
-            // WEB_DHCP_STATUS
-            config.dhcps_lease_time,
-            dhcp_buf
-        );
-        os_printf("page_buf size=%d, len=%d\r\n", slen, os_strlen(page_buf));
-        espconn_send_packet(pespconn);
-    }
-    else
-    {
-        static const uint8_t lock_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = LOCK_PAGE;
-        uint32_t slen = ((sizeof(lock_page_str) + 4) & ~3) + 768;
-        page_buf = (uint8_t *)os_malloc(slen);
-        if (page_buf == NULL)
-        {
-            os_free(dhcp_buf);
-            return;
-        }
-        os_sprintf(page_buf, lock_page_str,
-            // WEB_STATUS
-            time_buf,
-            (uint32_t)(Bytes_in / 1024), Packets_in,
-            (uint32_t)(Bytes_out / 1024), Packets_out,
-            Vdd / 1000, Vdd % 1000,
-            phymode,
-            system_get_free_heap_size(),
-            sta_ip,
-            IP2STR(&sta_nf->gw),
-            wifi_station_get_rssi(),
-            config.ap_on ? wifi_softap_get_station_num() : 0,
-            // WEB_DHCP_STATUS
-            config.dhcps_lease_time,
-            dhcp_buf
-        );
-        os_printf("page_buf size=%d, len=%d\r\n", slen, os_strlen(page_buf));
-        espconn_send_packet(pespconn);
-    }
-    os_free(dhcp_buf);
 }
 #endif /* WEB_CONFIG */
 
