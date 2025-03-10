@@ -3517,7 +3517,7 @@ static void ICACHE_FLASH_ATTR web_config_create_page(struct espconn *pespconn)
     }
     os_free(dhcp_buf);
     os_printf("web_config_create_page(): page_buf size=%d, used=%d\r\n", slen, os_strlen(page_buf));
-    espconn_send_packet(pespconn);
+    system_os_post(0, SIG_SEND_DATA, (ETSParam)pespconn);
 }
 
 /**
@@ -3686,7 +3686,7 @@ static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
     os_printf("web_config_client_sent_cb(): data sent to client\r\n");
     struct espconn *pespconn = (struct espconn *)arg;
 
-    espconn_send_packet(pespconn);
+    system_os_post(0, SIG_SEND_DATA, (ETSParam)pespconn);
 }
 
 /* Called when a client connects to the web config */
@@ -3929,6 +3929,14 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
     case SIG_START_SERVER:
         // Anything else to do here, when the repeater has received its IP?
         break;
+
+    case SIG_SEND_DATA:
+    {
+        struct espconn *pespconn = (struct espconn *)events->par;
+
+        espconn_send_packet(pespconn);
+        break;
+    }
 
     case SIG_CONSOLE_TX:
     case SIG_CONSOLE_TX_RAW:
