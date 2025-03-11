@@ -1,10 +1,43 @@
-#define CONFIG_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
+#define WEB_HEADER "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
 <html>\
 <head></head>\
 <meta name='viewport' content='width=device-width, initial-scale=1'>\
 <body>\
 <h1>ESP WiFi NAT Router Config</h1>\
 <div id='config'>\
+"
+
+#define WEB_FOOTER "\
+</div>\
+</body>\
+</html>\
+"
+
+#define WEB_STATUS "\
+<h2>Status</h2>\
+<table>\
+<tr><td>System uptime:</td><td>%s</td></tr>\
+<tr><td>Data in:</td><td>%d KiB (%d packets)</td></tr>\
+<tr><td>Data out:</td><td>%d KiB (%d packets)</td></tr>\
+<tr><td>Power supply:</td><td>%d.%03d V</td></tr>\
+<tr><td>Phy mode:</td><td>%c</td></tr>\
+<tr><td>Free mem:</td><td>%d</td></tr>\
+<tr><td>STA IP:</td><td>%s</td></tr>\
+<tr><td>STA GW:</td><td>%d.%d.%d.%d</td></tr>\
+<tr><td>STA RSSI:</td><td>%d</td></tr>\
+<tr><td>AP connections:</td><td>%d</td></tr>\
+</table>\
+"
+
+#define WEB_DHCP_STATUS "\
+<h2>DHCP Status</h2>\
+<table>\
+<tr><td>DHCP lease time:</td><td>%dmin</td></tr>\
+<tr><td>DHCP table:</td><td></td></tr>%s\
+</table>\
+"
+
+#define CONFIG_PAGE WEB_HEADER "\
 <script>\
 if (window.location.search.substr(1) != '')\
 {\
@@ -92,18 +125,9 @@ setTimeout(\"location.href = '/'\",10000);\
 </tr>\
 </table>\
 </form>\
-</div>\
-</body>\
-</html>\
-"
+" WEB_STATUS WEB_DHCP_STATUS WEB_FOOTER
 
-#define LOCK_PAGE "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n\
-<html>\
-<head></head>\
-<meta name='viewport' content='width=device-width, initial-scale=1'>\
-<body>\
-<h1>ESP WiFi NAT Router Config</h1>\
-<div id='config'>\
+#define LOCK_PAGE WEB_HEADER "\
 <script>\
 if (window.location.search.substr(1) != '')\
 {\
@@ -126,10 +150,7 @@ setTimeout(\"location.href = '/'\",1000);\
 \
 </table>\
 <small>\
-<i>Default: STA password to unlock<br />\
+<i>Default: STA password to unlock</i><br />\
 </small>\
 </form>\
-</div>\
-</body>\
-</html>\
-"
+" WEB_STATUS WEB_DHCP_STATUS WEB_FOOTER
