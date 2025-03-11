@@ -3409,14 +3409,14 @@ static void ICACHE_FLASH_ATTR web_config_send_packet(struct espconn *pespconn)
     int page_buf_len = (page_buf != NULL) ? os_strlen(page_buf) : page_buf_offset;
     if (page_buf_offset >= page_buf_len)
     {
-        os_printf("web_config_send_packet(): All data sent\r\n");
+        //os_printf("web_config_send_packet(): All data sent\r\n");
         web_config_send_packet_end(pespconn);
         return;
     }
 
     int remaining = page_buf_len - page_buf_offset;
     int packet_size = remaining > MAX_PACKET_SIZE ? MAX_PACKET_SIZE : remaining;
-    os_printf("web_config_send_packet(): Sending packet_size: %d, remaining: %d\r\n", packet_size, remaining - packet_size);
+    //os_printf("web_config_send_packet(): Sending packet_size: %d, remaining: %d\r\n", packet_size, remaining - packet_size);
     sint8 result = espconn_send(pespconn, &page_buf[page_buf_offset], packet_size);
     if (result == 0)
     {
@@ -3687,13 +3687,13 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
 
 static void ICACHE_FLASH_ATTR web_config_client_discon_cb(void *arg)
 {
-    os_printf("web_config_client_discon_cb(): client disconnected\n");
+    //os_printf("web_config_client_discon_cb(): client disconnected\r\n");
     struct espconn *pespconn = (struct espconn *)arg;
 }
 
 static void ICACHE_FLASH_ATTR web_config_client_sent_cb(void *arg)
 {
-    os_printf("web_config_client_sent_cb(): data sent to client\r\n");
+    //os_printf("web_config_client_sent_cb(): data sent to client\r\n");
     struct espconn *pespconn = (struct espconn *)arg;
 
     system_os_post(0, SIG_SEND_DATA, (ETSParam)pespconn);
@@ -3704,7 +3704,7 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 {
     struct espconn *pespconn = (struct espconn *)arg;
 
-    os_printf("web_config_client_connected_cb(): Client connected\r\n");
+    //os_printf("web_config_client_connected_cb(): Client connected\r\n");
 
     if (!check_connection_access(pespconn, config.config_access))
     {
