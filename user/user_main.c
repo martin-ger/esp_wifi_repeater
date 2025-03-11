@@ -3372,6 +3372,8 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
 #define MAX_PACKET_SIZE 1460  // ESP8266 TCP buffer limit
 uint8_t *page_buf = NULL;
 int page_buf_offset = 0;
+uint32_t last_send_activity = 0; // time in s for last successful espconn_send()
+#define SEND_ACTIVITY_TIMEOUT 10 // last_send_activity timeout: 10s
 
 static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char *val)
 {
@@ -3390,48 +3392,56 @@ static void ICACHE_FLASH_ATTR handle_set_cmd(void *arg, char *cmd, char *val)
     console_handle_command(pespconn);
 }
 
-static void ICACHE_FLASH_ATTR espconn_send_packet_end(struct espconn *pespconn)
+static void ICACHE_FLASH_ATTR web_config_send_packet_end(struct espconn *pespconn)
 {
     os_free(page_buf);
     page_buf = NULL;
     page_buf_offset = 0;
-    espconn_disconnect(pespconn);
+    last_send_activity = 0;
+    if (pespconn != NULL)
+    {
+        espconn_disconnect(pespconn);
+    }
 }
 
-static void ICACHE_FLASH_ATTR espconn_send_packet(struct espconn *pespconn)
+static void ICACHE_FLASH_ATTR web_config_send_packet(struct espconn *pespconn)
 {
     int page_buf_len = (page_buf != NULL) ? os_strlen(page_buf) : page_buf_offset;
     if (page_buf_offset >= page_buf_len)
     {
-        os_printf("espconn_send_packet(): All data sent\r\n");
-        espconn_send_packet_end(pespconn);
+        os_printf("web_config_send_packet(): All data sent\r\n");
+        web_config_send_packet_end(pespconn);
         return;
     }
 
     int remaining = page_buf_len - page_buf_offset;
     int packet_size = remaining > MAX_PACKET_SIZE ? MAX_PACKET_SIZE : remaining;
-    os_printf("espconn_send_packet(): Sending packet_size: %d, remaining: %d\r\n", packet_size, remaining - packet_size);
+    os_printf("web_config_send_packet(): Sending packet_size: %d, remaining: %d\r\n", packet_size, remaining - packet_size);
     sint8 result = espconn_send(pespconn, &page_buf[page_buf_offset], packet_size);
     if (result == 0)
     {
         page_buf_offset += packet_size;
+        last_send_activity = (uint32_t)(get_long_systime() / 1000000);
     }
     else
     {
-        os_printf("espconn_send_packet(): espconn_send failed with code: %d\r\n", result);
-        espconn_send_packet_end(pespconn);
+        os_printf("web_config_send_packet(): espconn_send failed with code: %d\r\n", result);
+        web_config_send_packet_end(pespconn);
     }
 }
 
 static void ICACHE_FLASH_ATTR web_config_create_page(struct espconn *pespconn)
 {
+    // timeout expired after that buffer will be erased in case of network problems?
+    if (page_buf != NULL && last_send_activity + SEND_ACTIVITY_TIMEOUT < get_long_systime() / 1000000) {
+        web_config_send_packet_end(NULL);
+    }
     // do not allow another page creation while buffer is not fully sent (NULL)
     if (page_buf != NULL)
     {
         os_printf("web_config_create_page(): Error. page_buf it not empty! Exit.\r\n");
         return;
     }
-    // TODO: implement a timeout after that buffer will be erased in case of network problems
 
     char time_buf[21]; // "12345 days, 23:59:59" == 20 chars
     get_uptime_string(time_buf);
@@ -3919,7 +3929,7 @@ void ICACHE_FLASH_ATTR timer_func(void *arg)
     os_timer_arm(&ptimer, toggle ? 900 : 100, 0);
 }
 
-//Priority 0 Task
+// Priority 0 Task
 static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
 {
     //os_printf("Sig: %d\r\n", events->sig);
@@ -3933,8 +3943,7 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
     case SIG_SEND_DATA:
     {
         struct espconn *pespconn = (struct espconn *)events->par;
-
-        espconn_send_packet(pespconn);
+        web_config_send_packet(pespconn);
         break;
     }
 
