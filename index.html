@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ESP8266 WiFi Repeater Installer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+  <style>
+    body { 
+      font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+      line-height: 1.6; 
+      text-align: center; 
+      padding: 40px 20px; 
+      background: #eceff1; 
+      color: #37474f;
+    }
+    .card { 
+      background: white; 
+      max-width: 450px; 
+      margin: auto; 
+      padding: 40px; 
+      border-radius: 15px; 
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1); 
+    }
+    h1 { margin-top: 0; color: #1a237e; }
+    p { color: #546e7a; margin-bottom: 30px; }
+    select { 
+      padding: 12px; 
+      width: 100%; 
+      margin-bottom: 25px; 
+      border-radius: 8px; 
+      border: 2px solid #cfd8dc; 
+      font-size: 16px;
+      background-color: #fafafa;
+    }
+    select:focus {
+      outline: none;
+      border-color: #3f51b5;
+    }
+    /* Style for the actual button inside the web component */
+    button[slot="activate"] {
+      background: #3f51b5;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button[slot="activate"]:hover {
+      background: #303f9f;
+    }
+    .footer {
+      margin-top: 30px;
+      font-size: 12px;
+      color: #90a4ae;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Firmware Flasher</h1>
+  <p>Install the ESP8266 WiFi Repeater firmware directly to your device via USB.</p>
+
+  <label for="variant-select" style="display:block; text-align:left; font-weight:bold; margin-bottom:5px;">
+    Select Variant:
+  </label>
+  <select id="variant-select">
+    <option value="manifest.json">Standard NAT Router Firmware</option>
+    <option value="manifest_repeater.json">WiFi Repeater Firmware</option>
+  </select>
+
+  <esp-web-install-button id="install-button" manifest="manifest.json">
+    <button slot="activate">Connect & Install</button>
+  </esp-web-install-button>
+
+  <div class="footer">
+    Make sure to use Google Chrome, Microsoft Edge, or Opera.<br>
+    Your browser must support WebUSB.
+  </div>
+</div>
+
+<script>
+  // Dynamic manifest switching logic
+  const selectEl = document.querySelector("#variant-select");
+  const installEl = document.querySelector("#install-button");
+
+  selectEl.addEventListener("change", () => {
+    installEl.setAttribute("manifest", selectEl.value);
+    console.log("Switched manifest to: " + selectEl.value);
+  });
+</script>
+
+</body>
+</html>
