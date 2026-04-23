@@ -11,6 +11,9 @@
 #include "osapi.h"
 #include "user_interface.h"
 #include "sys_time.h"
+#include "config_flash.h"
+
+extern sysconfig_t config;
 
 /* my_channel is set by wifi event handler in user_main.c on STAMODE_CONNECTED */
 extern uint8_t my_channel;
@@ -376,6 +379,8 @@ static err_t ICACHE_FLASH_ATTR bridge_output_ap(struct netif *netif, struct pbuf
 
 static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp)
 {
+    if (os_strcmp(config.ssid, WIFI_SSID) == 0) return s_orig_input_ap(p, inp);
+
     struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len + 16, PBUF_RAM);
 
     Bytes_out += p->tot_len;

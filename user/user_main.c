@@ -3367,8 +3367,13 @@ static void ICACHE_FLASH_ATTR tcp_client_connected_cb(void *arg)
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
 
-    char send_data[] = "Welcome to WiFi Repeater " ESP_REPEATER_VERSION "\r\n"
-            "Enter 'help' to get help.\r\nCMD>";
+    char send_data[] = "Welcome to " 
+#ifdef REPEATER_MODE
+            "WiFi Repeater "
+#else
+            "WiFi NAT Router "
+#endif
+            ESP_REPEATER_VERSION "\r\nEnter 'help' to get help.\r\nCMD>";
     espconn_send(pespconn, (uint8_t *) send_data, os_strlen(send_data));
 #if ACLS
     deny_cb_conn = pespconn;
@@ -3555,10 +3560,15 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
         if (page_buf == NULL)
             return;
         os_sprintf(page_buf, config_page, config.ssid, config.password,
+#ifndef REPEATER_MODE
                    config.automesh_mode != AUTOMESH_OFF ? "checked" : "",
+#endif
                    config.ap_ssid, config.ap_password,
-                   config.ap_open ? " selected" : "", config.ap_open ? "" : " selected",
-                   IP2STR(&config.network_addr));
+                   config.ap_open ? " selected" : "", config.ap_open ? "" : " selected"
+#ifndef REPEATER_MODE
+                   , IP2STR(&config.network_addr)
+#endif
+        );
         os_free(config_page);
 
         espconn_send(pespconn, page_buf, os_strlen(page_buf));
@@ -4081,7 +4091,7 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
     wifi_softap_dhcps_stop();
 
 #ifdef REPEATER_MODE
-    if (config.ssid[0] != 0) {
+    if (os_strcmp(config.ssid, WIFI_SSID) != 0) {
         /* Bridge mode: Use a dummy subnet to avoid overlap with the bridged network.
            The bridge logic will handle the actual data plane. */
         IP4_ADDR(&info.ip, 172, 31, 255, 1);
@@ -4103,12 +4113,7 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
 
     wifi_set_ip_info(nif->num, &info);
 
-#ifdef REPEATER_MODE
-    if (config.ssid[0] != 0) {
-        /* wifi_set_ip_info can restart DHCP on some SDK versions; keep it off in bridge mode */
-        wifi_softap_dhcps_stop();
-    }
-#endif
+    wifi_softap_dhcps_stop();
 
     dhcp_lease.start_ip = config.network_addr;
     ip4_addr4(&dhcp_lease.start_ip) = 2;
@@ -4118,7 +4123,7 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
     wifi_softap_set_dhcps_lease_time(config.dhcps_lease_time); // in minutes
 
 #ifdef REPEATER_MODE
-    if (config.ssid[0] == 0) {
+    if (os_strcmp(config.ssid, WIFI_SSID) == 0) {
         wifi_softap_dhcps_start();
         dhcps_set_DNS(&dns_ip);
     }

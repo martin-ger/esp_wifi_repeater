@@ -1,5 +1,7 @@
 # esp_wifi_repeater
-A full functional WiFi repeater (correctly: a WiFi NAT router)
+A full functional WiFi NAT router (and now also a WiFi repeater aka. L2 bridge)
+
+**NEW 2026:** *10 years after the first release it has finally become, what it ever pretendend to be: a true WiFi repeater. In order not to break any existing docs and links, the standard edition still remains the well-known NAT router version with all the advanced features. But if you are interested in a stripped down true L2 bridge, look below in the "WiFi Repeater - L2 bridge" section*
 
 This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, simple GPIO interaction, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
 
@@ -399,6 +401,51 @@ You can send the ESP to sleep manually once by using the "sleep" command.
 
 Caution: If you save a _vmin_ value higher than the max supply voltage to flash, the repeater will immediately shutdown every time after reboot. Then you have to wipe out the whole config by flashing blank.bin (or any other file) to 0x0c000.
 
+# WiFi Repeater - L2 Bridge
+
+The project now offers two distinct operational modes: **NAT Router** and **Layer 2 Bridge** (referred to as "Repeater mode"). While both modes extend network coverage, they fundamentally differ in how they handle traffic and device identity.
+
+### NAT Router Mode (Standard)
+In this mode, as descibed above, the device acts as a standard gateway. It creates a new subnet and performs Network Address Translation (NAT) for all devices connected to its Access Point (AP).
+
+*   **Subnet Isolation**: Connected clients are on a private subnet (e.g., 192.168.4.x) and are shielded from the primary network.
+*   **Traffic Identity**: All traffic from clients appears to the main router as if it originates from the ESP8266's own IP/MAC address.
+*   **Simplicity**: Requires no special configuration on the upstream router and is compatible with virtually all standard Wi-Fi networks.
+*   **Limitation**: Devices on the primary network cannot easily initiate connections to devices behind the repeater because of the NAT barrier, unless you use port mapping.
+
+### Layer 2 Bridge Mode ("Repeater" Variant)
+This mode implements a transparent Layer 2 (Data Link Layer) bridge. The ESP8266 extends the existing primary network rather than creating a secondary subnet.
+
+*   **Transparent Bridging**: The ESP8266 bridges traffic at the Ethernet frame level. Connected clients receive IP addresses directly from the primary network's DHCP server (via DHCP snooping/relay).
+*   **Unified Network**: All devices (both on the repeater and the main router) exist on the same L2 broadcast domain.
+*   **Device Visibility**: Devices behind the repeater retain their original MAC and IP identities on the main network. This allows local discovery protocols (like mDNS/Bonjour, UPnP, or network discovery) to function seamlessly across the entire network.
+*   **Complexity**: Requires advanced handling, such as Proxy ARP and DHCP snooping, to ensure the upstream network correctly routes traffic back to the "hidden" clients connected through the repeater.
+*   **Use Case**: Ideal when device discovery (e.g., controlling a printer or smart home device via a phone app) across the entire network is required.
+
+The repeater mode has less features: routing, port mapping and DHCP are not required, ACLs and Automesh also make no real sense and network monitoring via pcap as well. So all these features are not available in repeater mode. Also MQTT has been stripped. The remaining features are still available via the console or the remote console.
+
+You can find the precompiled binaries in the folder "firmware-repeater".
+
+First config of the repeater mode version is basically as simple as for the NAT router. Via the serial console simply set ssid, password, ap_ssid, and ap_password, then save and reset. If you want to do it via the web interface, it is also simple, but you have to obey the right order:
+
+- Connect to the "MyAP" WiFi with your client
+- Point the browser to "http://192.168.4.1"
+- Enter **first** the AP Settings ssid and password first, set and restart
+- Then connect to you newly defined AP ssid, point the browser again to "http://192.168.4.1"
+- Now enter the STA settings ssid and password and connect
+
+Once the STA ssid is defined, the repeater will no longer run its own DHCP server, but receives its IP from the upstream DHCP (no more 192.168.4.1). In order to connect to its web page, you then have to look up the assigned address either in your upstream router or at the serial console with "show stats". You can always reset the ESP via the console and "reset factory".
+
+### Key Contrast Summary
+
+| Feature | NAT Router | Layer 2 Bridge |
+| :--- | :--- | :--- |
+| **Network Architecture** | Creates new, isolated subnet | Extends existing broadcast domain |
+| **IP Addressing** | Clients use secondary pool | Clients use upstream DHCP server |
+| **Discovery (mDNS/UPnP)** | Often blocked/difficult | Fully supported (Transparent) |
+| **Upstream Visibility** | Client identity hidden (NAT) | Client identity preserved |
+| **Implementation** | Standard networking | Advanced proxying (Proxy ARP/Snooping) |
+
 # Building and Flashing
 If you have Docker installed, the easiest way to get access to the full build environment is to connect your ESP8266 to /dev/ttyUSB0 and run the image using:
 ```
@@ -406,6 +453,15 @@ git clone https://github.com/martin-ger/esp_wifi_repeater.git
 docker run -it --rm --device=/dev/ttyUSB0 -v $(pwd)/esp_wifi_repeater:/home/esp/esp_wifi_repeater martinfger/iot_devel:1.0
 cd esp_wifi_repeater
 make
+make flash
+``` 
+
+To build the L2 WiFi Repeater version just use the VARIANT=bridge option for the make command: 
+```
+git clone https://github.com/martin-ger/esp_wifi_repeater.git
+docker run -it --rm --device=/dev/ttyUSB0 -v $(pwd)/esp_wifi_repeater:/home/esp/esp_wifi_repeater martinfger/iot_devel:1.0
+cd esp_wifi_repeater
+make VARIANT=bridge 
 make flash
 ``` 
 
@@ -454,7 +510,6 @@ If configured correctly, the update will start and the ESP will reboot with the 
 # Known Issues
 - Due to the limitations of the ESP's SoftAP implementation, there is a maximum of 8 simultaniously connected stations.
 - The ESP8266 requires a good power supply as it produces current spikes of up to 170 mA during transmit (typical average consumption is around 70 mA when WiFi is on). Check the power supply first, if your ESP runs unstable and reboots from time to time. A large capacitor between Vdd and Gnd can help if you experience problems here.
-- All firmware published after 17/Oct/2017 have been built with the patched version of the SDK 2.1.0 from Espressif that mitigates the KRACK (https://www.krackattacks.com/ ) attack.
 
 # Licenses
 The software is open source. Third party source files have their own license header. For all other files the MIT license applies.
