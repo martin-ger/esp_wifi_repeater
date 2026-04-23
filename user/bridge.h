@@ -9,6 +9,7 @@
    Installs input hooks on both netifs, saves linkoutput pointers for forwarding,
    and locks the AP channel to the current STA channel. */
 void bridge_init(struct netif *sta_netif, struct netif *ap_netif);
+void bridge_show_fdb(void);
 
 #endif /* REPEATER_MODE */
 #endif /* _BRIDGE_H_ */

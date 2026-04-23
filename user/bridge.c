@@ -14,6 +14,9 @@
 
 /* my_channel is set by wifi event handler in user_main.c on STAMODE_CONNECTED */
 extern uint8_t my_channel;
+extern uint64_t Bytes_in, Bytes_out;
+extern uint32_t Packets_in, Packets_out;
+extern uint64_t Bytes_per_day;
 
 /* -------------------------------------------------------------------------
  * Netif state
@@ -27,6 +30,7 @@ static netif_output_fn      s_orig_output_sta;
 static netif_output_fn      s_orig_output_ap;
 static netif_linkoutput_fn  s_orig_lo_sta;
 static netif_linkoutput_fn  s_orig_lo_ap;
+static os_timer_t           s_arp_timer;
 
 /* -------------------------------------------------------------------------
  * Compact packed header types
@@ -179,7 +183,7 @@ static void ICACHE_FLASH_ATTR xid_map_insert(uint32_t xid, const uint8_t *chaddr
             return;
         }
         if (s_xid_map[i].xid == 0 || s_xid_map[i].expires_s <= now) { if (free_idx < 0) free_idx = i; }
-        if (s_xid_map[i].expires_s < oldest_exp) { oldest_exp = s_xid_map[i].expires_s; oldest_idx = i; }
+        if (s_xid_map[i].expires_s < oldest_exp) { oldest_exp = s_fdb[i].expires_s; oldest_idx = i; }
     }
     int idx = (free_idx >= 0) ? free_idx : oldest_idx;
     s_xid_map[idx].xid = xid; os_memcpy(s_xid_map[idx].chaddr, chaddr, 6); s_xid_map[idx].expires_s = now + XID_TTL_S;
@@ -202,7 +206,6 @@ static const uint8_t * ICACHE_FLASH_ATTR xid_map_lookup(uint32_t xid)
 static inline void * ICACHE_FLASH_ATTR pkt_at(struct pbuf *p, uint16_t off, uint16_t need)
 {
     if (p->tot_len < (uint16_t)(off + need)) return NULL;
-    if (p->len < (uint16_t)(off + need)) return NULL; 
     return (uint8_t *)p->payload + off;
 }
 
@@ -231,6 +234,48 @@ static uint8_t * ICACHE_FLASH_ATTR dhcp_find_option(uint8_t *opts, uint16_t opts
 }
 
 /* -------------------------------------------------------------------------
+ * Proxy ARP & Maintenance
+ * ------------------------------------------------------------------------- */
+
+static void ICACHE_FLASH_ATTR send_proxy_arp_reply(struct netif *tx_nif, netif_linkoutput_fn lo, const arp_hdr_t *req, uint32_t target_ip)
+{
+    uint16_t pkt_len = sizeof(eth_hdr_t) + sizeof(arp_hdr_t);
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, pkt_len, PBUF_RAM);
+    if (!p) return;
+    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
+    arp_hdr_t *arp = (arp_hdr_t *)((uint8_t *)p->payload + sizeof(eth_hdr_t));
+    os_memcpy(eth->dst, req->sha, 6); os_memcpy(eth->src, tx_nif->hwaddr, 6); eth->type = htons(ETHTYPE_ARP);
+    arp->hwtype = req->hwtype; arp->prtype = req->prtype; arp->hwlen = req->hwlen; arp->prlen = req->prlen;
+    arp->op = htons(2); 
+    os_memcpy(arp->sha, tx_nif->hwaddr, 6); arp->spa = target_ip;
+    os_memcpy(arp->tha, req->sha, 6); arp->tpa = req->spa;
+    lo(tx_nif, p); pbuf_free(p);
+}
+
+static void ICACHE_FLASH_ATTR send_garp(uint32_t ip)
+{
+    uint16_t pkt_len = sizeof(eth_hdr_t) + sizeof(arp_hdr_t);
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, pkt_len, PBUF_RAM);
+    if (!p) return;
+    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
+    arp_hdr_t *arp = (arp_hdr_t *)((uint8_t *)p->payload + sizeof(eth_hdr_t));
+    os_memset(eth->dst, 0xff, 6); os_memcpy(eth->src, s_sta_nif->hwaddr, 6); eth->type = htons(ETHTYPE_ARP);
+    arp->hwtype = htons(1); arp->prtype = htons(ETHTYPE_IP); arp->hwlen = 6; arp->prlen = 4;
+    arp->op = htons(1); os_memcpy(arp->sha, s_sta_nif->hwaddr, 6); arp->spa = ip;
+    os_memset(arp->tha, 0, 6); arp->tpa = ip;
+    s_orig_lo_sta(s_sta_nif, p); pbuf_free(p);
+}
+
+static void ICACHE_FLASH_ATTR arp_timer_func(void *arg)
+{
+    uint32_t now = now_secs();
+    int i;
+    for (i = 0; i < FDB_SIZE; i++) {
+        if (s_fdb[i].ip != 0 && s_fdb[i].expires_s > now) send_garp(s_fdb[i].ip);
+    }
+}
+
+/* -------------------------------------------------------------------------
  * DHCP snooping
  * ------------------------------------------------------------------------- */
 
@@ -240,8 +285,8 @@ static void ICACHE_FLASH_ATTR snoop_dhcp_request(struct pbuf *p, uint16_t eth_ip
     if (!dhcp || dhcp->op != DHCP_OP_REQUEST || dhcp->hlen != 6 || dhcp->magic != htonl(DHCP_MAGIC_COOKIE)) return;
 
     uint8_t client_mac[6]; os_memcpy(client_mac, dhcp->chaddr, 6);
-    os_memcpy(dhcp->chaddr, s_sta_nif->hwaddr, 6); /* Rewrite chaddr to STA */
-    dhcp->flags |= htons(0x8000); /* Force Broadcast */
+    os_memcpy(dhcp->chaddr, s_sta_nif->hwaddr, 6); 
+    dhcp->flags |= htons(0x8000); 
 
     uint16_t opts_len = p->len - eth_ip_udp_hdr_len - (uint16_t)sizeof(dhcp_msg_t);
     uint8_t msg_type = 0, optlen;
@@ -303,26 +348,19 @@ static bool ICACHE_FLASH_ATTR snoop_dhcp_reply(struct pbuf *p, uint16_t eth_ip_u
  * Hooks
  * ------------------------------------------------------------------------- */
 
-static void ICACHE_FLASH_ATTR send_proxy_arp_reply(const arp_hdr_t *req)
-{
-    uint16_t pkt_len = sizeof(eth_hdr_t) + sizeof(arp_hdr_t);
-    struct pbuf *p = pbuf_alloc(PBUF_RAW, pkt_len, PBUF_RAM);
-    if (!p) return;
-    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
-    arp_hdr_t *arp = (arp_hdr_t *)((uint8_t *)p->payload + sizeof(eth_hdr_t));
-    os_memcpy(eth->dst, req->sha, 6); os_memcpy(eth->src, s_ap_nif->hwaddr, 6); eth->type = htons(ETHTYPE_ARP);
-    arp->hwtype = req->hwtype; arp->prtype = req->prtype; arp->hwlen = req->hwlen; arp->prlen = req->prlen;
-    arp->op = htons(2); os_memcpy(arp->sha, s_ap_nif->hwaddr, 6); arp->spa = s_sta_nif->ip_addr.addr;
-    os_memcpy(arp->tha, req->sha, 6); arp->tpa = req->spa;
-    s_orig_lo_ap(s_ap_nif, p); pbuf_free(p);
-}
-
 static err_t ICACHE_FLASH_ATTR bridge_output_sta(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
 {
     const uint8_t *client_mac = fdb_lookup(ipaddr->addr);
     if (client_mac && pbuf_header(p, sizeof(eth_hdr_t)) == 0) {
         eth_hdr_t *eth = (eth_hdr_t *)p->payload;
         os_memcpy(eth->dst, client_mac, 6); os_memcpy(eth->src, s_ap_nif->hwaddr, 6); eth->type = htons(ETHTYPE_IP);
+        
+        Bytes_out += p->tot_len;
+        Packets_out++;
+#if DAILY_LIMIT
+        Bytes_per_day += p->tot_len;
+#endif
+        
         err_t err = s_orig_lo_ap(s_ap_nif, p);
         pbuf_header(p, -(s16_t)sizeof(eth_hdr_t)); return err;
     }
@@ -331,93 +369,173 @@ static err_t ICACHE_FLASH_ATTR bridge_output_sta(struct netif *netif, struct pbu
 
 static err_t ICACHE_FLASH_ATTR bridge_output_ap(struct netif *netif, struct pbuf *p, ip_addr_t *ipaddr)
 {
-    return fdb_lookup(ipaddr->addr) ? s_orig_output_ap(netif, p, ipaddr) : s_orig_output_sta(s_sta_nif, p, ipaddr);
+    if (fdb_lookup(ipaddr->addr)) return s_orig_output_ap(netif, p, ipaddr);
+    
+    return s_orig_output_sta(s_sta_nif, p, ipaddr);
 }
 
 static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp)
 {
-    if (p->len < sizeof(eth_hdr_t)) return s_orig_input_ap(p, inp);
-    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
+    struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len + 16, PBUF_RAM);
+
+    Bytes_out += p->tot_len;
+    Packets_out++;
+#if DAILY_LIMIT
+    Bytes_per_day += p->tot_len;
+#endif
+
+    if (!q) return s_orig_input_ap(p, inp);
+    pbuf_copy(q, p);
+
+    eth_hdr_t *eth = (eth_hdr_t *)q->payload;
     bool is_bcast = (eth->dst[0] & 0x01) != 0, is_to_ap_mac = (os_memcmp(eth->dst, s_ap_nif->hwaddr, 6) == 0);
-    if (is_to_ap_mac && !is_bcast) return s_orig_input_ap(p, inp);
+    if (is_to_ap_mac && !is_bcast) { pbuf_free(q); return s_orig_input_ap(p, inp); }
 
     uint16_t eth_type = ntohs(eth->type);
     bool handled = false;
+    os_memcpy(eth->src, s_sta_nif->hwaddr, 6);
 
-    struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len + 16, PBUF_RAM);
-    if (q) {
-        q->len = p->len; q->tot_len = p->tot_len; os_memcpy(q->payload, p->payload, p->len);
-        eth_hdr_t *eth_q = (eth_hdr_t *)q->payload; os_memcpy(eth_q->src, s_sta_nif->hwaddr, 6);
-        if (eth_type == ETHTYPE_ARP) {
-            arp_hdr_t *arp_q = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
-            if (arp_q) {
-                fdb_insert(arp_q->spa, eth->src);
-                if (ntohs(arp_q->op) == 1 && s_sta_nif->ip_addr.addr != 0 && arp_q->tpa == s_sta_nif->ip_addr.addr) {
-                    send_proxy_arp_reply(arp_q); handled = true;
-                } else {
-                    os_memcpy(arp_q->sha, s_sta_nif->hwaddr, 6); s_orig_lo_sta(s_sta_nif, q); handled = true;
-                }
+    if (eth_type == ETHTYPE_ARP) {
+        arp_hdr_t *arp = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
+        if (arp) {
+            fdb_insert(arp->spa, ((eth_hdr_t*)p->payload)->src);
+            if (ntohs(arp->op) == 1 && s_sta_nif->ip_addr.addr != 0 && arp->tpa == s_sta_nif->ip_addr.addr) {
+                send_proxy_arp_reply(s_ap_nif, s_orig_lo_ap, arp, s_sta_nif->ip_addr.addr); handled = true;
+            } else {
+                os_memcpy(arp->sha, s_sta_nif->hwaddr, 6); s_orig_lo_sta(s_sta_nif, q); handled = true;
             }
-        } else if (eth_type == ETHTYPE_IP) {
-            ip_hdr_t *ip_q = (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
-            if (ip_q) {
-                fdb_insert(ip_q->src, eth->src);
-                if (ip_q->proto == 17) {
-                    uint16_t udp_off = sizeof(eth_hdr_t) + (ip_q->vhl & 0x0f) * 4;
-                    udp_hdr_t *udp_q = (udp_hdr_t *)pkt_at(q, udp_off, sizeof(udp_hdr_t));
-                    if (udp_q && ntohs(udp_q->dst_port) == 67) snoop_dhcp_request(q, udp_off + sizeof(udp_hdr_t));
-                }
-                s_orig_lo_sta(s_sta_nif, q); handled = true;
+        }
+    } else if (eth_type == ETHTYPE_IP) {
+        ip_hdr_t *ip = (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
+        if (ip) {
+            fdb_insert(ip->src, ((eth_hdr_t*)p->payload)->src);
+            if (ip->proto == 17) {
+                uint16_t udp_off = sizeof(eth_hdr_t) + (ip->vhl & 0x0f) * 4;
+                udp_hdr_t *udp = (udp_hdr_t *)pkt_at(q, udp_off, sizeof(udp_hdr_t));
+                if (udp && ntohs(udp->dst_port) == 67) snoop_dhcp_request(q, udp_off + sizeof(udp_hdr_t));
             }
-        } else { s_orig_lo_sta(s_sta_nif, q); handled = true; }
-        pbuf_free(q);
-    }
+            s_orig_lo_sta(s_sta_nif, q); handled = true;
+        }
+    } else { s_orig_lo_sta(s_sta_nif, q); handled = true; }
+    
+    pbuf_free(q);
     if (is_bcast) return s_orig_input_ap(p, inp);
+
     if (handled) { pbuf_free(p); return ERR_OK; }
     return s_orig_input_ap(p, inp);
 }
 
 static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *inp)
 {
-    if (p->tot_len < sizeof(eth_hdr_t)) return s_orig_input_sta(p, inp);
-    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
-    if (os_memcmp(eth->src, s_ap_nif->hwaddr, 6) == 0) return s_orig_input_sta(p, inp);
+    struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+
+    Bytes_in += p->tot_len;
+    Packets_in++;
+#if DAILY_LIMIT
+    Bytes_per_day += p->tot_len;
+#endif
+
+    if (!q) return s_orig_input_sta(p, inp);
+    pbuf_copy(q, p);
+
+    eth_hdr_t *eth = (eth_hdr_t *)q->payload;
+    if (os_memcmp(eth->src, s_ap_nif->hwaddr, 6) == 0) { pbuf_free(q); return s_orig_input_sta(p, inp); }
 
     uint16_t eth_type = ntohs(eth->type);
     bool is_bcast = (eth->dst[0] & 0x01) != 0, is_to_sta_mac = (os_memcmp(eth->dst, s_sta_nif->hwaddr, 6) == 0);
     bool handled = false;
+    os_memcpy(eth->src, s_ap_nif->hwaddr, 6);
 
-    struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
-    if (q) {
-        pbuf_copy(q, p); eth_hdr_t *eth_q = (eth_hdr_t *)q->payload; os_memcpy(eth_q->src, s_ap_nif->hwaddr, 6);
-        if (eth_type == ETHTYPE_IP) {
-            ip_hdr_t *ip_q = (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
-            if (ip_q) {
-                uint8_t ch[6]; bool have_dhcp = false;
-                if (ip_q->proto == 17) {
-                    uint16_t udp_off = sizeof(eth_hdr_t) + (ip_q->vhl & 0x0f) * 4;
-                    udp_hdr_t *udp_q = (udp_hdr_t *)pkt_at(q, udp_off, sizeof(udp_hdr_t));
-                    if (udp_q && ntohs(udp_q->src_port) == 67 && ntohs(udp_q->dst_port) == 68) have_dhcp = snoop_dhcp_reply(q, udp_off + sizeof(udp_hdr_t), ch);
-                }
-                const uint8_t *mac = NULL;
-                if (have_dhcp) mac = ch; else if (!is_bcast) { if (s_sta_nif->ip_addr.addr && ip_q->dst != s_sta_nif->ip_addr.addr) mac = fdb_lookup(ip_q->dst); }
-                if (is_bcast || mac) { if (mac) os_memcpy(eth_q->dst, mac, 6); s_orig_lo_ap(s_ap_nif, q); handled = true; }
+    if (eth_type == ETHTYPE_IP) {
+        ip_hdr_t *ip = (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
+        if (ip) {
+            uint8_t ch[6]; bool have_dhcp = false;
+            if (ip->proto == 17) {
+                uint16_t udp_off = sizeof(eth_hdr_t) + (ip->vhl & 0x0f) * 4;
+                udp_hdr_t *udp = (udp_hdr_t *)pkt_at(q, udp_off, sizeof(udp_hdr_t));
+                if (udp && ntohs(udp->src_port) == 67 && ntohs(udp->dst_port) == 68) have_dhcp = snoop_dhcp_reply(q, udp_off + sizeof(udp_hdr_t), ch);
             }
-        } else if (eth_type == ETHTYPE_ARP) {
-            arp_hdr_t *arp_q = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
-            if (arp_q) {
-                os_memcpy(arp_q->sha, s_ap_nif->hwaddr, 6);
-                const uint8_t *mac = NULL;
-                if (!is_bcast) { if (s_sta_nif->ip_addr.addr && arp_q->tpa != s_sta_nif->ip_addr.addr) mac = fdb_lookup(arp_q->tpa); }
-                if (is_bcast || mac) { if (mac) { os_memcpy(eth_q->dst, mac, 6); os_memcpy(arp_q->tha, mac, 6); } s_orig_lo_ap(s_ap_nif, q); handled = true; }
+            const uint8_t *mac = NULL;
+            if (have_dhcp) mac = ch; else if (!is_bcast) { if (s_sta_nif->ip_addr.addr && ip->dst != s_sta_nif->ip_addr.addr) mac = fdb_lookup(ip->dst); }
+            if (is_bcast || mac) {
+                if (mac) os_memcpy(eth->dst, mac, 6);
+                s_orig_lo_ap(s_ap_nif, q); handled = true;
             }
         }
-        pbuf_free(q);
+    } else if (eth_type == ETHTYPE_ARP) {
+        arp_hdr_t *arp = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
+        if (arp) {
+            if (ntohs(arp->op) == 1 && fdb_lookup(arp->tpa)) {
+                send_proxy_arp_reply(s_sta_nif, s_orig_lo_sta, arp, arp->tpa);
+                handled = true; pbuf_free(q); pbuf_free(p); return ERR_OK;
+            }
+            os_memcpy(arp->sha, s_ap_nif->hwaddr, 6);
+            const uint8_t *mac = NULL;
+            if (!is_bcast) { if (s_sta_nif->ip_addr.addr && arp->tpa != s_sta_nif->ip_addr.addr) mac = fdb_lookup(arp->tpa); }
+            if (is_bcast || mac) {
+                if (mac) { os_memcpy(eth->dst, mac, 6); os_memcpy(arp->tha, mac, 6); }
+                s_orig_lo_ap(s_ap_nif, q); handled = true;
+            }
+        }
     }
+    
+    pbuf_free(q);
+
     if (is_bcast || (is_to_sta_mac && !handled)) return s_orig_input_sta(p, inp);
     pbuf_free(p); return ERR_OK;
 }
+/*
+static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *inp)
+{
+ //   struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
+ //   if (!q) return s_orig_input_sta(p, inp);
+ //   pbuf_copy(q, p);
 
+    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
+    if (os_memcmp(eth->src, s_ap_nif->hwaddr, 6) == 0) { return s_orig_input_sta(p, inp); }
+
+    uint16_t eth_type = ntohs(eth->type);
+    bool is_bcast = (eth->dst[0] & 0x01) != 0, is_to_sta_mac = (os_memcmp(eth->dst, s_sta_nif->hwaddr, 6) == 0);
+    bool handled = false;
+    os_memcpy(eth->src, s_ap_nif->hwaddr, 6);
+
+    if (eth_type == ETHTYPE_IP) {
+        ip_hdr_t *ip = (ip_hdr_t *)pkt_at(p, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
+        if (ip) {
+            uint8_t ch[6]; bool have_dhcp = false;
+            if (ip->proto == 17) {
+                uint16_t udp_off = sizeof(eth_hdr_t) + (ip->vhl & 0x0f) * 4;
+                udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, udp_off, sizeof(udp_hdr_t));
+                if (udp && ntohs(udp->src_port) == 67 && ntohs(udp->dst_port) == 68) have_dhcp = snoop_dhcp_reply(p, udp_off + sizeof(udp_hdr_t), ch);
+            }
+            const uint8_t *mac = NULL;
+            if (have_dhcp) mac = ch; else if (!is_bcast) { if (s_sta_nif->ip_addr.addr && ip->dst != s_sta_nif->ip_addr.addr) mac = fdb_lookup(ip->dst); }
+            if (is_bcast || mac) {
+                if (mac) os_memcpy(eth->dst, mac, 6);
+                s_orig_lo_ap(s_ap_nif, p); handled = true;
+            }
+        }
+    } else if (eth_type == ETHTYPE_ARP) {
+        arp_hdr_t *arp = (arp_hdr_t *)pkt_at(p, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
+        if (arp) {
+            if (ntohs(arp->op) == 1 && fdb_lookup(arp->tpa)) {
+                send_proxy_arp_reply(s_sta_nif, s_orig_lo_sta, arp, arp->tpa);
+                handled = true; pbuf_free(p); return ERR_OK;
+            }
+            os_memcpy(arp->sha, s_ap_nif->hwaddr, 6);
+            const uint8_t *mac = NULL;
+            if (!is_bcast) { if (s_sta_nif->ip_addr.addr && arp->tpa != s_sta_nif->ip_addr.addr) mac = fdb_lookup(arp->tpa); }
+            if (is_bcast || mac) {
+                if (mac) { os_memcpy(eth->dst, mac, 6); os_memcpy(arp->tha, mac, 6); }
+                s_orig_lo_ap(s_ap_nif, p); handled = true;
+            }
+        }
+    }
+    
+    if (is_bcast || (is_to_sta_mac && !handled)) return s_orig_input_sta(p, inp);
+    pbuf_free(p); return ERR_OK;
+}
+*/
 void ICACHE_FLASH_ATTR bridge_init(struct netif *sta_nif, struct netif *ap_nif)
 {
     s_sta_nif = sta_nif; s_ap_nif = ap_nif;
@@ -429,7 +547,29 @@ void ICACHE_FLASH_ATTR bridge_init(struct netif *sta_nif, struct netif *ap_nif)
     netif_set_default(sta_nif); sta_nif->napt = 0; ap_nif->napt = 0;
     os_memset(s_fdb, 0, sizeof(s_fdb)); os_memset(s_xid_map, 0, sizeof(s_xid_map));
     struct softap_config ap_cfg; wifi_softap_get_config(&ap_cfg); ap_cfg.channel = my_channel; wifi_softap_set_config(&ap_cfg);
+    wifi_set_sleep_type(NONE_SLEEP_T);
+    os_timer_disarm(&s_arp_timer);
+    os_timer_setfn(&s_arp_timer, (os_timer_func_t *)arp_timer_func, NULL);
+    os_timer_arm(&s_arp_timer, 30000, 1);
     os_printf("bridge: init done\n");
+}
+
+void ICACHE_FLASH_ATTR bridge_show_fdb(void)
+{
+    uint32_t now = now_secs();
+    os_printf("Repeater FDB (IP -> Client MAC):\n");
+    int i, count = 0;
+    for (i = 0; i < FDB_SIZE; i++) {
+        if (s_fdb[i].ip != 0 && s_fdb[i].expires_s > now) {
+            os_printf("  " IPSTR " -> %02x:%02x:%02x:%02x:%02x:%02x (expires in %d s)\n",
+                      IP2STR(&s_fdb[i].ip),
+                      s_fdb[i].mac[0], s_fdb[i].mac[1], s_fdb[i].mac[2],
+                      s_fdb[i].mac[3], s_fdb[i].mac[4], s_fdb[i].mac[5],
+                      (int)(s_fdb[i].expires_s - now));
+            count++;
+        }
+    }
+    if (count == 0) os_printf("  (empty)\n");
 }
 
 #endif /* REPEATER_MODE */

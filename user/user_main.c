@@ -1159,7 +1159,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 
     if (strcmp(tokens[0], "help") == 0)
     {
-        os_sprintf(response, "show [config|stats|route|dhcp%s]\r\n",
+        os_sprintf(response, "show [config|stats|route|dhcp|repeater%s]\r\n",
 #if ACLS
                    "|acl"
 #else
@@ -1544,6 +1544,14 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             }
             goto command_handled_2;
         }
+
+#ifdef REPEATER_MODE
+        if (nTokens == 2 && strcmp(tokens[1], "repeater") == 0)
+        {
+            bridge_show_fdb();
+            goto command_handled_2;
+        }
+#endif
 
         if (nTokens == 2 && strcmp(tokens[1], "route") == 0)
         {
