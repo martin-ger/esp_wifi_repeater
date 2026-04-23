@@ -1,13 +1,13 @@
 # esp_wifi_repeater
 A full functional WiFi NAT router (and now also a WiFi repeater aka. L2 bridge)
 
-**NEW 2026:** *10 years after the first release it has finally become, what it ever pretendend to be: a true WiFi repeater. In order not to break any existing docs and links, the standard edition still remains the well-known NAT router version with all the advanced features. But if you are interested in a stripped down true L2 bridge, look below in the section [WiFi Repeater - L2 bridge](#wifi-repeater---l2-bridge).
+**NEW 2026:** *10 years after the first release it has finally become, what it ever pretendend to be: **a true WiFi Repeater**. In order not to break any existing docs and links, the standard edition still remains the well-known NAT router version with all the advanced features. But if you are interested in a stripped down true L2 bridge, look below in the section [ESP8266 WiFi Repeater - L2 bridge](#wifi-repeater---l2-bridge).*
 
-This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, simple GPIO interaction, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
+This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, simple GPIO interaction, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "[Automesh](#automesh-mode)" has been included.
 
-*If you are looking for a way to integrate the NAT feature into your Arduino project* - see https://github.com/martin-ger/lwip_nat_arduino .
+*If you are looking for a way to integrate the NAT feature into your Arduino project* - see [here](https://github.com/martin-ger/lwip_nat_arduino) .
 
-A similar *basic NAT feature for the ESP32* can be found at: https://github.com/martin-ger/esp32_nat_router.
+[EPS32 NAT Router](https://github.com/martin-ger/esp32_nat_router) is the advanced project for the *ESP32*.
 
 Typical usage scenarios include:
 - Simple range extender for an existing WiFi network
@@ -23,7 +23,7 @@ By default, the ESP acts as STA and as soft-AP and transparently forwards any IP
 
 Measurements show, that it can achieve about 5 Mbps in both directions, so even streaming is possible.
 
-Some details are explained in this video: https://www.youtube.com/watch?v=OM2FqnMFCLw
+Some details are explained in this [video](https://www.youtube.com/watch?v=OM2FqnMFCLw).
 
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
