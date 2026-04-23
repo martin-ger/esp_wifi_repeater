@@ -1,0 +1,14 @@
+{
+  "name": "ESP WiFi Repeater (L2 Bridge)",
+  "version": "3.0.0",
+  "builds": [
+    {
+      "chipFamily": "ESP8266",
+      "parts": [
+        { "path": "firmware-repeater/0x00000.bin", "offset": 0 },
+        { "path": "firmware-repeater/0x02000.bin", "offset": 8192 },
+        { "path": "firmware-repeater/0x82000.bin", "offset": 532480 }
+      ]
+    }
+  ]
+}
