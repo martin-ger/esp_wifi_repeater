@@ -4,6 +4,8 @@
   "builds": [
     {
       "chipFamily": "ESP8266",
+      "slow": true,
+      "baudrate": 115200,
       "parts": [
         { "path": "firmware-repeater/0x00000.bin", "offset": 0 },
         { "path": "firmware-repeater/0x02000.bin", "offset": 8192 },
