@@ -1,0 +1,14 @@
+{
+  "name": "ESP WiFi Repeater (Standard NAT)",
+  "version": "3.0.0",
+  "builds": [
+    {
+      "chipFamily": "ESP8266",
+      "parts": [
+        { "path": "firmware/0x00000.bin", "offset": 0 },
+        { "path": "firmware/0x02000.bin", "offset": 8192 },
+        { "path": "firmware/0x82000.bin", "offset": 532480 }
+      ]
+    }
+  ]
+}
