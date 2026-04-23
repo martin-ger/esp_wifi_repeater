@@ -451,6 +451,8 @@ Once the STA ssid is defined, the repeater will no longer run its own DHCP serve
 | **Implementation** | Standard networking | Advanced proxying (Proxy ARP/Snooping) |
 
 # Building and Flashing
+For direct flashing of the pre-compiled binaries onto the device use the [Web-Installer](https://martin-ger.github.io/esp_wifi_repeater/). 
+
 If you have Docker installed, the easiest way to get access to the full build environment is to connect your ESP8266 to /dev/ttyUSB0 and run the image using:
 ```
 git clone https://github.com/martin-ger/esp_wifi_repeater.git
