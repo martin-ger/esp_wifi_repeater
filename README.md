@@ -1,7 +1,7 @@
 # esp_wifi_repeater
 A full functional WiFi NAT router (and now also a WiFi repeater aka. L2 bridge)
 
-**NEW 2026:** *10 years after the first release it has finally become, what it ever pretendend to be: a true WiFi repeater. In order not to break any existing docs and links, the standard edition still remains the well-known NAT router version with all the advanced features. But if you are interested in a stripped down true L2 bridge, look below in the "WiFi Repeater - L2 bridge" section*
+**NEW 2026:** *10 years after the first release it has finally become, what it ever pretendend to be: a true WiFi repeater. In order not to break any existing docs and links, the standard edition still remains the well-known NAT router version with all the advanced features. But if you are interested in a stripped down true L2 bridge, look below in the section [WiFi Repeater - L2 bridge](#wifi-repeater---l2-bridge).
 
 This is an implementation of a WiFi NAT router on the esp8266 and esp8285. It also includes support for a packet filtering firewall with ACLs, port mapping, traffic shaping, hooks for remote monitoring (or packet sniffing), an MQTT management interface, simple GPIO interaction, and power management. For a setup with multiple routers in a mesh to cover a larger area a new mode "Automesh" has been included https://github.com/martin-ger/esp_wifi_repeater#automesh-mode .
 
