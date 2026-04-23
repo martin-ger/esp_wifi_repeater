@@ -25,6 +25,10 @@ Measurements show, that it can achieve about 5 Mbps in both directions, so even 
 
 Some details are explained in this [video](https://www.youtube.com/watch?v=OM2FqnMFCLw).
 
+## Web Installer
+
+For direct flashing onto the device use the [Web-Installer](https://martin-ger.github.io/esp_wifi_repeater/).
+
 # First Boot
 The esp_wifi_repeater starts with the following default configuration:
 
