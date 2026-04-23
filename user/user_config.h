@@ -12,14 +12,20 @@
 #define		WIFI_AP_SSID "MyAP"
 #define		WIFI_AP_PASSWORD "none"
 
+#ifndef MAX_CLIENTS
 #define		MAX_CLIENTS 8
+#endif
+#ifndef MAX_DHCP
 #define		MAX_DHCP 8
+#endif
 
 //
 // Docker SDK comes with a user_rf_cal_sector_set() in libmain.a.
 // Define this to 1 if you use an official SDK (and need the user_rf_cal_sector_set() here)
 //
+#ifndef USER_RF_CAL
 #define		USER_RF_CAL 0
+#endif
 
 //
 // Size of the console buffers
@@ -32,95 +38,133 @@
 // Any value > 16 disables this feature
 // (I don't know of any that don't --AJK)
 //
+#ifndef STATUS_LED_GPIO
 #define		STATUS_LED_GPIO 2
+#endif
 
 //
 // Defines the default GPIO pin for HW factory reset (when this GPIO is pulled low for more than 3 secs)
 // Any value > 16 disables this feature
 //
+#ifndef FACTORY_RESET_PIN
 #define		FACTORY_RESET_PIN 255
+#endif
 
 //
 // Define this to 1 to support the "scan" command for AP search
 //
+#ifndef ALLOW_SCANNING
 #define		ALLOW_SCANNING 1
+#endif
 
 //
 // Define this to 1 to support the "ping" command for IP connectivity check
 //
+#ifndef ALLOW_PING
 #define		ALLOW_PING 1
+#endif
 
 //
 // Define this to 1 to support the "sleep" command for power management and deep sleep
 // Requires a connection of GPIO16 and RST (probably not available on ESP01 modules)
 //
+#ifndef ALLOW_SLEEP
 #define		ALLOW_SLEEP 1
+#endif
 
 //
 // Define this to 1 to support a daily traffic limit
 //
+#ifndef DAILY_LIMIT
 #define		DAILY_LIMIT 0
+#endif
 
 //
 // Define this to support the setting of the WiFi PHY mode
 //
+#ifndef PHY_MODE
 #define		PHY_MODE 1
+#endif
 
 //
 // Define this to 1 to support a loopback device (127.0.0.1)
 //
+#ifndef HAVE_LOOPBACK
 #define		HAVE_LOOPBACK 1
+#endif
 
 //
 // Define this to 1 if you want to have access to the config console via TCP.
 // Ohterwise only local access via serial is possible
 //
+#ifndef REMOTE_CONFIG
 #define		REMOTE_CONFIG 1
+#endif
 #define		CONSOLE_SERVER_PORT 7777
 
 //
 // Define this to 1 if you want to have access to the config via Web.
 //
+#ifndef WEB_CONFIG
 #define		WEB_CONFIG 1
+#endif
 #define		WEB_CONFIG_PORT 80
 
 //
 // Define this to 1 if you want to have ACLs for the SoftAP.
 //
+#ifndef ACLS
 #define		ACLS 1
+#endif
 
 //
 // Define this to 1 if you want to have OTA (Over the air) updates
 //
+#ifndef OTAUPDATE
 #define		OTAUPDATE 1
+#endif
 
 //
 // Define this to 1 if you want to have QoS for the SoftAP.
 //
+#ifndef TOKENBUCKET
 #define		TOKENBUCKET 1
+#endif
 // Burst size (token bucket size) in seconds of average bitrate
+#ifndef MAX_TOKEN_RATIO
 #define		MAX_TOKEN_RATIO 4
+#endif
 
 //
 // Define this to 1 if you want to offer monitoring access to all transmitted data between the soft AP and all STAs.
 // Packets are mirrored in pcap format to the given port.
 // CAUTION: this might be a privacy issue!!!
 //
+#ifndef REMOTE_MONITORING
 #define		REMOTE_MONITORING 1
+#endif
 
+#ifndef MONITOR_BUFFER_SIZE
 #define		MONITOR_BUFFER_SIZE 0x3c00
+#endif
 
 // Define this if you want to cut packets short in case of too high data rate
+#ifndef MONITOR_BUFFER_TIGHT
 #define		MONITOR_BUFFER_TIGHT 0x1000
+#endif
 
 // Define this to 1 if you want to silently drop any packet that cannot be send to the monitor
+#ifndef DROP_PACKET_IF_NOT_RECORDED
 #define		DROP_PACKET_IF_NOT_RECORDED 1
+#endif
 
 //
 //
 // Define this to 1 if you want to have it work as a MQTT client
 //
+#ifndef MQTT_CLIENT
 #define		MQTT_CLIENT 1
+#endif
 
 #define		MQTT_BUF_SIZE 2048
 #define		MQTT_KEEPALIVE 120  /*seconds*/
@@ -140,19 +184,25 @@
 
 // Define this to 1 support WPA2 PEAP authentication (experimental)
 //
+#ifndef WPA2_PEAP
 #define		WPA2_PEAP 1
+#endif
 
 //
 // Define this to 1 to support an ENC28J60 Ethernet interface
 // Experimental feature - not yet stable
 //
+#ifndef HAVE_ENC28J60
 #define		HAVE_ENC28J60 0
+#endif
 
 //
 // Define this to 1 to support ENC28J60 DHCP server
 // Experimental feature - might not yet be stable
 //
+#ifndef DCHPSERVER_ENC28J60
 #define         DCHPSERVER_ENC28J60 1
+#endif
 
 //
 // Define this ESP GPIO, if you have the HW-RESET pin of the ENC28J60 connected to it
@@ -163,7 +213,9 @@
 //
 // Define this to 1 if you want to be able to control GPIO pins from the command line
 //
+#ifndef GPIO_CMDS
 #define		GPIO_CMDS 1
+#endif
 
 // Internal
 

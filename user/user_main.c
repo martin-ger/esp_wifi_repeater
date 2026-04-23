@@ -35,6 +35,9 @@
 #include "ringbuf.h"
 #include "user_config.h"
 #include "config_flash.h"
+#ifdef REPEATER_MODE
+#include "bridge.h"
+#endif
 #include "sys_time.h"
 #include "sntp.h"
 
@@ -846,7 +849,6 @@ void ICACHE_FLASH_ATTR scan_done(void *arg, STATUS status)
 }
 #endif
 
-#if ACLS
 void ICACHE_FLASH_ATTR parse_IP_addr(uint8_t *str, uint32_t *addr, uint32_t *mask)
 {
     int i;
@@ -871,6 +873,7 @@ void ICACHE_FLASH_ATTR parse_IP_addr(uint8_t *str, uint32_t *addr, uint32_t *mas
     *addr = ipaddr_addr(str);
 }
 
+#if ACLS
 struct espconn *deny_cb_conn = 0;
 uint8_t acl_debug = 0;
 
@@ -2430,12 +2433,16 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
                 config.nat_enable = atoi(tokens[2]);
                 if (config.nat_enable)
                 {
+#ifndef REPEATER_MODE
                     ip_napt_enable_no(1, 1);
+#endif
                     os_sprintf_flash(response, "NAT enabled\r\n");
                 }
                 else
                 {
+#ifndef REPEATER_MODE
                     ip_napt_enable_no(1, 0);
+#endif
                     os_sprintf_flash(response, "NAT disabled\r\n");
                 }
                 goto command_handled;
@@ -3945,7 +3952,27 @@ void wifi_handle_event_cb(System_Event_t *evt)
         my_ip = evt->event_info.got_ip.ip;
         connected = true;
 
+#ifndef REPEATER_MODE
         patch_netif(my_ip, my_input_sta, &orig_input_sta, my_output_sta, &orig_output_sta, false);
+#else
+        {
+            struct netif *sta_nif = NULL, *ap_nif = NULL, *nif;
+            for (nif = netif_list; nif != NULL; nif = nif->next) {
+                os_printf("netif found: %c%c%d\n", nif->name[0], nif->name[1], nif->num);
+                /* Match 'st' or 'st0' for station, 'ap' or 'ap1' for softap. 
+                   Some SDKs use 'st'/'ap', others might use 'en' or 'wl'. */
+                if (nif->name[0] == 's' && nif->name[1] == 't') sta_nif = nif;
+                if (nif->name[0] == 'a' && nif->name[1] == 'p') ap_nif  = nif;
+                /* Fallback for some SDK versions */
+                if (nif->num == 0 && !sta_nif) sta_nif = nif;
+                if (nif->num == 1 && !ap_nif) ap_nif = nif;
+            }
+            if (sta_nif && ap_nif)
+                bridge_init(sta_nif, ap_nif);
+            else
+                os_printf("bridge_init: netif not found\n");
+        }
+#endif
 
         // Update any predefined portmaps to the new IP addr
         for (i = 0; i < config.max_portmap; i++)
@@ -3982,9 +4009,11 @@ void wifi_handle_event_cb(System_Event_t *evt)
 #if MQTT_CLIENT
         mqtt_publish_str(MQTT_TOPIC_JOIN, "join", mac_str);
 #endif
+#ifndef REPEATER_MODE
         ip_addr_t ap_ip = config.network_addr;
         ip4_addr4(&ap_ip) = 1;
         patch_netif(ap_ip, my_input_ap, &orig_input_ap, my_output_ap, &orig_output_ap, config.nat_enable);
+#endif
         break;
 
     case EVENT_SOFTAPMODE_STADISCONNECTED:
@@ -4043,12 +4072,35 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
 
     wifi_softap_dhcps_stop();
 
+#ifdef REPEATER_MODE
+    if (config.ssid[0] != 0) {
+        /* Bridge mode: Use a dummy subnet to avoid overlap with the bridged network.
+           The bridge logic will handle the actual data plane. */
+        IP4_ADDR(&info.ip, 172, 31, 255, 1);
+        IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+        info.gw = info.ip;
+    } else {
+        /* Config mode: Use the configured address */
+        info.ip = config.network_addr;
+        ip4_addr4(&info.ip) = 1;
+        info.gw = info.ip;
+        IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+    }
+#else
     info.ip = config.network_addr;
     ip4_addr4(&info.ip) = 1;
     info.gw = info.ip;
     IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+#endif
 
     wifi_set_ip_info(nif->num, &info);
+
+#ifdef REPEATER_MODE
+    if (config.ssid[0] != 0) {
+        /* wifi_set_ip_info can restart DHCP on some SDK versions; keep it off in bridge mode */
+        wifi_softap_dhcps_stop();
+    }
+#endif
 
     dhcp_lease.start_ip = config.network_addr;
     ip4_addr4(&dhcp_lease.start_ip) = 2;
@@ -4057,10 +4109,17 @@ void ICACHE_FLASH_ATTR user_set_softap_ip_config(void)
     wifi_softap_set_dhcps_lease(&dhcp_lease);
     wifi_softap_set_dhcps_lease_time(config.dhcps_lease_time); // in minutes
 
+#ifdef REPEATER_MODE
+    if (config.ssid[0] == 0) {
+        wifi_softap_dhcps_start();
+        dhcps_set_DNS(&dns_ip);
+    }
+#else
     wifi_softap_dhcps_start();
 
     // Change the DNS server again
     dhcps_set_DNS(&dns_ip);
+#endif
 
     // Enter any saved dhcp enties if they are in this network
     for (i = 0; i < config.dhcps_entries; i++)
@@ -4268,6 +4327,7 @@ void ICACHE_FLASH_ATTR user_init()
 {
     struct ip_info info;
     struct espconn *pCon;
+    int i;
 
     connected = false;
     do_ip_config = false;
@@ -4300,6 +4360,7 @@ void ICACHE_FLASH_ATTR user_init()
     // Load config
     uint8_t config_state = config_load(&config);
     new_portmap = config.max_portmap;
+#ifndef REPEATER_MODE
     ip_napt_init(config.max_nat, config.max_portmap);
     if (config_state == 0)
     {
@@ -4316,10 +4377,10 @@ void ICACHE_FLASH_ATTR user_init()
         ip_napt_set_tcp_timeout(config.tcp_timeout);
     if (config.udp_timeout != 0)
         ip_napt_set_udp_timeout(config.udp_timeout);
+#endif /* !REPEATER_MODE */
 
 #if ACLS
     acl_debug = 0;
-    int i;
     for (i = 0; i < MAX_NO_ACLS; i++)
     {
         acl_clear_stats(i);

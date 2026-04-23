@@ -49,6 +49,11 @@ LIBS		= c gcc hal pp phy net80211 lwip_open_napt wpa wpa2 main crypto
 # compiler flags using during compilation of source files
 CFLAGS		= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DLWIP_OPEN_SRC -DUSE_OPTIMIZE_PRINTF
 
+VARIANT ?= default
+ifeq ($(VARIANT),bridge)
+    CFLAGS += -include user/user_config_bridge.h
+endif
+
 # linker flags used to generate the main object file
 LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static -L. -L$(SDK_BASE)/ld
 
