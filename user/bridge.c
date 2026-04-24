@@ -12,6 +12,7 @@
 #include "user_interface.h"
 #include "sys_time.h"
 #include "config_flash.h"
+#include "easygpio.h"
 
 extern sysconfig_t config;
 
@@ -363,7 +364,7 @@ static err_t ICACHE_FLASH_ATTR bridge_output_sta(struct netif *netif, struct pbu
 #if DAILY_LIMIT
         Bytes_per_day += p->tot_len;
 #endif
-        
+
         err_t err = s_orig_lo_ap(s_ap_nif, p);
         pbuf_header(p, -(s16_t)sizeof(eth_hdr_t)); return err;
     }
@@ -380,6 +381,9 @@ static err_t ICACHE_FLASH_ATTR bridge_output_ap(struct netif *netif, struct pbuf
 static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp)
 {
     if (os_strcmp(config.ssid, WIFI_SSID) == 0) return s_orig_input_ap(p, inp);
+
+    if (config.status_led <= 16)
+        easygpio_outputSet(config.status_led, 1);
 
     struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len + 16, PBUF_RAM);
 
@@ -439,7 +443,9 @@ static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *in
 #if DAILY_LIMIT
     Bytes_per_day += p->tot_len;
 #endif
-
+    if (config.status_led <= 16)
+        easygpio_outputSet(config.status_led, 0);
+        
     if (!q) return s_orig_input_sta(p, inp);
     pbuf_copy(q, p);
 

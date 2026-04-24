@@ -1189,8 +1189,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
         to_console(response);
 #endif
-        os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\nset [network|dns|ip|netmask|gw] <val>\r\n");
+        os_sprintf_flash(response, "set [ap_mac|sta_mac|ssid_hidden|sta_hostname|max_clients] <val>\r\n");
         to_console(response);
+#ifndef REPEATER_MODE
+        os_sprintf_flash(response, "set [network|dns|ip|netmask|gw] <val>\r\n");
+        to_console(response);#endif
 #if HAVE_ENC28J60
 #if DCHPSERVER_ENC28J60
         os_sprintf_flash(response, "set [eth_dhcpd] <val>\r\n");
@@ -1199,11 +1202,13 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [eth_enable|eth_ip|eth_netmask|eth_gw|eth_mac] <val>\r\n");
         to_console(response);
 #endif
+#ifndef REPEATER_MODE
         os_sprintf_flash(response, "set [max_nat|max_portmap|tcp_timeout|udp_timeout] <val>\r\nroute clear|route add <network> <gw>|route delete <network>\r\ninterface <int> [up|down]\r\nportmap [add|remove] [TCP|UDP] <ext_port> <int_addr> <int_port>\r\n");
         to_console(response);
 #if ACLS
         os_sprintf_flash(response, "show acl|acl [from_sta|to_sta|from_ap|to_ap] [IP|TCP|UDP] <src_addr> [<src_port>] <dest_addr> [<dest_port>] [allow|deny|allow_monitor|deny_monitor]\r\nacl [from_sta|to_sta|from_ap|to_ap] clear\r\n");
         to_console(response);
+#endif
 #endif
 #if DAILY_LIMIT
         os_sprintf_flash(response, "set [daily_limit|timezone] <val>\r\n");
@@ -1225,6 +1230,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         os_sprintf_flash(response, "set [upstream_kbps|downstream_kbps] <val>\r\n");
         to_console(response);
 #endif
+#ifndef REPEATER_MODE
         os_sprintf_flash(response, "set [automesh|am_threshold");
         to_console(response);
 #if ALLOW_SLEEP
@@ -1233,6 +1239,7 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
 #endif
         os_sprintf_flash(response, "] <val>\r\n");
         to_console(response);
+#endif
         os_sprintf_flash(response, "set [speed|status_led|hw_reset|config_port|config_access|web_port] <val>\r\nsave [config|dhcp]\r\nconnect|disconnect|reset [factory]|lock|unlock <password>|quit\r\n");
         to_console(response);
         os_sprintf_flash(response, "set [client_watchdog|ap_watchdog] <val>\r\n");
