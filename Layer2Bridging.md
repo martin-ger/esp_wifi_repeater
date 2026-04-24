@@ -10,15 +10,13 @@ The difficulty on the ESP32 is structural. Standard 802.11 infrastructure mode i
 
 - **Three-address frame format.** Every 802.11 data frame in infrastructure mode carries three MAC addresses: receiver (BSSID), transmitter, and final destination (or original source). When a STA transmits to an AP, the frame carries `[BSSID | STA | DA]`. When an AP transmits to a STA, the frame carries `[STA | BSSID | SA]`. A raw Ethernet bridge model (where you just swap the medium and keep MACs untouched) cannot work directly because the 802.11 MAC layer enforces that the STA's transmitter address must match the address the AP has associated.
 
-- **Single-radio constraint.** The ESP32's radio cannot be on two channels simultaneously. The AP and STA must share the same channel, which means the AP channel must be locked to whatever the upstream AP is using. More importantly, the radio cannot transmit and receive at the same time, so the AP and STA interfaces share the same half-duplex medium.
-
 - **Association and encryption.** The WiFi driver manages a per-association encryption context (PMK/PTK) for each STA connected to the AP. Frames injected with a foreign source MAC that has not gone through the 4-way handshake will be dropped or encrypted incorrectly.
 
 The consequence is that a true transparent L2 bridge — where every client's real MAC goes over the air on both sides — is not achievable in standard 802.11 infrastructure mode without WDS (Wireless Distribution System / 4-address mode), which is a dedicated protocol extension not universally supported.
 
 ---
 
-## 2. The Chosen Architecture: Software MAC Translation at the lwIP Layer
+## 2. The Chosen Architecture: Software MAC Translation
 
 This implementation takes a different approach: it operates as a **software bridge at the lwIP `netif` layer**, performing MAC address translation on every forwarded frame. The ESP32's WiFi driver continues to manage two independent 802.11 associations — one as a regular STA to the upstream AP, and one as an AP serving downstream clients — while the bridge logic sits between their respective lwIP netifs and stitches the two together by rewriting Ethernet headers.
 
@@ -116,15 +114,7 @@ The bridge handles this with a **proxy ARP** response generated in `bridge_ap_to
 
 ---
 
-## 8. The Single-Radio Channel Lock
-
-Because both AP and STA share the same physical radio, the AP channel is forcibly set to match the upstream AP's channel after the STA connects. This is handled in the WiFi event handler: once `IP_EVENT_STA_GOT_IP` fires, `esp_wifi_get_channel()` is called on the STA to find the active channel, and the AP configuration is updated accordingly. This ensures all 802.11 traffic for both sides is on the same frequency.
-
-The consequence is that the upstream AP dictates the channel. If the upstream AP changes channel (e.g., DFS radar avoidance), the STA will reconnect and the AP channel will be re-synced.
-
----
-
-## 9. What the Bridge Does Not Handle
+## 8. What the Bridge Does Not Handle
 
 - **Non-IP / non-ARP Ethertype frames**: Only `0x0800` (IPv4) and `0x0806` (ARP) are processed by the bridge logic. Frames with other ethertypes (IPv6 `0x86DD`, 802.1Q `0x8100`, etc.) fall through and are delivered to the local lwIP stack only.
 - **IPv6**: Not bridged. The ESP32's lwIP stack processes any received IPv6 frames for itself only.
