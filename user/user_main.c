@@ -1193,7 +1193,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #ifndef REPEATER_MODE
         os_sprintf_flash(response, "set [network|dns|ip|netmask|gw] <val>\r\n");
-        to_console(response);#endif
+        to_console(response);
+#endif
 #if HAVE_ENC28J60
 #if DCHPSERVER_ENC28J60
         os_sprintf_flash(response, "set [eth_dhcpd] <val>\r\n");
