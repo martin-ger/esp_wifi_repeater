@@ -438,7 +438,7 @@ First config of the repeater mode version is basically as simple as for the NAT 
 - Then connect to you newly defined AP ssid, point the browser again to "http://192.168.4.1"
 - Now enter the STA settings ssid and password and connect
 
-Once the STA ssid is defined, the repeater will no longer run its own DHCP server, but receives its IP from the upstream DHCP (no more 192.168.4.1). In order to connect to its web page, you then have to look up the assigned address either in your upstream router or at the serial console with "show stats". You can always reset the ESP via the console and "reset factory".
+Once the STA ssid is defined, the repeater will no longer run its own DHCP server, but receives its IP from the upstream DHCP (no more 192.168.4.1). In order to connect to its web page ot the remote console, you can use the name "esp-wifi-repeater.local", if your client support mDNS, or you have to look up the assigned address in your upstream router (or the serial console with "show stats"). You can always reset the ESP via the console and "reset factory".
 
 ### Key Contrast Summary
 
