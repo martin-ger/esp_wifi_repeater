@@ -217,6 +217,14 @@
 #define		GPIO_CMDS 1
 #endif
 
+//
+// Define this to 1 to advertise the repeater via mDNS on both STA and AP interfaces.
+// The device will be reachable as <sta_hostname>.local
+//
+#ifndef MDNS_REPEATER
+#define		MDNS_REPEATER 1
+#endif
+
 // Internal
 
 typedef enum {

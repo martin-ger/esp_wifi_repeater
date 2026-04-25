@@ -90,6 +90,11 @@ SDK_INCDIR	:= $(addprefix -I$(SDK_BASE)/,$(SDK_INCDIR))
 
 SRC		:= $(foreach sdir,$(SRC_DIR),$(wildcard $(sdir)/*.c))
 OBJ		:= $(patsubst %.c,$(BUILD_BASE)/%.o,$(SRC))
+
+# mdns.o is absent from liblwip_open_napt.a; compile from esp-open-lwip source
+MDNS_OBJ	= $(BUILD_BASE)/mdns.o
+OBJ		+= $(MDNS_OBJ)
+
 LIBS		:= $(addprefix -l,$(LIBS))
 APP_AR		:= $(addprefix $(BUILD_BASE)/,$(TARGET)_app.a)
 TARGET_OUT	:= $(addprefix $(BUILD_BASE)/,$(TARGET).out)
@@ -154,7 +159,10 @@ $(APP_AR): $(OBJ)
 	$(vecho) "AR $@"
 	$(Q) $(AR) cru $@ $^
 
-checkdirs: $(BUILD_DIR) $(FW_BASE)
+checkdirs: $(BUILD_BASE) $(BUILD_DIR) $(FW_BASE)
+
+$(BUILD_BASE):
+	$(Q) mkdir -p $@
 
 $(BUILD_DIR):
 	$(Q) mkdir -p $@
@@ -180,5 +188,9 @@ flasherase: $(FW_BASE)/sha1sums
 clean:
 	$(Q) rm -rf $(FW_BASE) $(BUILD_BASE)
 	$(Q) find . -name "*~" -print0 | xargs -0 rm -rf
+
+$(MDNS_OBJ): $(BUILD_AREA)/esp-open-sdk/esp-open-lwip/lwip/core/mdns.c | $(BUILD_BASE)
+	$(vecho) "CC lwip/core/mdns.c"
+	$(Q) $(CC) $(EXTRA_INCDIR) $(SDK_INCDIR) $(CFLAGS) -w -c $< -o $@
 
 $(foreach bdir,$(BUILD_DIR),$(eval $(call compile-objects,$(bdir))))

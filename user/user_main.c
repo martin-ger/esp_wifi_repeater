@@ -35,6 +35,9 @@
 #include "ringbuf.h"
 #include "user_config.h"
 #include "config_flash.h"
+#if MDNS_REPEATER
+#include "lwip/mdns.h"
+#endif
 #ifdef REPEATER_MODE
 #include "bridge.h"
 #endif
@@ -1193,7 +1196,8 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         to_console(response);
 #ifndef REPEATER_MODE
         os_sprintf_flash(response, "set [network|dns|ip|netmask|gw] <val>\r\n");
-        to_console(response);#endif
+        to_console(response);
+#endif
 #if HAVE_ENC28J60
 #if DCHPSERVER_ENC28J60
         os_sprintf_flash(response, "set [eth_dhcpd] <val>\r\n");
@@ -3816,7 +3820,24 @@ static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events)
     switch (events->sig)
     {
     case SIG_START_SERVER:
-        // Anything else to do here, when the repeater has received its IP?
+#if MDNS_REPEATER
+    {
+        static struct mdns_info mdns;
+        os_memset(&mdns, 0, sizeof(mdns));
+        mdns.host_name   = "esp-wifi-repeater";
+        mdns.server_name = "http";
+        mdns.ipAddr      = my_ip.addr;
+#if WEB_CONFIG
+        mdns.server_port = config.web_port;
+#else
+        mdns.server_port = 80;
+#endif
+        wifi_set_broadcast_if(0x03);  /* STA(0x01) | AP(0x02) */
+        espconn_mdns_init(&mdns);
+        os_printf("mDNS: started as esp-wifi-repeater.local (_http._tcp port %d)\r\n",
+                  mdns.server_port);
+    }
+#endif
         break;
 
     case SIG_CONSOLE_TX:
@@ -3914,6 +3935,10 @@ void wifi_handle_event_cb(System_Event_t *evt)
     case EVENT_STAMODE_DISCONNECTED:
         os_printf("disconnect from ssid %s, reason %d\r\n", evt->event_info.disconnected.ssid, evt->event_info.disconnected.reason);
         connected = false;
+
+#if MDNS_REPEATER
+        espconn_mdns_close();
+#endif
 
 #if MQTT_CLIENT
         if (mqtt_enabled)
