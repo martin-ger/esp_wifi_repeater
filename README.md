@@ -451,6 +451,33 @@ Once the STA ssid is defined, the repeater will no longer run its own DHCP serve
 | **Upstream Visibility** | Client identity hidden (NAT) | Client identity preserved |
 | **Implementation** | Standard networking | Advanced proxying (Proxy ARP/Snooping) |
 
+# Status JSON (Home Assistant)
+
+`http://<ip>/stats.json` (web port, same access rules as the config page) returns read-only status:
+
+```json
+{"version":"V2.2.18","uptime_s":3600,"reset_reason":0,"free_heap":21000,"vdd_mv":3300,
+ "connected":true,"rssi":-61,"bssid":"aa:bb:cc:dd:ee:ff","channel":6,"sta_ip":"192.168.1.50",
+ "clients":2,"kib_in":1024,"kib_out":512,"packets_in":9000,"packets_out":7000,"min_free_heap":19500,
+ "fdb_clients":2,"tx_err_sta":0,"tx_err_ap":0,"alloc_fail":0}
+```
+
+`rssi` is `null` while not connected. `reset_reason` is the SDK `rst_info` reason (0 power-on, 1 HW watchdog, 2 exception, 3 SW watchdog, 4 soft restart, 6 external reset). `min_free_heap` is the lowest free heap seen since boot (sampled every second). Bridge variant only: `fdb_clients` counts clients learned in the FDB; `tx_err_sta` / `tx_err_ap` count bridged frames the Wi-Fi driver refused on that side (TX queue full) and `alloc_fail` failed frame copies, all since boot. Example Home Assistant config:
+
+```yaml
+rest:
+  - resource: http://192.168.1.50/stats.json
+    scan_interval: 30
+    sensor:
+      - { name: Repeater RSSI, value_template: "{{ value_json.rssi }}", unit_of_measurement: dBm, device_class: signal_strength }
+      - { name: Repeater clients, value_template: "{{ value_json.clients }}" }
+      - { name: Repeater uptime, value_template: "{{ value_json.uptime_s }}", unit_of_measurement: s, device_class: duration }
+      - { name: Repeater free heap, value_template: "{{ value_json.free_heap }}", unit_of_measurement: B }
+      - { name: Repeater data in, value_template: "{{ value_json.kib_in }}", unit_of_measurement: KiB, state_class: total_increasing }
+    binary_sensor:
+      - { name: Repeater uplink, value_template: "{{ value_json.connected }}", device_class: connectivity }
+```
+
 # Building and Flashing
 For direct flashing of the pre-compiled binaries onto the device use the [Web-Installer](https://martin-ger.github.io/esp_wifi_repeater/). 
 
