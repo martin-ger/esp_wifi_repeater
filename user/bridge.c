@@ -136,20 +136,32 @@ typedef struct {
     uint32_t ip;
     uint8_t  mac[6];
     uint32_t expires_s;
+    uint32_t garp_due;    /* gratuitous ARP pending at this time (0: none), see garp_schedule() */
+    uint32_t garp_last;   /* last probe for this entry, rate limit */
 } fdb_entry_t;
 
 static fdb_entry_t s_fdb[FDB_SIZE];
 
 /* Gratuitous ARP upstream: "ip is at STA MAC".  A client that roamed here from
    the main AP is otherwise unreachable until the uplink hosts' ARP caches age
-   out.  Only for plain hosts of our subnet, never the gateway, so a client with
-   a bogus static IP cannot redirect the LAN's gateway to us. */
-static void ICACHE_FLASH_ATTR send_sta_garp(uint32_t ip)
+   out.  Only for plain hosts of our subnet, never the gateway, and only after an
+   RFC 5227 probe found nobody upstream using the IP: otherwise any AP client
+   with a bogus static IP could take over e.g. a NAS for the whole LAN. */
+#define GARP_PROBE_WAIT_S    2   /* an upstream owner must answer the probe within this */
+#define GARP_MIN_INTERVAL_S 30   /* per entry: a MAC flapping between two clients cannot storm the LAN */
+
+static bool ICACHE_FLASH_ATTR garp_eligible(uint32_t ip)
 {
-    if (!s_sta_nif || !s_orig_lo_sta) return;
+    if (!s_sta_nif || !s_orig_lo_sta || s_sta_nif->ip_addr.addr == 0) return false;
     uint32_t mask = s_sta_nif->netmask.addr;
-    if ((ip & mask) != (s_sta_nif->ip_addr.addr & mask) || (ip | mask) == 0xFFFFFFFFUL
-        || ip == s_sta_nif->gw.addr) return;
+    return (ip & mask) == (s_sta_nif->ip_addr.addr & mask) && (ip | mask) != 0xFFFFFFFFUL
+           && (ip & ~mask) != 0 && ip != s_sta_nif->gw.addr;
+}
+
+/* ARP request upstream from the STA MAC: spa 0 is a probe ("who uses tpa?"),
+   spa == tpa the gratuitous announcement. */
+static void ICACHE_FLASH_ATTR send_sta_arp(uint32_t spa, uint32_t ip)
+{
     struct pbuf *p = pbuf_alloc(PBUF_RAW, sizeof(eth_hdr_t) + sizeof(arp_hdr_t), PBUF_RAM);
     if (!p) return;
     eth_hdr_t *eth = (eth_hdr_t *)p->payload;
@@ -157,9 +169,30 @@ static void ICACHE_FLASH_ATTR send_sta_garp(uint32_t ip)
     os_memset(eth->dst, 0xff, 6); os_memcpy(eth->src, s_sta_nif->hwaddr, 6); eth->type = htons(ETHTYPE_ARP);
     arp->hwtype = htons(1); arp->prtype = htons(ETHTYPE_IP); arp->hwlen = 6; arp->prlen = 4;
     arp->op = htons(1);
-    os_memcpy(arp->sha, s_sta_nif->hwaddr, 6); arp->spa = ip;
+    os_memcpy(arp->sha, s_sta_nif->hwaddr, 6); arp->spa = spa;
     os_memset(arp->tha, 0, 6); arp->tpa = ip;
     s_orig_lo_sta(s_sta_nif, p); pbuf_free(p);
+}
+
+/* Probe now, announce from bridge_maint() unless garp_cancel() saw an answer. */
+static void ICACHE_FLASH_ATTR garp_schedule(fdb_entry_t *e, uint32_t now)
+{
+    if (!garp_eligible(e->ip)) return;
+    if (e->garp_last != 0 && now - e->garp_last < GARP_MIN_INTERVAL_S) return;
+    e->garp_last = now; e->garp_due = now + GARP_PROBE_WAIT_S;
+    send_sta_arp(0, e->ip);
+}
+
+/* Any ARP from upstream with sender ip means someone there owns it: stay quiet. */
+static void ICACHE_FLASH_ATTR garp_cancel(uint32_t ip)
+{
+    int i;
+    if (ip == 0) return;
+    for (i = 0; i < FDB_SIZE; i++)
+        if (s_fdb[i].ip == ip && s_fdb[i].garp_due != 0) {
+            s_fdb[i].garp_due = 0;
+            os_printf("bridge: " IPSTR " is in use upstream, no gratuitous ARP\n", IP2STR(&ip));
+        }
 }
 
 static void ICACHE_FLASH_ATTR fdb_insert(uint32_t ip, const uint8_t *mac)
@@ -175,7 +208,7 @@ static void ICACHE_FLASH_ATTR fdb_insert(uint32_t ip, const uint8_t *mac)
         if (s_fdb[i].ip == ip) {
             bool fresh = s_fdb[i].expires_s <= now || os_memcmp(s_fdb[i].mac, mac, 6) != 0;
             os_memcpy(s_fdb[i].mac, mac, 6); s_fdb[i].expires_s = now + FDB_TTL_S;
-            if (fresh) send_sta_garp(ip);
+            if (fresh) garp_schedule(&s_fdb[i], now);
             return;
         }
         if (s_fdb[i].ip == 0 || s_fdb[i].expires_s <= now) { if (free_idx < 0) free_idx = i; }
@@ -183,7 +216,8 @@ static void ICACHE_FLASH_ATTR fdb_insert(uint32_t ip, const uint8_t *mac)
     }
     int idx = (free_idx >= 0) ? free_idx : oldest_idx;
     s_fdb[idx].ip = ip; os_memcpy(s_fdb[idx].mac, mac, 6); s_fdb[idx].expires_s = now + FDB_TTL_S;
-    send_sta_garp(ip);
+    s_fdb[idx].garp_due = 0; s_fdb[idx].garp_last = 0;
+    garp_schedule(&s_fdb[idx], now);
 }
 
 /* -------------------------------------------------------------------------
@@ -211,7 +245,7 @@ void ICACHE_FLASH_ATTR bridge_station_leave(const uint8_t *mac)
     for (i = 0; i < s_sta_cnt; i++)
         if (os_memcmp(s_stas[i], mac, 6) == 0) { os_memcpy(s_stas[i], s_stas[--s_sta_cnt], 6); break; }
     for (i = 0; i < FDB_SIZE; i++)
-        if (os_memcmp(s_fdb[i].mac, mac, 6) == 0) s_fdb[i].ip = 0;
+        if (os_memcmp(s_fdb[i].mac, mac, 6) == 0) { s_fdb[i].ip = 0; s_fdb[i].garp_due = 0; }
 }
 
 static const uint8_t * ICACHE_FLASH_ATTR fdb_lookup(uint32_t ip)
@@ -397,12 +431,8 @@ static bool ICACHE_FLASH_ATTR snoop_dhcp_reply(struct pbuf *p, uint16_t eth_ip_u
         uint8_t msg_type = 0, optlen;
         uint8_t *opt = dhcp_find_option(dhcp->options, opts_len, 53, &optlen);
         if (opt && optlen >= 1 && opt[0] == DHCP_MSG_ACK) {
-            uint32_t ttl = FDB_TTL_S;
-            opt = dhcp_find_option(dhcp->options, opts_len, 51, &optlen);
-            if (opt && optlen >= 4) {
-                ttl = ((uint32_t)opt[0] << 24) | ((uint32_t)opt[1] << 16) | ((uint32_t)opt[2] << 8) | (uint32_t)opt[3];
-                if (ttl == 0 || ttl > 86400 * 7) ttl = FDB_TTL_S;
-            }
+            /* Fixed FDB TTL, not the lease time: a multi-day lease would keep
+               proxy-ARPing for a client that has left. */
             fdb_insert(dhcp->yiaddr, chaddr_out);
         }
     }
@@ -678,6 +708,10 @@ static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp
            client, or bridge to the uplink next hop: lwIP would route it with TTL-1. */
         ip_hdr_t *ip = (eth_type == ETHTYPE_IP) ? (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t)) : NULL;
         const uint8_t *peer = ip ? fdb_lookup(ip->dst) : NULL;
+        if (peer && os_memcmp(peer, src_mac, 6) == 0) {
+            /* Addressed to the sender's own IP: never reflect it back. */
+            pbuf_free(q); pbuf_free(p); return ERR_OK;
+        }
         if (peer) {
             os_memcpy(eth->dst, peer, 6); os_memcpy(eth->src, s_ap_nif->hwaddr, 6);
             if (s_orig_lo_ap(s_ap_nif, q) != ERR_OK) bridge_tx_err_ap++;
@@ -783,14 +817,16 @@ static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *in
                 handled = true;
             } else if (is_to_sta_mac && me && ip->dst != me && (ip->dst | s_sta_nif->netmask.addr) != 0xFFFFFFFFUL
                        && (ntohl(ip->dst) >> 28) != 0xE) {
-                /* Unicast for an unknown client IP: lwIP would route it straight back upstream
-                   with TTL-1.  Drop it; the sender retries after our ARP sweep learns the client. */
+                /* Unicast for an unknown client IP.  lwIP would discard it anyway (ip_forward
+                   does not send a packet back out the netif it came in on); drop it here and
+                   save the trip.  The sender retries after our ARP sweep learns the client. */
                 handled = true;
             }
         }
     } else if (eth_type == ETHTYPE_ARP) {
         arp_hdr_t *arp = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
         if (arp) {
+            garp_cancel(arp->spa);   /* our own frames were dropped above */
             if (ntohs(arp->op) == 1 && fdb_lookup(arp->tpa)) {
                 send_proxy_arp_reply(s_sta_nif, s_orig_lo_sta, arp, arp->tpa);
                 handled = true; pbuf_free(q); pbuf_free(p); return ERR_OK;
@@ -874,6 +910,13 @@ static void ICACHE_FLASH_ATTR bridge_maint(void *arg)
         ip_addr_t gw = s_sta_nif->gw; struct eth_addr *ea; ip_addr_t *ia;
         if (gw.addr != 0 && etharp_find_addr(s_sta_nif, &gw, &ea, &ia) < 0) etharp_query(s_sta_nif, &gw, NULL);
     }
+
+    for (i = 0; i < FDB_SIZE; i++)
+        if (s_fdb[i].garp_due != 0 && now >= s_fdb[i].garp_due) {
+            s_fdb[i].garp_due = 0;
+            if (s_fdb[i].ip != 0 && s_fdb[i].expires_s > now && garp_eligible(s_fdb[i].ip))
+                send_sta_arp(s_fdb[i].ip, s_fdb[i].ip);
+        }
 
     int unknown = unknown_stations(now);
     if (s_sweep_next == 0 && unknown > 0 && now >= s_sweep_allowed_at) {
