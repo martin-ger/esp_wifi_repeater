@@ -381,9 +381,14 @@ static void ICACHE_FLASH_ATTR snoop_dhcp_request(struct pbuf *p, uint16_t eth_ip
     dhcp_msg_t *dhcp = (dhcp_msg_t *)pkt_at(p, eth_ip_udp_hdr_len, sizeof(dhcp_msg_t));
     if (!dhcp || dhcp->op != DHCP_OP_REQUEST || dhcp->hlen != 6 || dhcp->magic != htonl(DHCP_MAGIC_COOKIE)) return;
 
+    /* chaddr keeps the client's own MAC: it is only payload, 802.11 does not care.
+       Rewriting it to the STA MAC made the upstream server see the ESP and all its
+       clients as one host (e.g. a Fritzbox handed the ESP a client's lease, an ESP
+       NAT upstream gave every client the same address).  The broadcast flag makes
+       the server broadcast its reply, which the STA side can receive; the XID map
+       routes it to the client. */
     uint8_t client_mac[6]; os_memcpy(client_mac, dhcp->chaddr, 6);
-    os_memcpy(dhcp->chaddr, s_sta_nif->hwaddr, 6); 
-    dhcp->flags |= htons(0x8000); 
+    dhcp->flags |= htons(0x8000);
 
     uint16_t opts_len = p->len - eth_ip_udp_hdr_len - (uint16_t)sizeof(dhcp_msg_t);
     uint8_t msg_type = 0, optlen;
@@ -407,9 +412,10 @@ static void ICACHE_FLASH_ATTR snoop_dhcp_request(struct pbuf *p, uint16_t eth_ip
                 if (ip) update_ip_chksum(ip);
             }
         }
-        udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, eth_ip_udp_hdr_len - (uint16_t)sizeof(udp_hdr_t), sizeof(udp_hdr_t));
-        if (udp) udp->chksum = 0;
     }
+    /* flags changed for every message type (RELEASE, DECLINE, INFORM too) */
+    udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, eth_ip_udp_hdr_len - (uint16_t)sizeof(udp_hdr_t), sizeof(udp_hdr_t));
+    if (udp) udp->chksum = 0;
 }
 
 static bool ICACHE_FLASH_ATTR snoop_dhcp_reply(struct pbuf *p, uint16_t eth_ip_udp_hdr_len, uint8_t chaddr_out[6])
@@ -417,10 +423,15 @@ static bool ICACHE_FLASH_ATTR snoop_dhcp_reply(struct pbuf *p, uint16_t eth_ip_u
     dhcp_msg_t *dhcp = (dhcp_msg_t *)pkt_at(p, eth_ip_udp_hdr_len, sizeof(dhcp_msg_t));
     if (!dhcp || dhcp->op != DHCP_OP_REPLY || dhcp->hlen != 6 || dhcp->magic != htonl(DHCP_MAGIC_COOKIE)) return false;
 
-    /* No XID hit means it is not a bridged client's transaction (client chaddr is
-       rewritten to the STA MAC, so dhcp->chaddr would only point at ourselves).
-       Leave it alone so the ESP's own DHCP renew ACK reaches the local stack. */
+    /* Normally the XID map names the client.  Without a hit (XID entry expired) the
+       real chaddr still does, as long as it is an associated station.  Anything else,
+       above all the ESP's own renew ACK (chaddr = STA MAC), is left to the local stack. */
     const uint8_t *orig_mac = xid_map_lookup(dhcp->xid);
+    if (!orig_mac) {
+        int i;
+        for (i = 0; i < s_sta_cnt; i++)
+            if (os_memcmp(s_stas[i], dhcp->chaddr, 6) == 0) { orig_mac = s_stas[i]; break; }
+    }
     if (!orig_mac) return false;
     os_memcpy(chaddr_out, orig_mac, 6); os_memcpy(dhcp->chaddr, orig_mac, 6);
     udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, eth_ip_udp_hdr_len - (uint16_t)sizeof(udp_hdr_t), sizeof(udp_hdr_t));

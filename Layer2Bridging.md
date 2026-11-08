@@ -106,7 +106,7 @@ The solution is two-stage snooping:
 
 **Stage 1 — XID Map** (`dhcp_xid_map.c`): When a client sends a DHCP request upstream (`DHCPREQUEST`, `DHCPDISCOVER`), the bridge intercepts it in `snoop_dhcp_client()` before forwarding. It parses the DHCP payload and records `xid → chaddr` in a transient 16-entry map with a 30-second TTL. The XID (transaction ID) is a random 32-bit number that the client embeds in every request and the server echoes in the reply.
 
-**Stage 2 — ACK Snooping** (`snoop_dhcp_server_reply()`): When the server's reply arrives from upstream, `bridge_sta_to_ap` intercepts it before FDB lookup. The `chaddr` field in the DHCP body directly identifies the client (no XID lookup needed for routing), and if the reply is a `DHCPACK` with a non-zero `yiaddr` (offered IP), the `{ yiaddr → chaddr }` mapping is immediately inserted into the FDB with the lease time from DHCP option 51 as the TTL. This ensures the FDB has the entry ready before any unicast traffic from the server to the newly-assigned IP arrives.
+**Stage 2 — ACK Snooping** (`snoop_dhcp_server_reply()`): When the server's reply arrives from upstream, `bridge_sta_to_ap` intercepts it before FDB lookup. The `chaddr` field in the DHCP body directly identifies the client (no XID lookup needed for routing), and if the reply is a `DHCPACK` with a non-zero `yiaddr` (offered IP), the `{ yiaddr → chaddr }` mapping is immediately inserted into the FDB with the fixed FDB TTL. This ensures the FDB has the entry ready before any unicast traffic from the server to the newly-assigned IP arrives.
 
 The **lease map** (`dhcp_lease_map.c`) is a separate store tracking `{ chaddr → ip, hostname, lease_time }` for display and diagnostics purposes, not for forwarding.
 
