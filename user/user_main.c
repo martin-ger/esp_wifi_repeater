@@ -923,8 +923,6 @@ void ICACHE_FLASH_ATTR Switch()
     rboot_set_current_rom(after);
     to_console("Restarting...\r\n\r\n");
     system_restart();
-    while (true)
-        ;
 }
 
 static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(bool result, uint8 rom_slot)
@@ -944,8 +942,6 @@ static void ICACHE_FLASH_ATTR OtaUpdate_CallBack(bool result, uint8 rom_slot)
             to_console(msg);
             rboot_set_current_rom(rom_slot);
             system_restart();
-            while (true)
-                ;
         }
     }
     else
@@ -2212,11 +2208,10 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
             // clear saved portmap table
             blob_zero(0, sizeof(struct portmap_table) * config.max_portmap);
         }
-        os_printf("Restarting ... \r\n");
+        /* system_restart() only schedules the restart; spinning here would block it
+           until the soft WDT fires (reset reason 3 instead of 4). */
         system_restart();
-        while (true)
-            ;
-
+        os_sprintf(response, "Restarting ... \r\n");
         goto command_handled;
     }
 
@@ -3709,8 +3704,7 @@ void ICACHE_FLASH_ATTR timer_func(void *arg)
             {
                 os_printf("AP watchdog reset\r\n");
                 system_restart();
-                while (true)
-                    ;
+                return;
             }
             ap_watchdog_cnt--;
         }
@@ -3721,8 +3715,7 @@ void ICACHE_FLASH_ATTR timer_func(void *arg)
             {
                 os_printf("Client watchdog reset\r\n");
                 system_restart();
-                while (true)
-                    ;
+                return;
             }
             client_watchdog_cnt--;
         }
@@ -3749,8 +3742,7 @@ void ICACHE_FLASH_ATTR timer_func(void *arg)
                 config_save(&config);
                 blob_zero(0, sizeof(struct portmap_table) * config.max_portmap);
                 system_restart();
-                while (true)
-                    ;
+                return;
             }
         }
         else
@@ -4006,8 +3998,6 @@ void wifi_handle_event_cb(System_Event_t *evt)
             config.automesh_mode = AUTOMESH_LEARNING;
             config_save(&config);
             system_restart();
-            while (true)
-                ;
             return;
         }
 
@@ -4066,8 +4056,6 @@ void wifi_handle_event_cb(System_Event_t *evt)
 
             config_save(&config);
             system_restart();
-            while (true)
-                ;
             return;
         }
 
@@ -4415,8 +4403,6 @@ void ICACHE_FLASH_ATTR automesh_scan_done(void *arg, STATUS status)
             //wifi_set_macaddr(SOFTAP_IF, config.AP_MAC_address);
 
             system_restart();
-            while (true)
-                ;
             return;
         }
     }
