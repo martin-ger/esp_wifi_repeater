@@ -453,7 +453,7 @@ Once the STA ssid is defined, the repeater will no longer run its own DHCP serve
 
 # Status JSON (Home Assistant)
 
-`http://<ip>/stats.json` (web port, same access rules as the config page) returns read-only status:
+`http://<ip>/stats.json` (web port, same network access rules as the config page; also served while the config page is locked, as it contains no secrets) returns read-only status:
 
 ```json
 {"version":"V2.2.18","uptime_s":3600,"reset_reason":0,"free_heap":21000,"vdd_mv":3300,
