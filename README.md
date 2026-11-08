@@ -441,6 +441,8 @@ First config of the repeater mode version is basically as simple as for the NAT 
 
 Once the STA ssid is defined, the repeater will no longer run its own DHCP server, but receives its IP from the upstream DHCP (no more 192.168.4.1). In order to connect to its web page ot the remote console, you can use the name "esp-wifi-repeater.local", if your client support mDNS, or you have to look up the assigned address in your upstream router (or the serial console with "show stats"). You can always reset the ESP via the console and "reset factory".
 
+The upstream DHCP server must be a regular router (or any server that answers by broadcast). Chaining the repeater behind another ESP in NAT mode does not work yet, because the ESP's DHCP server only answers its own directly associated stations.
+
 ### Key Contrast Summary
 
 | Feature | NAT Router | Layer 2 Bridge |
