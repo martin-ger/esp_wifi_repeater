@@ -458,7 +458,7 @@ The upstream DHCP server must be a regular router (or any server that answers by
 `http://<ip>/stats.json` (web port, same network access rules as the config page; also served while the config page is locked, as it contains no secrets) returns read-only status:
 
 ```json
-{"version":"V2.2.18","uptime_s":3600,"reset_reason":0,"free_heap":21000,"vdd_mv":3300,
+{"version":"V2.2.19","uptime_s":3600,"reset_reason":0,"free_heap":21000,"vdd_mv":3300,
  "connected":true,"rssi":-61,"bssid":"aa:bb:cc:dd:ee:ff","channel":6,"sta_ip":"192.168.1.50",
  "clients":2,"kib_in":1024,"kib_out":512,"packets_in":9000,"packets_out":7000,"min_free_heap":19500,
  "fdb_clients":2,"tx_err_sta":0,"tx_err_ap":0,"alloc_fail":0}

@@ -1,6 +1,6 @@
 {
   "name": "ESP WiFi Repeater (Standard NAT)",
-  "version": "3.0.0",
+  "version": "2.2.19",
   "builds": [
     {
       "chipFamily": "ESP8266",
