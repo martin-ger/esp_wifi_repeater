@@ -84,7 +84,13 @@ Step 1 is the hard part. The FDB is used for unicast IPv4 — the destination IP
 
 The FDB (`fdb.c`) is a fixed-size table of `{ ip, mac[6], expires_us }` entries, capacity 32 (configurable via `REPEATER_FDB_SIZE`). Entries are keyed by IPv4 address in network byte order. There is no secondary MAC key for lookup — only IP-to-MAC direction is needed for the downstream path.
 
-**Learning** happens in the upstream direction: when a client sends an IPv4 packet, its source IP and MAC are extracted from the Ethernet+IP headers and inserted or refreshed with a TTL of 600 seconds (`REPEATER_FDB_DEFAULT_TTL_S`). DHCP ACK snooping adds a second learning path with the actual lease time from the DHCP ACK as the TTL, making the FDB consistent with the lease.
+**Learning** happens in the upstream direction: when a client sends an IPv4 packet, its source IP and MAC are extracted from the Ethernet+IP headers and inserted or refreshed with a TTL of 600 seconds (`REPEATER_FDB_DEFAULT_TTL_S`). DHCP ACK snooping adds a second learning path with the same fixed TTL (not the lease time: a multi-day lease would keep proxy-ARPing for a client that has left).
+
+**Active learning** covers idle clients that send nothing to learn from. A 1 s maintenance timer (ESP8266 `bridge.c`) sends a unicast ARP request to every entry with ≤ 60 s left; the reply refreshes it, silence lets it expire. While an associated station (tracked from SoftAP join/leave events) has no live entry, it also sweeps the STA subnet (capped to the local /24) with broadcast ARP requests on the AP side only, 8 per second, at most once per 5 minutes. The requests use the STA IP and the AP MAC as sender, matching the proxy ARP binding.
+
+**Roaming.** When a station leaves the SoftAP its entries are dropped at once, so the bridge stops proxy-ARPing for a client that moved to another AP. When an IP is learned for the first time (or its MAC changes, or the entry had expired), the bridge sends a gratuitous ARP upstream ("IP is at STA MAC") so uplink hosts update their ARP caches immediately; never for the gateway or addresses outside the STA subnet.
+
+**No routing, no TTL change.** AP clients see every uplink host at the AP MAC, so their upstream traffic arrives addressed to the AP. The bridge rewrites the destination to the next hop's MAC (the host itself on the STA subnet, else the gateway) from lwIP's ARP cache and bridges the frame; only when that MAC is not resolved yet does lwIP route the packet (TTL − 1) and resolve it. The gateway is kept resolved every 10 s. Unicast from upstream for an unknown client IP is dropped instead of being routed back upstream.
 
 **Eviction** uses a simple policy: on insert, scan for a free or expired slot first; if the table is full, evict the entry with the earliest expiry timestamp (LRU-by-time).
 

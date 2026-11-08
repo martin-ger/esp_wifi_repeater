@@ -21,6 +21,12 @@ extern uint8_t my_channel;
 extern uint64_t Bytes_in, Bytes_out;
 extern uint32_t Packets_in, Packets_out;
 extern uint64_t Bytes_per_day;
+extern void to_console(char *str);
+extern int32_t ap_watchdog_cnt, client_watchdog_cnt;
+/* From lwIP netif/etharp.h, declared here because that header clashes with our ETHTYPE_* and header types. */
+struct eth_addr;
+extern s8_t etharp_find_addr(struct netif *netif, ip_addr_t *ipaddr, struct eth_addr **eth_ret, ip_addr_t **ip_ret);
+extern err_t etharp_query(struct netif *netif, ip_addr_t *ipaddr, struct pbuf *q);
 
 /* -------------------------------------------------------------------------
  * Netif state
@@ -115,6 +121,10 @@ static uint32_t ICACHE_FLASH_ATTR now_secs(void)
     return (uint32_t)(get_long_systime() / 1000000ULL);
 }
 
+/* Diagnostics for /stats.json: forwarded frames the WLAN driver refused (TX queue
+   full) per egress side, and failed frame copies. */
+uint32_t bridge_tx_err_sta, bridge_tx_err_ap, bridge_alloc_fail;
+
 /* -------------------------------------------------------------------------
  * Forwarding Database (FDB)
  * ------------------------------------------------------------------------- */
@@ -130,6 +140,28 @@ typedef struct {
 
 static fdb_entry_t s_fdb[FDB_SIZE];
 
+/* Gratuitous ARP upstream: "ip is at STA MAC".  A client that roamed here from
+   the main AP is otherwise unreachable until the uplink hosts' ARP caches age
+   out.  Only for plain hosts of our subnet, never the gateway, so a client with
+   a bogus static IP cannot redirect the LAN's gateway to us. */
+static void ICACHE_FLASH_ATTR send_sta_garp(uint32_t ip)
+{
+    if (!s_sta_nif || !s_orig_lo_sta) return;
+    uint32_t mask = s_sta_nif->netmask.addr;
+    if ((ip & mask) != (s_sta_nif->ip_addr.addr & mask) || (ip | mask) == 0xFFFFFFFFUL
+        || ip == s_sta_nif->gw.addr) return;
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, sizeof(eth_hdr_t) + sizeof(arp_hdr_t), PBUF_RAM);
+    if (!p) return;
+    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
+    arp_hdr_t *arp = (arp_hdr_t *)((uint8_t *)p->payload + sizeof(eth_hdr_t));
+    os_memset(eth->dst, 0xff, 6); os_memcpy(eth->src, s_sta_nif->hwaddr, 6); eth->type = htons(ETHTYPE_ARP);
+    arp->hwtype = htons(1); arp->prtype = htons(ETHTYPE_IP); arp->hwlen = 6; arp->prlen = 4;
+    arp->op = htons(1);
+    os_memcpy(arp->sha, s_sta_nif->hwaddr, 6); arp->spa = ip;
+    os_memset(arp->tha, 0, 6); arp->tpa = ip;
+    s_orig_lo_sta(s_sta_nif, p); pbuf_free(p);
+}
+
 static void ICACHE_FLASH_ATTR fdb_insert(uint32_t ip, const uint8_t *mac)
 {
     if (ip == 0) return;
@@ -141,7 +173,9 @@ static void ICACHE_FLASH_ATTR fdb_insert(uint32_t ip, const uint8_t *mac)
     int i;
     for (i = 0; i < FDB_SIZE; i++) {
         if (s_fdb[i].ip == ip) {
+            bool fresh = s_fdb[i].expires_s <= now || os_memcmp(s_fdb[i].mac, mac, 6) != 0;
             os_memcpy(s_fdb[i].mac, mac, 6); s_fdb[i].expires_s = now + FDB_TTL_S;
+            if (fresh) send_sta_garp(ip);
             return;
         }
         if (s_fdb[i].ip == 0 || s_fdb[i].expires_s <= now) { if (free_idx < 0) free_idx = i; }
@@ -149,6 +183,35 @@ static void ICACHE_FLASH_ATTR fdb_insert(uint32_t ip, const uint8_t *mac)
     }
     int idx = (free_idx >= 0) ? free_idx : oldest_idx;
     s_fdb[idx].ip = ip; os_memcpy(s_fdb[idx].mac, mac, 6); s_fdb[idx].expires_s = now + FDB_TTL_S;
+    send_sta_garp(ip);
+}
+
+/* -------------------------------------------------------------------------
+ * Associated stations (fed by SoftAP join/leave events).  The SDK's
+ * wifi_softap_get_station_info() comes back empty while the AP DHCP server
+ * is stopped, which it always is in bridge mode.
+ * ------------------------------------------------------------------------- */
+
+#define STA_MAX 8   /* SoftAP hard limit */
+static uint8_t s_stas[STA_MAX][6];
+static int     s_sta_cnt;
+
+void ICACHE_FLASH_ATTR bridge_station_join(const uint8_t *mac)
+{
+    int i;
+    for (i = 0; i < s_sta_cnt; i++) if (os_memcmp(s_stas[i], mac, 6) == 0) return;
+    if (s_sta_cnt < STA_MAX) os_memcpy(s_stas[s_sta_cnt++], mac, 6);
+}
+
+/* Forget the client at once: otherwise we keep proxy-ARPing its IP and black-hole
+   its traffic for up to FDB_TTL_S after it roamed to another AP. */
+void ICACHE_FLASH_ATTR bridge_station_leave(const uint8_t *mac)
+{
+    int i;
+    for (i = 0; i < s_sta_cnt; i++)
+        if (os_memcmp(s_stas[i], mac, 6) == 0) { os_memcpy(s_stas[i], s_stas[--s_sta_cnt], 6); break; }
+    for (i = 0; i < FDB_SIZE; i++)
+        if (os_memcmp(s_fdb[i].mac, mac, 6) == 0) s_fdb[i].ip = 0;
 }
 
 static const uint8_t * ICACHE_FLASH_ATTR fdb_lookup(uint32_t ip)
@@ -188,7 +251,7 @@ static void ICACHE_FLASH_ATTR xid_map_insert(uint32_t xid, const uint8_t *chaddr
             return;
         }
         if (s_xid_map[i].xid == 0 || s_xid_map[i].expires_s <= now) { if (free_idx < 0) free_idx = i; }
-        if (s_xid_map[i].expires_s < oldest_exp) { oldest_exp = s_fdb[i].expires_s; oldest_idx = i; }
+        if (s_xid_map[i].expires_s < oldest_exp) { oldest_exp = s_xid_map[i].expires_s; oldest_idx = i; }
     }
     int idx = (free_idx >= 0) ? free_idx : oldest_idx;
     s_xid_map[idx].xid = xid; os_memcpy(s_xid_map[idx].chaddr, chaddr, 6); s_xid_map[idx].expires_s = now + XID_TTL_S;
@@ -257,6 +320,23 @@ static void ICACHE_FLASH_ATTR send_proxy_arp_reply(struct netif *tx_nif, netif_l
     lo(tx_nif, p); pbuf_free(p);
 }
 
+/* ARP request on the AP side only.  dst_mac NULL = broadcast.  Sender is
+   STA IP / AP MAC, the same binding our proxy ARP already announces. */
+static void ICACHE_FLASH_ATTR send_ap_arp_request(const uint8_t *dst_mac, uint32_t target_ip)
+{
+    struct pbuf *p = pbuf_alloc(PBUF_RAW, sizeof(eth_hdr_t) + sizeof(arp_hdr_t), PBUF_RAM);
+    if (!p) return;
+    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
+    arp_hdr_t *arp = (arp_hdr_t *)((uint8_t *)p->payload + sizeof(eth_hdr_t));
+    if (dst_mac) os_memcpy(eth->dst, dst_mac, 6); else os_memset(eth->dst, 0xff, 6);
+    os_memcpy(eth->src, s_ap_nif->hwaddr, 6); eth->type = htons(ETHTYPE_ARP);
+    arp->hwtype = htons(1); arp->prtype = htons(ETHTYPE_IP); arp->hwlen = 6; arp->prlen = 4;
+    arp->op = htons(1);
+    os_memcpy(arp->sha, s_ap_nif->hwaddr, 6); arp->spa = s_sta_nif->ip_addr.addr;
+    os_memset(arp->tha, 0, 6); arp->tpa = target_ip;
+    s_orig_lo_ap(s_ap_nif, p); pbuf_free(p);
+}
+
 
 /* -------------------------------------------------------------------------
  * DHCP snooping
@@ -303,12 +383,14 @@ static bool ICACHE_FLASH_ATTR snoop_dhcp_reply(struct pbuf *p, uint16_t eth_ip_u
     dhcp_msg_t *dhcp = (dhcp_msg_t *)pkt_at(p, eth_ip_udp_hdr_len, sizeof(dhcp_msg_t));
     if (!dhcp || dhcp->op != DHCP_OP_REPLY || dhcp->hlen != 6 || dhcp->magic != htonl(DHCP_MAGIC_COOKIE)) return false;
 
+    /* No XID hit means it is not a bridged client's transaction (client chaddr is
+       rewritten to the STA MAC, so dhcp->chaddr would only point at ourselves).
+       Leave it alone so the ESP's own DHCP renew ACK reaches the local stack. */
     const uint8_t *orig_mac = xid_map_lookup(dhcp->xid);
-    if (orig_mac) {
-        os_memcpy(chaddr_out, orig_mac, 6); os_memcpy(dhcp->chaddr, orig_mac, 6);
-        udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, eth_ip_udp_hdr_len - (uint16_t)sizeof(udp_hdr_t), sizeof(udp_hdr_t));
-        if (udp) udp->chksum = 0;
-    } else { os_memcpy(chaddr_out, dhcp->chaddr, 6); }
+    if (!orig_mac) return false;
+    os_memcpy(chaddr_out, orig_mac, 6); os_memcpy(dhcp->chaddr, orig_mac, 6);
+    udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, eth_ip_udp_hdr_len - (uint16_t)sizeof(udp_hdr_t), sizeof(udp_hdr_t));
+    if (udp) udp->chksum = 0;
 
     if (dhcp->yiaddr != 0) {
         uint16_t opts_len = p->len - eth_ip_udp_hdr_len - (uint16_t)sizeof(dhcp_msg_t);
@@ -535,13 +617,33 @@ static err_t ICACHE_FLASH_ATTR bridge_output_ap(struct netif *netif, struct pbuf
     return s_orig_output_sta(s_sta_nif, p, ipaddr);
 }
 
+/* MAC of the uplink next hop for dst (dst itself on the STA subnet, else the
+   gateway), from lwIP's ARP cache.  NULL when dst is ours, not unicast, or
+   not resolved yet: the caller then lets lwIP route it (and resolve ARP). */
+static const uint8_t * ICACHE_FLASH_ATTR upstream_mac(uint32_t dst)
+{
+    uint32_t me = s_sta_nif->ip_addr.addr, mask = s_sta_nif->netmask.addr;
+    uint32_t ap_ip = s_ap_nif->ip_addr.addr, ap_mask = s_ap_nif->netmask.addr;
+    if (me == 0 || dst == me || (ntohl(dst) >> 28) == 0xE) return NULL;
+    if (ap_ip != 0 && (dst & ap_mask) == (ap_ip & ap_mask)) return NULL;
+    ip_addr_t nh;
+    nh.addr = ((dst & mask) == (me & mask)) ? dst : s_sta_nif->gw.addr;
+    if (nh.addr == 0 || (nh.addr | mask) == 0xFFFFFFFFUL) return NULL;
+    struct eth_addr *ea; ip_addr_t *ia;
+    return etharp_find_addr(s_sta_nif, &nh, &ea, &ia) >= 0 ? (const uint8_t *)ea : NULL;
+}
+
 static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp)
 {
+    /* Same semantics as my_input_ap/my_input_sta in NAT mode, which bridge mode does not install. */
+    client_watchdog_cnt = config.client_watchdog;
     if (os_strcmp(config.ssid, WIFI_SSID) == 0) return s_orig_input_ap(p, inp);
 
     if (config.status_led <= 16)
         easygpio_outputSet(config.status_led, 1);
 
+    /* Always forward this copy, never p: a driver RX buffer handed to TX stays busy
+       until the frame is on air, and the few RX buffers run out ("LmacRxBlk:1"). */
     struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len + 16, PBUF_RAM);
 
     Bytes_out += p->tot_len;
@@ -550,17 +652,18 @@ static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp
     Bytes_per_day += p->tot_len;
 #endif
 
-    if (!q) return s_orig_input_ap(p, inp);
+    if (!q) { bridge_alloc_fail++; return s_orig_input_ap(p, inp); }
     pbuf_copy(q, p);
+    q->len = q->tot_len = p->tot_len;   /* the 16 bytes tailroom are for DHCP option 61, sent only when used */
 
     eth_hdr_t *eth = (eth_hdr_t *)q->payload;
     bool is_bcast = (eth->dst[0] & 0x01) != 0, is_to_ap_mac = (os_memcmp(eth->dst, s_ap_nif->hwaddr, 6) == 0);
     uint16_t eth_type = ntohs(eth->type);
+    const uint8_t *src_mac = ((eth_hdr_t *)p->payload)->src;
 
     /* Learn source IP→MAC before any early return so replies to the management
        address (which take the is_to_ap_mac path) can be routed back via the FDB. */
     {
-        const uint8_t *src_mac = ((eth_hdr_t *)p->payload)->src;
         if (eth_type == ETHTYPE_ARP) {
             arp_hdr_t *arp = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
             if (arp) fdb_insert(arp->spa, src_mac);
@@ -570,7 +673,27 @@ static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp
         }
     }
 
-    if (is_to_ap_mac && !is_bcast) { pbuf_free(q); return s_orig_input_ap(p, inp); }
+    if (is_to_ap_mac && !is_bcast) {
+        /* Clients see every host at the AP MAC (proxy ARP).  Relay to another AP-side
+           client, or bridge to the uplink next hop: lwIP would route it with TTL-1. */
+        ip_hdr_t *ip = (eth_type == ETHTYPE_IP) ? (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t)) : NULL;
+        const uint8_t *peer = ip ? fdb_lookup(ip->dst) : NULL;
+        if (peer) {
+            os_memcpy(eth->dst, peer, 6); os_memcpy(eth->src, s_ap_nif->hwaddr, 6);
+            if (s_orig_lo_ap(s_ap_nif, q) != ERR_OK) bridge_tx_err_ap++;
+            pbuf_free(q); pbuf_free(p); return ERR_OK;
+        }
+        arp_hdr_t *arp = (eth_type == ETHTYPE_ARP) ? (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t)) : NULL;
+        if (arp && ntohs(arp->op) == 1 && arp->tpa != s_ap_nif->ip_addr.addr) {
+            /* Unicast ARP probe (a client refreshing e.g. its gateway entry): lwIP does not
+               answer for a foreign IP and the client would mark it failed.  Ask by broadcast. */
+            os_memset(eth->dst, 0xff, 6);
+        } else {
+            const uint8_t *nh = ip ? upstream_mac(ip->dst) : NULL;
+            if (!nh) { pbuf_free(q); return s_orig_input_ap(p, inp); }
+            os_memcpy(eth->dst, nh, 6);
+        }
+    }
 
     bool handled = false;
     os_memcpy(eth->src, s_sta_nif->hwaddr, 6);
@@ -578,27 +701,34 @@ static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp
     if (eth_type == ETHTYPE_ARP) {
         arp_hdr_t *arp = (arp_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
         if (arp) {
-            fdb_insert(arp->spa, ((eth_hdr_t*)p->payload)->src);
+            fdb_insert(arp->spa, src_mac);
+            const uint8_t *peer = (ntohs(arp->op) == 1) ? fdb_lookup(arp->tpa) : NULL;
             if (ntohs(arp->op) == 1 && s_sta_nif->ip_addr.addr != 0 && arp->tpa == s_sta_nif->ip_addr.addr) {
                 send_proxy_arp_reply(s_ap_nif, s_orig_lo_ap, arp, s_sta_nif->ip_addr.addr); handled = true;
+            } else if (peer && os_memcmp(peer, src_mac, 6) != 0) {
+                /* Another AP-side client: answer with the AP MAC, its IP traffic is relayed above. */
+                send_proxy_arp_reply(s_ap_nif, s_orig_lo_ap, arp, arp->tpa); handled = true;
             } else {
-                os_memcpy(arp->sha, s_sta_nif->hwaddr, 6); s_orig_lo_sta(s_sta_nif, q); handled = true;
+                os_memcpy(arp->sha, s_sta_nif->hwaddr, 6);
+                if (s_orig_lo_sta(s_sta_nif, q) != ERR_OK) bridge_tx_err_sta++;
+                handled = true;
             }
         }
     } else if (eth_type == ETHTYPE_IP) {
         ip_hdr_t *ip = (ip_hdr_t *)pkt_at(q, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
         if (ip) {
-            fdb_insert(ip->src, ((eth_hdr_t*)p->payload)->src);
+            fdb_insert(ip->src, src_mac);
             if (ip->proto == 17) {
                 uint16_t udp_off = sizeof(eth_hdr_t) + (ip->vhl & 0x0f) * 4;
                 udp_hdr_t *udp = (udp_hdr_t *)pkt_at(q, udp_off, sizeof(udp_hdr_t));
                 if (udp && ntohs(udp->dst_port) == 67) snoop_dhcp_request(q, udp_off + sizeof(udp_hdr_t));
                 if (udp && ntohs(udp->dst_port) == 5353)
-                    handle_ap_mdns_query(q, udp_off, ((eth_hdr_t *)p->payload)->src);
+                    handle_ap_mdns_query(q, udp_off, src_mac);
             }
-            s_orig_lo_sta(s_sta_nif, q); handled = true;
+            if (s_orig_lo_sta(s_sta_nif, q) != ERR_OK) bridge_tx_err_sta++;
+            handled = true;
         }
-    } else { s_orig_lo_sta(s_sta_nif, q); handled = true; }
+    } else { if (s_orig_lo_sta(s_sta_nif, q) != ERR_OK) bridge_tx_err_sta++; handled = true; }
 
     pbuf_free(q);
     if (is_bcast) return s_orig_input_ap(p, inp);
@@ -609,8 +739,7 @@ static err_t ICACHE_FLASH_ATTR bridge_input_ap(struct pbuf *p, struct netif *inp
 
 static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *inp)
 {
-    struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
-
+    ap_watchdog_cnt = config.ap_watchdog;
     Bytes_in += p->tot_len;
     Packets_in++;
 #if DAILY_LIMIT
@@ -618,8 +747,14 @@ static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *in
 #endif
     if (config.status_led <= 16)
         easygpio_outputSet(config.status_led, 0);
-        
-    if (!q) return s_orig_input_sta(p, inp);
+
+    /* No AP clients: nothing to bridge, skip the copy and the airtime. */
+    if (wifi_softap_get_station_num() == 0) return s_orig_input_sta(p, inp);
+    /* Our own bridged broadcast echoed back by the uplink AP: never re-flood it. */
+    if (os_memcmp(((eth_hdr_t *)p->payload)->src, s_sta_nif->hwaddr, 6) == 0) { pbuf_free(p); return ERR_OK; }
+
+    struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);   /* forwarded copy, see bridge_input_ap */
+    if (!q) { bridge_alloc_fail++; return s_orig_input_sta(p, inp); }
     pbuf_copy(q, p);
 
     eth_hdr_t *eth = (eth_hdr_t *)q->payload;
@@ -640,10 +775,17 @@ static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *in
                 if (udp && ntohs(udp->src_port) == 67 && ntohs(udp->dst_port) == 68) have_dhcp = snoop_dhcp_reply(q, udp_off + sizeof(udp_hdr_t), ch);
             }
             const uint8_t *mac = NULL;
-            if (have_dhcp) mac = ch; else if (!is_bcast) { if (s_sta_nif->ip_addr.addr && ip->dst != s_sta_nif->ip_addr.addr) mac = fdb_lookup(ip->dst); }
+            uint32_t me = s_sta_nif->ip_addr.addr;
+            if (have_dhcp) mac = ch; else if (!is_bcast) { if (me && ip->dst != me) mac = fdb_lookup(ip->dst); }
             if (is_bcast || mac) {
                 if (mac) os_memcpy(eth->dst, mac, 6);
-                s_orig_lo_ap(s_ap_nif, q); handled = true;
+                if (s_orig_lo_ap(s_ap_nif, q) != ERR_OK) bridge_tx_err_ap++;
+                handled = true;
+            } else if (is_to_sta_mac && me && ip->dst != me && (ip->dst | s_sta_nif->netmask.addr) != 0xFFFFFFFFUL
+                       && (ntohl(ip->dst) >> 28) != 0xE) {
+                /* Unicast for an unknown client IP: lwIP would route it straight back upstream
+                   with TTL-1.  Drop it; the sender retries after our ARP sweep learns the client. */
+                handled = true;
             }
         }
     } else if (eth_type == ETHTYPE_ARP) {
@@ -658,99 +800,138 @@ static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *in
             if (!is_bcast) { if (s_sta_nif->ip_addr.addr && arp->tpa != s_sta_nif->ip_addr.addr) mac = fdb_lookup(arp->tpa); }
             if (is_bcast || mac) {
                 if (mac) { os_memcpy(eth->dst, mac, 6); os_memcpy(arp->tha, mac, 6); }
-                s_orig_lo_ap(s_ap_nif, q); handled = true;
+                if (s_orig_lo_ap(s_ap_nif, q) != ERR_OK) bridge_tx_err_ap++;
+                handled = true;
             }
         }
     }
-    
+
     pbuf_free(q);
 
     if (is_bcast || (is_to_sta_mac && !handled)) return s_orig_input_sta(p, inp);
     pbuf_free(p); return ERR_OK;
 }
-/*
-static err_t ICACHE_FLASH_ATTR bridge_input_sta(struct pbuf *p, struct netif *inp)
+
+/* -------------------------------------------------------------------------
+ * Active FDB learning (1 s maintenance timer)
+ *
+ * Idle clients never send anything we could learn from, so:
+ *  - refresh: entries close to expiry get a unicast ARP request; the reply is
+ *    learned by bridge_input_ap, no reply lets the entry expire.
+ *  - sweep: while more stations are associated than distinct MACs are known,
+ *    ARP the STA subnet on the AP side only, a few addresses per tick.
+ * ------------------------------------------------------------------------- */
+
+#define FDB_REFRESH_S         60
+#define FDB_REFRESH_EVERY     10    /* ticks */
+#define ARP_SWEEP_PER_TICK     8
+#define ARP_SWEEP_COOLDOWN_S 300
+
+static os_timer_t s_maint_timer;
+static uint32_t   s_sweep_next, s_sweep_end, s_sweep_allowed_at;   /* host order, next == 0: idle */
+
+int ICACHE_FLASH_ATTR bridge_fdb_clients(void)
 {
- //   struct pbuf *q = pbuf_alloc(PBUF_RAW, p->tot_len, PBUF_RAM);
- //   if (!q) return s_orig_input_sta(p, inp);
- //   pbuf_copy(q, p);
-
-    eth_hdr_t *eth = (eth_hdr_t *)p->payload;
-    if (os_memcmp(eth->src, s_ap_nif->hwaddr, 6) == 0) { return s_orig_input_sta(p, inp); }
-
-    uint16_t eth_type = ntohs(eth->type);
-    bool is_bcast = (eth->dst[0] & 0x01) != 0, is_to_sta_mac = (os_memcmp(eth->dst, s_sta_nif->hwaddr, 6) == 0);
-    bool handled = false;
-    os_memcpy(eth->src, s_ap_nif->hwaddr, 6);
-
-    if (eth_type == ETHTYPE_IP) {
-        ip_hdr_t *ip = (ip_hdr_t *)pkt_at(p, sizeof(eth_hdr_t), sizeof(ip_hdr_t));
-        if (ip) {
-            uint8_t ch[6]; bool have_dhcp = false;
-            if (ip->proto == 17) {
-                uint16_t udp_off = sizeof(eth_hdr_t) + (ip->vhl & 0x0f) * 4;
-                udp_hdr_t *udp = (udp_hdr_t *)pkt_at(p, udp_off, sizeof(udp_hdr_t));
-                if (udp && ntohs(udp->src_port) == 67 && ntohs(udp->dst_port) == 68) have_dhcp = snoop_dhcp_reply(p, udp_off + sizeof(udp_hdr_t), ch);
-            }
-            const uint8_t *mac = NULL;
-            if (have_dhcp) mac = ch; else if (!is_bcast) { if (s_sta_nif->ip_addr.addr && ip->dst != s_sta_nif->ip_addr.addr) mac = fdb_lookup(ip->dst); }
-            if (is_bcast || mac) {
-                if (mac) os_memcpy(eth->dst, mac, 6);
-                s_orig_lo_ap(s_ap_nif, p); handled = true;
-            }
-        }
-    } else if (eth_type == ETHTYPE_ARP) {
-        arp_hdr_t *arp = (arp_hdr_t *)pkt_at(p, sizeof(eth_hdr_t), sizeof(arp_hdr_t));
-        if (arp) {
-            if (ntohs(arp->op) == 1 && fdb_lookup(arp->tpa)) {
-                send_proxy_arp_reply(s_sta_nif, s_orig_lo_sta, arp, arp->tpa);
-                handled = true; pbuf_free(p); return ERR_OK;
-            }
-            os_memcpy(arp->sha, s_ap_nif->hwaddr, 6);
-            const uint8_t *mac = NULL;
-            if (!is_bcast) { if (s_sta_nif->ip_addr.addr && arp->tpa != s_sta_nif->ip_addr.addr) mac = fdb_lookup(arp->tpa); }
-            if (is_bcast || mac) {
-                if (mac) { os_memcpy(eth->dst, mac, 6); os_memcpy(arp->tha, mac, 6); }
-                s_orig_lo_ap(s_ap_nif, p); handled = true;
-            }
-        }
+    uint32_t now = now_secs();
+    int i, j, n = 0;
+    for (i = 0; i < FDB_SIZE; i++) {
+        if (s_fdb[i].ip == 0 || s_fdb[i].expires_s <= now) continue;
+        for (j = 0; j < i; j++)
+            if (s_fdb[j].ip != 0 && s_fdb[j].expires_s > now && os_memcmp(s_fdb[j].mac, s_fdb[i].mac, 6) == 0) break;
+        if (j == i) n++;
     }
-    
-    if (is_bcast || (is_to_sta_mac && !handled)) return s_orig_input_sta(p, inp);
-    pbuf_free(p); return ERR_OK;
+    return n;
 }
-*/
+
+/* Associated stations whose MAC has no live FDB entry; counting alone lets a
+   stale entry of a departed client hide a new silent one. */
+static int ICACHE_FLASH_ATTR unknown_stations(uint32_t now)
+{
+    int i, j, n = 0;
+    for (j = 0; j < s_sta_cnt; j++) {
+        for (i = 0; i < FDB_SIZE; i++)
+            if (s_fdb[i].ip != 0 && s_fdb[i].expires_s > now && os_memcmp(s_fdb[i].mac, s_stas[j], 6) == 0) break;
+        if (i == FDB_SIZE) n++;
+    }
+    return n;
+}
+
+static void ICACHE_FLASH_ATTR bridge_maint(void *arg)
+{
+    static uint8_t tick;
+    int i;
+
+    uint32_t now = now_secs();
+    uint32_t my_ip = s_sta_nif->ip_addr.addr;
+    if (my_ip == 0 || os_strcmp(config.ssid, WIFI_SSID) == 0) return;
+
+    if (++tick >= FDB_REFRESH_EVERY) {
+        tick = 0;
+        for (i = 0; i < FDB_SIZE; i++)
+            if (s_fdb[i].ip != 0 && s_fdb[i].expires_s > now && s_fdb[i].expires_s - now <= FDB_REFRESH_S)
+                send_ap_arp_request(s_fdb[i].mac, s_fdb[i].ip);
+        /* Keep the gateway resolved so client traffic is bridged (not routed) by upstream_mac(). */
+        ip_addr_t gw = s_sta_nif->gw; struct eth_addr *ea; ip_addr_t *ia;
+        if (gw.addr != 0 && etharp_find_addr(s_sta_nif, &gw, &ea, &ia) < 0) etharp_query(s_sta_nif, &gw, NULL);
+    }
+
+    int unknown = unknown_stations(now);
+    if (s_sweep_next == 0 && unknown > 0 && now >= s_sweep_allowed_at) {
+        uint32_t ip = ntohl(my_ip), mask = ntohl(s_sta_nif->netmask.addr);
+        /* shortcut: subnets wider than /24 are swept only in the /24 around our IP, extend if clients live elsewhere */
+        if (mask < 0xFFFFFF00UL) mask = 0xFFFFFF00UL;
+        s_sweep_next = (ip & mask) + 1;
+        s_sweep_end  = ip | ~mask;          /* exclusive: the broadcast address */
+        s_sweep_allowed_at = now + ARP_SWEEP_COOLDOWN_S;
+    }
+    if (s_sweep_next != 0) {
+        for (i = 0; i < ARP_SWEEP_PER_TICK && s_sweep_next < s_sweep_end; i++, s_sweep_next++)
+            if (htonl(s_sweep_next) != my_ip) send_ap_arp_request(NULL, htonl(s_sweep_next));
+        if (s_sweep_next >= s_sweep_end || unknown <= 0) s_sweep_next = 0;
+    }
+}
+
 void ICACHE_FLASH_ATTR bridge_init(struct netif *sta_nif, struct netif *ap_nif)
 {
     s_sta_nif = sta_nif; s_ap_nif = ap_nif;
-    s_orig_input_sta = sta_nif->input; sta_nif->input = bridge_input_sta;
-    s_orig_input_ap = ap_nif->input; ap_nif->input = bridge_input_ap;
-    s_orig_output_sta = sta_nif->output; sta_nif->output = bridge_output_sta;
-    s_orig_output_ap = ap_nif->output; ap_nif->output = bridge_output_ap;
+    /* GOT_IP fires on every reconnect: hooking twice would save our own hook as
+       the original and recurse forever. */
+    if (sta_nif->input != bridge_input_sta) {
+        s_orig_input_sta = sta_nif->input; sta_nif->input = bridge_input_sta;
+        s_orig_output_sta = sta_nif->output; sta_nif->output = bridge_output_sta;
+    }
+    if (ap_nif->input != bridge_input_ap) {
+        s_orig_input_ap = ap_nif->input; ap_nif->input = bridge_input_ap;
+        s_orig_output_ap = ap_nif->output; ap_nif->output = bridge_output_ap;
+    }
     s_orig_lo_sta = sta_nif->linkoutput; s_orig_lo_ap = ap_nif->linkoutput;
     netif_set_default(sta_nif); sta_nif->napt = 0; ap_nif->napt = 0;
     os_memset(s_fdb, 0, sizeof(s_fdb)); os_memset(s_xid_map, 0, sizeof(s_xid_map));
+    s_sweep_next = 0; s_sweep_allowed_at = 0;
     struct softap_config ap_cfg; wifi_softap_get_config(&ap_cfg); ap_cfg.channel = my_channel; wifi_softap_set_config(&ap_cfg);
     wifi_set_sleep_type(NONE_SLEEP_T);
+    os_timer_disarm(&s_maint_timer);
+    os_timer_setfn(&s_maint_timer, bridge_maint, NULL);
+    os_timer_arm(&s_maint_timer, 1000, 1);
     os_printf("bridge: init done\n");
 }
 
+/* Goes through console_tx_buffer, so it reaches serial and telnet alike. */
 void ICACHE_FLASH_ATTR bridge_show_fdb(void)
 {
     uint32_t now = now_secs();
-    os_printf("Repeater FDB (IP -> Client MAC):\n");
+    char line[80];
     int i, count = 0;
+    to_console("Repeater FDB (IP -> Client MAC):\r\n");
     for (i = 0; i < FDB_SIZE; i++) {
         if (s_fdb[i].ip != 0 && s_fdb[i].expires_s > now) {
-            os_printf("  " IPSTR " -> %02x:%02x:%02x:%02x:%02x:%02x (expires in %d s)\n",
-                      IP2STR(&s_fdb[i].ip),
-                      s_fdb[i].mac[0], s_fdb[i].mac[1], s_fdb[i].mac[2],
-                      s_fdb[i].mac[3], s_fdb[i].mac[4], s_fdb[i].mac[5],
-                      (int)(s_fdb[i].expires_s - now));
+            os_sprintf(line, "  " IPSTR " -> " MACSTR " (expires in %d s)\r\n",
+                       IP2STR(&s_fdb[i].ip), MAC2STR(s_fdb[i].mac), (int)(s_fdb[i].expires_s - now));
+            to_console(line);
             count++;
         }
     }
-    if (count == 0) os_printf("  (empty)\n");
+    if (count == 0) to_console("  (empty)\r\n");
 }
 
 #endif /* REPEATER_MODE */

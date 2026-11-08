@@ -74,6 +74,7 @@
     } while (0)
 
 uint32_t Vdd;
+uint32_t min_free_heap = 0xFFFFFFFF; /* sampled once per second by timer_func */
 
 /* System Task, for signals refer to user_config.h */
 #define user_procTaskPrio 0
@@ -1186,7 +1187,11 @@ void ICACHE_FLASH_ATTR console_handle_command(struct espconn *pespconn)
         );
         to_console(response);
 
+#ifndef REPEATER_MODE
         os_sprintf_flash(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open|nat] <val>\r\n");
+#else
+        os_sprintf_flash(response, "set [ssid|password|auto_connect|ap_ssid|ap_password|ap_on|ap_open] <val>\r\nset [ip|netmask|gw|dns] <val>\r\n");
+#endif
         to_console(response);
 #if WPA2_PEAP
         os_sprintf_flash(response, "set [use_peap|peap_identity|peap_username|peap_password] <val>\r\n");
@@ -3438,6 +3443,51 @@ char *strstr(char *string, char *needle);
 char *strtok(char *str, const char *delimiters);
 char *strtok_r(char *s, const char *delim, char **last);
 
+static void ICACHE_FLASH_ATTR web_send_page(struct espconn *pespconn);
+
+/* Read-only status for monitoring (e.g. Home Assistant REST sensor). No secrets in here. */
+static void ICACHE_FLASH_ATTR web_send_stats_json(struct espconn *pespconn)
+{
+    char *buf = (char *)os_malloc(768);
+    if (buf == NULL)
+    {
+        espconn_disconnect(pespconn);
+        return;
+    }
+
+    struct netif *sta_nf = (struct netif *)eagle_lwip_getif(0);
+    uint32_t sta_ip = sta_nf ? sta_nf->ip_addr.addr : 0;
+    sint8 rssi = wifi_station_get_rssi();
+    char rssi_str[8], bssid_str[20];
+    if (connected && rssi < 31) /* 31 is the SDK's error value */
+        os_sprintf(rssi_str, "%d", rssi);
+    else
+        os_strcpy(rssi_str, "null");
+    mac_2_buff(bssid_str, uplink_bssid);
+
+    os_sprintf(buf, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\nCache-Control: no-cache\r\n\r\n"
+                    "{\"version\":\"%s\",\"uptime_s\":%u,\"reset_reason\":%d,\"free_heap\":%u,\"vdd_mv\":%u,"
+                    "\"connected\":%s,\"rssi\":%s,\"bssid\":\"%s\",\"channel\":%d,\"sta_ip\":\"" IPSTR "\","
+                    "\"clients\":%d,\"kib_in\":%u,\"kib_out\":%u,\"packets_in\":%u,\"packets_out\":%u,"
+                    "\"min_free_heap\":%u"
+#ifdef REPEATER_MODE
+                    ",\"fdb_clients\":%d,\"tx_err_sta\":%u,\"tx_err_ap\":%u,\"alloc_fail\":%u"
+#endif
+                    "}\n",
+               ESP_REPEATER_VERSION, (uint32_t)(get_long_systime() / 1000000), system_get_rst_info()->reason,
+               system_get_free_heap_size(), Vdd,
+               connected ? "true" : "false", rssi_str, bssid_str, wifi_get_channel(), IP2STR(&sta_ip),
+               wifi_softap_get_station_num(),
+               (uint32_t)(Bytes_in / 1024), (uint32_t)(Bytes_out / 1024), Packets_in, Packets_out,
+               min_free_heap
+#ifdef REPEATER_MODE
+               , bridge_fdb_clients(), bridge_tx_err_sta, bridge_tx_err_ap, bridge_alloc_fail
+#endif
+    );
+    espconn_send(pespconn, buf, os_strlen(buf));
+    os_free(buf);
+}
+
 static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
                                                         char *data,
                                                         unsigned short length)
@@ -3447,6 +3497,13 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
     bool do_reset = false;
     char *token[1];
     char *str;
+
+    if (length >= 15 && os_strncmp(data, "GET /stats.json", 15) == 0)
+    {
+        web_send_stats_json(pespconn);
+        return;
+    }
+    web_send_page(pespconn);
 
     str = strstr(data, " /?");
     if (str != NULL)
@@ -3581,7 +3638,11 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
+    /* The response is sent from web_config_client_recv_cb, once the request path is known. */
+}
 
+static void ICACHE_FLASH_ATTR web_send_page(struct espconn *pespconn)
+{
     if (!config.locked)
     {
         static const uint8_t config_page_str[] ICACHE_RODATA_ATTR STORE_ATTR = CONFIG_PAGE;
@@ -3708,6 +3769,9 @@ void ICACHE_FLASH_ATTR timer_func(void *arg)
 
         Vcurr = (system_get_vdd33() * 1000) / 1024;
         Vdd = (Vdd * 3 + Vcurr) / 4;
+        uint32_t heap = system_get_free_heap_size();
+        if (heap < min_free_heap)
+            min_free_heap = heap;
 #if ALLOW_SLEEP
         if (config.Vmin != 0 && Vdd < config.Vmin)
         {
@@ -4087,6 +4151,8 @@ void wifi_handle_event_cb(System_Event_t *evt)
         ip_addr_t ap_ip = config.network_addr;
         ip4_addr4(&ap_ip) = 1;
         patch_netif(ap_ip, my_input_ap, &orig_input_ap, my_output_ap, &orig_output_ap, config.nat_enable);
+#else
+        bridge_station_join(evt->event_info.sta_connected.mac);
 #endif
         break;
 
@@ -4095,6 +4161,9 @@ void wifi_handle_event_cb(System_Event_t *evt)
         os_printf("station: %s leave, AID = %d\r\n", mac_str, evt->event_info.sta_disconnected.aid);
 #if MQTT_CLIENT
         mqtt_publish_str(MQTT_TOPIC_LEAVE, "leave", mac_str);
+#endif
+#ifdef REPEATER_MODE
+        bridge_station_leave(evt->event_info.sta_disconnected.mac);
 #endif
         break;
 
