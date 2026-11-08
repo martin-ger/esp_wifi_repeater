@@ -3493,6 +3493,12 @@ static void ICACHE_FLASH_ATTR web_config_client_recv_cb(void *arg,
     char *token[1];
     char *str;
 
+    /* recv can fire several times per connection (request split over TCP segments).
+       Answer and parse only the first chunk, which holds the request line. */
+    if (pespconn->reverse != NULL)
+        return;
+    pespconn->reverse = (void *)1;
+
     if (length >= 15 && os_strncmp(data, "GET /stats.json", 15) == 0)
     {
         web_send_stats_json(pespconn);
@@ -3633,7 +3639,9 @@ static void ICACHE_FLASH_ATTR web_config_client_connected_cb(void *arg)
 
     ringbuf_reset(console_rx_buffer);
     ringbuf_reset(console_tx_buffer);
-    /* The response is sent from web_config_client_recv_cb, once the request path is known. */
+    /* The response is sent from web_config_client_recv_cb, once the request path is known.
+       reverse marks the connection as answered. */
+    pespconn->reverse = NULL;
 }
 
 static void ICACHE_FLASH_ATTR web_send_page(struct espconn *pespconn)
